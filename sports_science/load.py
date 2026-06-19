@@ -2,6 +2,7 @@
 from .types import ToolResult
 
 CTL_RAMP_CEILING_PER_WEEK: float = 8.0  # max CTL points per week (standard safe ramp)
+BACK_CONSTRAINT_MIN_INCREASE: float = 2.0  # floor: even back-constrained beginners can start
 
 
 def progress_load(
@@ -21,8 +22,9 @@ def progress_load(
 
     if back_constraints_applied:
         ramp_threshold = constraints.get("load_ramp_flag_threshold_pct", 10) / 100
-        # Back-protective cap: ramp_threshold% of current CTL (D-09)
-        back_cap = current_ctl * ramp_threshold
+        # Back-protective cap: ramp_threshold% of current CTL with a minimum floor (D-09).
+        # max() floor prevents new users (current_ctl=0) from being permanently stalled at 0.
+        back_cap = max(current_ctl * ramp_threshold, BACK_CONSTRAINT_MIN_INCREASE)
         max_ctl_increase = min(max_ctl_increase, back_cap)
 
     recommended_ctl = min(current_ctl + max_ctl_increase, target_ctl)
