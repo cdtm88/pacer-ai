@@ -13,7 +13,7 @@ PacerAI builds trust outward from a single anchor: a deterministic, unit-tested 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Sports-Science Foundation** - Tool library, DB schema, and Supabase setup — the trust anchor everything else depends on
+- [x] **Phase 1: Sports-Science Foundation** - Tool library, DB schema, and Supabase setup — the trust anchor everything else depends on (completed 2026-06-19)
 - [ ] **Phase 2: Agent Core** - Agent loop, tool registry, SSE streaming, and trust-model enforcement proven end-to-end
 - [ ] **Phase 3: Coaching Loop** - FIT ingestion, plan generation, onboarding interview, and adaptive re-planning
 - [ ] **Phase 4: UI and Calendar** - React PWA, all screens, Google Calendar integration, Vercel deployment
@@ -34,7 +34,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. The `log_capability_gap` function appends a structured entry to the `capability_gaps` table and returns a user-facing fallback message; it is registered as an Anthropic tool schema in TRUST-02 and only the tool registry maps sports_science functions to tool schemas
   5. The 8-table Supabase schema (users, profiles, sessions, rides, pmc_history, conversations, messages, capability_gaps) is migrated and accessible
 
-**Plans**: 4/5 plans executed
+**Plans**: 5/5 plans complete
 **Wave 1**
 
 - [x] 01-01-PLAN.md — Wave 0: test infra, deps, venv, Supabase CLI, ToolResult contract + constants
@@ -44,7 +44,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01-05-PLAN.md — Wave 2: Supabase schema + db push, log_capability_gap, package exports (TOOL-08, GAP-01/02/03, TRUST-02)
+- [x] 01-05-PLAN.md — Wave 2: Supabase schema + db push, log_capability_gap, package exports (TOOL-08, GAP-01/02/03, TRUST-02)
 
 ### Phase 2: Agent Core
 
@@ -112,7 +112,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Sports-Science Foundation | 4/5 | In Progress|  |
+| 1. Sports-Science Foundation | 5/5 | Complete   | 2026-06-19 |
 | 2. Agent Core | 0/0 | Not started | - |
 | 3. Coaching Loop | 0/0 | Not started | - |
 | 4. UI and Calendar | 0/0 | Not started | - |

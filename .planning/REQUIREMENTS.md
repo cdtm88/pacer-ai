@@ -14,14 +14,14 @@
 - [x] **TOOL-05**: `update_pmc(tss_history)` returns CTL (fitness), ATL (fatigue), and TSB (form) using Banister/PMC EWMA model; cold-start guard: does not emit TSB values until 28+ days of data
 - [x] **TOOL-06**: `progress_load(current_ctl, target, constraints)` returns safe weekly ramp targets with injury-aware caps
 - [x] **TOOL-07**: `validate_session_vs_actual(planned, actual)` returns compliance percentage, deltas, and flags
-- [ ] **TOOL-08**: `log_capability_gap(method_name, context)` logs a structured entry to the application capability-gap log and returns a user-facing fallback message; this is itself an Anthropic tool in the agent registry
+- [x] **TOOL-08**: `log_capability_gap(method_name, context)` logs a structured entry to the application capability-gap log and returns a user-facing fallback message; this is itself an Anthropic tool in the agent registry
 - [x] **TOOL-09**: All tool-library functions return a structured result containing value, unit, methodology name, and inputs used
 - [x] **TOOL-10**: Full unit test suite covering all tool-library functions, including edge cases (sparse data, zeros, spikes, cold-start, back-protective constraints)
 
 ### Trust Model Enforcement
 
 - [x] **TRUST-01**: The `sports_science/` module has zero Anthropic SDK imports; no path exists for the LLM to call physiological logic except through the tool registry
-- [ ] **TRUST-02**: The agent tool registry maps only registered sports_science functions to Anthropic tool schemas; ad-hoc tool definitions are not permitted
+- [x] **TRUST-02**: The agent tool registry maps only registered sports_science functions to Anthropic tool schemas; ad-hoc tool definitions are not permitted
 - [ ] **TRUST-03**: Every assistant response is parsed before display; any response containing an unsourced physiological number (watts, zones, TSS, FTP, CTL/ATL/TSB values) triggers a retry and capability-gap log entry
 - [ ] **TRUST-04**: Every physiological number in any plan or chat message is traceable to a tool-library call verifiable in application logs
 - [ ] **TRUST-05**: When the agent needs a quantitative method the tool library lacks, it calls `log_capability_gap`, surfaces a brief chat note, and falls back to qualitative reasoning; it never improvises a number
@@ -110,9 +110,9 @@
 
 ### Capability-Gap Logging
 
-- [ ] **GAP-01**: When the agent needs a quantitative method the tool library lacks, a structured entry is appended to the `capability_gaps` table with: method name, description of what was needed, timestamp, and conversation context
-- [ ] **GAP-02**: The capability-gap log is an application runtime artefact; it never expands what the agent can compute at runtime
-- [ ] **GAP-03**: Capability gaps surfaced in chat are brief and user-friendly; they do not expose internal method names
+- [x] **GAP-01**: When the agent needs a quantitative method the tool library lacks, a structured entry is appended to the `capability_gaps` table with: method name, description of what was needed, timestamp, and conversation context
+- [x] **GAP-02**: The capability-gap log is an application runtime artefact; it never expands what the agent can compute at runtime
+- [x] **GAP-03**: Capability gaps surfaced in chat are brief and user-friendly; they do not expose internal method names
 
 ## v2 Requirements
 
@@ -157,11 +157,11 @@
 | TOOL-05 | Phase 1 | Complete |
 | TOOL-06 | Phase 1 | Complete |
 | TOOL-07 | Phase 1 | Complete |
-| TOOL-08 | Phase 1 | Pending |
+| TOOL-08 | Phase 1 | Complete |
 | TOOL-09 | Phase 1 | Complete |
 | TOOL-10 | Phase 1 | Complete |
 | TRUST-01 | Phase 1 | Complete |
-| TRUST-02 | Phase 1 | Pending |
+| TRUST-02 | Phase 1 | Complete |
 | TRUST-03 | Phase 2 | Pending |
 | TRUST-04 | Phase 2 | Pending |
 | TRUST-05 | Phase 2 | Pending |
@@ -195,9 +195,9 @@
 | TRANSP-01 | Phase 3 | Pending |
 | TRANSP-02 | Phase 3 | Pending |
 | TRANSP-03 | Phase 3 | Pending |
-| GAP-01 | Phase 1 | Pending |
-| GAP-02 | Phase 1 | Pending |
-| GAP-03 | Phase 1 | Pending |
+| GAP-01 | Phase 1 | Complete |
+| GAP-02 | Phase 1 | Complete |
+| GAP-03 | Phase 1 | Complete |
 | CAL-01 | Phase 4 | Pending |
 | CAL-02 | Phase 4 | Pending |
 | CAL-03 | Phase 4 | Pending |
