@@ -91,11 +91,14 @@ blocked: 0
 ## Gaps
 
 - truth: "Running `pytest tests/ -v` from a fresh clone works without manual venv activation"
-  status: failed
+  status: resolved
   reason: "User reported: system Python 3.13 used — pydantic not found, 7 collection errors. No Makefile or activation instructions present."
   severity: major
   test: 1
-  root_cause: ""
-  artifacts: []
+  root_cause: "No Makefile — bare `pytest` resolved to system Python 3.13 instead of .venv"
+  artifacts:
+    - path: "Makefile"
+      issue: "missing — added with install/test/lint/fmt/check targets"
   missing: []
   debug_session: ""
+  fix_commit: "2c86aae"
