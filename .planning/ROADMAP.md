@@ -30,7 +30,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. The `sports_science/` module has zero Anthropic SDK imports; no import path connects it to the agent layer
   4. The `log_capability_gap` function appends a structured entry to the `capability_gaps` table and returns a user-facing fallback message; it is registered as an Anthropic tool schema in TRUST-02 and only the tool registry maps sports_science functions to tool schemas
   5. The 8-table Supabase schema (users, profiles, sessions, rides, pmc_history, conversations, messages, capability_gaps) is migrated and accessible
-**Plans**: TBD
+**Plans**: 5 plans
+- [ ] 01-01-PLAN.md — Wave 0: test infra, deps, venv, Supabase CLI, ToolResult contract + constants
+- [ ] 01-02-PLAN.md — Wave 1: power and HR zones (TOOL-01, TOOL-02)
+- [ ] 01-03-PLAN.md — Wave 1: TSS/NP/IF metrics and Banister PMC (TOOL-04, TOOL-05)
+- [ ] 01-04-PLAN.md — Wave 1: FTP CP model, load progression, compliance (TOOL-03, TOOL-06, TOOL-07)
+- [ ] 01-05-PLAN.md — Wave 2: Supabase schema + db push, log_capability_gap, package exports (TOOL-08, GAP-01/02/03, TRUST-02)
 
 ### Phase 2: Agent Core
 **Goal**: The agent loop completes multi-turn conversations, dispatches tool calls in parallel, and provably never emits an unsourced physiological number
@@ -86,7 +91,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Sports-Science Foundation | 0/0 | Not started | - |
+| 1. Sports-Science Foundation | 0/5 | Planned | - |
 | 2. Agent Core | 0/0 | Not started | - |
 | 3. Coaching Loop | 0/0 | Not started | - |
 | 4. UI and Calendar | 0/0 | Not started | - |
