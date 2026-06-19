@@ -53,7 +53,8 @@ CREATE TABLE public.sessions (
     structure       jsonb,
     targets         jsonb,
     duration_mins   int,
-    status          text NOT NULL DEFAULT 'planned',
+    status          text NOT NULL DEFAULT 'planned'
+                        CHECK (status IN ('planned', 'completed', 'skipped', 'partial')),
     scheduled_date  date,
     created_at      timestamptz DEFAULT now() NOT NULL
 );
@@ -93,7 +94,8 @@ CREATE TABLE public.pmc_history (
     atl                 numeric NOT NULL,
     tsb                 numeric NOT NULL,
     tss_display_ready   boolean NOT NULL DEFAULT false,
-    created_at          timestamptz DEFAULT now() NOT NULL
+    created_at          timestamptz DEFAULT now() NOT NULL,
+    CONSTRAINT pmc_history_user_date_unique UNIQUE (user_id, date)
 );
 
 ALTER TABLE public.pmc_history ENABLE ROW LEVEL SECURITY;
@@ -122,7 +124,7 @@ CREATE TABLE public.messages (
     id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     conversation_id uuid NOT NULL REFERENCES public.conversations ON DELETE CASCADE,
     user_id         uuid NOT NULL REFERENCES public.users ON DELETE CASCADE,
-    role            text NOT NULL,  -- 'user' | 'assistant'
+    role            text NOT NULL CHECK (role IN ('user', 'assistant', 'tool')),  -- 'user' | 'assistant' | 'tool'
     content         text NOT NULL,
     created_at      timestamptz DEFAULT now() NOT NULL
 );
@@ -130,7 +132,15 @@ CREATE TABLE public.messages (
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "messages: own row" ON public.messages
-    USING (user_id = auth.uid());
+    USING (user_id = auth.uid())
+    WITH CHECK (
+        user_id = auth.uid()
+        AND EXISTS (
+            SELECT 1 FROM public.conversations c
+            WHERE c.id = conversation_id
+              AND c.user_id = auth.uid()
+        )
+    );
 
 -- ============================================================
 -- 8. capability_gaps
