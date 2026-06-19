@@ -9,14 +9,14 @@
 
 - [x] **TOOL-01**: `calculate_power_zones(ftp)` returns 7 Coggan/Allen power zones with boundary values, zone names, and methodology string
 - [x] **TOOL-02**: `calculate_hr_zones(max_hr_or_lthr)` returns HR zones with boundary values and methodology string
-- [ ] **TOOL-03**: `estimate_ftp_from_rides(rides)` returns FTP estimate, confidence level (low/medium/high), and methodology string; requires minimum 4 quality efforts before emitting any estimate
-- [ ] **TOOL-04**: `compute_tss(ride)` returns TSS, IF, and NP for a ride; NP calculation includes zeros, applies spike filter (clip power > FTP*3), uses NP not average power; returns null for rides under 10 minutes
-- [ ] **TOOL-05**: `update_pmc(tss_history)` returns CTL (fitness), ATL (fatigue), and TSB (form) using Banister/PMC EWMA model; cold-start guard: does not emit TSB values until 28+ days of data
-- [ ] **TOOL-06**: `progress_load(current_ctl, target, constraints)` returns safe weekly ramp targets with injury-aware caps
-- [ ] **TOOL-07**: `validate_session_vs_actual(planned, actual)` returns compliance percentage, deltas, and flags
+- [x] **TOOL-03**: `estimate_ftp_from_rides(rides)` returns FTP estimate, confidence level (low/medium/high), and methodology string; requires minimum 4 quality efforts before emitting any estimate
+- [x] **TOOL-04**: `compute_tss(ride)` returns TSS, IF, and NP for a ride; NP calculation includes zeros, applies spike filter (clip power > FTP*3), uses NP not average power; returns null for rides under 10 minutes
+- [x] **TOOL-05**: `update_pmc(tss_history)` returns CTL (fitness), ATL (fatigue), and TSB (form) using Banister/PMC EWMA model; cold-start guard: does not emit TSB values until 28+ days of data
+- [x] **TOOL-06**: `progress_load(current_ctl, target, constraints)` returns safe weekly ramp targets with injury-aware caps
+- [x] **TOOL-07**: `validate_session_vs_actual(planned, actual)` returns compliance percentage, deltas, and flags
 - [ ] **TOOL-08**: `log_capability_gap(method_name, context)` logs a structured entry to the application capability-gap log and returns a user-facing fallback message; this is itself an Anthropic tool in the agent registry
 - [x] **TOOL-09**: All tool-library functions return a structured result containing value, unit, methodology name, and inputs used
-- [ ] **TOOL-10**: Full unit test suite covering all tool-library functions, including edge cases (sparse data, zeros, spikes, cold-start, back-protective constraints)
+- [x] **TOOL-10**: Full unit test suite covering all tool-library functions, including edge cases (sparse data, zeros, spikes, cold-start, back-protective constraints)
 
 ### Trust Model Enforcement
 
@@ -152,14 +152,14 @@
 |-------------|-------|--------|
 | TOOL-01 | Phase 1 | Complete |
 | TOOL-02 | Phase 1 | Complete |
-| TOOL-03 | Phase 1 | Pending |
-| TOOL-04 | Phase 1 | Pending |
-| TOOL-05 | Phase 1 | Pending |
-| TOOL-06 | Phase 1 | Pending |
-| TOOL-07 | Phase 1 | Pending |
+| TOOL-03 | Phase 1 | Complete |
+| TOOL-04 | Phase 1 | Complete |
+| TOOL-05 | Phase 1 | Complete |
+| TOOL-06 | Phase 1 | Complete |
+| TOOL-07 | Phase 1 | Complete |
 | TOOL-08 | Phase 1 | Pending |
 | TOOL-09 | Phase 1 | Complete |
-| TOOL-10 | Phase 1 | Pending |
+| TOOL-10 | Phase 1 | Complete |
 | TRUST-01 | Phase 1 | Complete |
 | TRUST-02 | Phase 1 | Pending |
 | TRUST-03 | Phase 2 | Pending |
