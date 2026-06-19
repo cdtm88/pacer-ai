@@ -15,7 +15,7 @@
 - [ ] **TOOL-06**: `progress_load(current_ctl, target, constraints)` returns safe weekly ramp targets with injury-aware caps
 - [ ] **TOOL-07**: `validate_session_vs_actual(planned, actual)` returns compliance percentage, deltas, and flags
 - [ ] **TOOL-08**: `log_capability_gap(method_name, context)` logs a structured entry to the application capability-gap log and returns a user-facing fallback message; this is itself an Anthropic tool in the agent registry
-- [ ] **TOOL-09**: All tool-library functions return a structured result containing value, unit, methodology name, and inputs used
+- [x] **TOOL-09**: All tool-library functions return a structured result containing value, unit, methodology name, and inputs used
 - [ ] **TOOL-10**: Full unit test suite covering all tool-library functions, including edge cases (sparse data, zeros, spikes, cold-start, back-protective constraints)
 
 ### Trust Model Enforcement
@@ -158,7 +158,7 @@
 | TOOL-06 | Phase 1 | Pending |
 | TOOL-07 | Phase 1 | Pending |
 | TOOL-08 | Phase 1 | Pending |
-| TOOL-09 | Phase 1 | Pending |
+| TOOL-09 | Phase 1 | Complete |
 | TOOL-10 | Phase 1 | Pending |
 | TRUST-01 | Phase 1 | Pending |
 | TRUST-02 | Phase 1 | Pending |
@@ -222,6 +222,7 @@
 | IOS-03 | Phase 5 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 63 total
 - Mapped to phases: 63
 - Unmapped: 0 ✓
