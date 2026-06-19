@@ -16,10 +16,14 @@ from .types import ToolResult
 
 def _get_supabase() -> Client:
     """Return a Supabase client using the service-role key (bypasses RLS for backend writes)."""
-    url = os.environ["SUPABASE_URL"]
+    url = os.environ.get("SUPABASE_URL")
     # Service-role key is required for backend inserts that bypass RLS (Pitfall 6).
     # NEVER expose this key to any frontend or client-side code.
-    key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not url or not key:
+        raise EnvironmentError(
+            "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set"
+        )
     return create_client(url, key)
 
 
@@ -43,13 +47,16 @@ def log_capability_gap(
         contain method_name (GAP-03). This function never computes a physiological
         number — it only logs and returns a fallback (GAP-02).
     """
-    supabase = _get_supabase()
-    supabase.table("capability_gaps").insert({
-        "user_id": user_id,
-        "method_name": method_name,
-        "description": f"Missing tool: {method_name}",
-        "context": context,
-    }).execute()
+    try:
+        supabase = _get_supabase()
+        supabase.table("capability_gaps").insert({
+            "user_id": user_id,
+            "method_name": method_name,
+            "description": f"Missing tool: {method_name}",
+            "context": context,
+        }).execute()
+    except Exception:
+        pass  # gap logging is best-effort; never block the fallback response
 
     # GAP-03: generic user-facing message; method_name goes to DB only.
     # This message is intentionally vague — it must not expose internal function names.
