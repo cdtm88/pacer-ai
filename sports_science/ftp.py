@@ -38,7 +38,7 @@ def estimate_ftp_from_rides(rides: list[dict]) -> ToolResult:
     Confidence levels (D-03):
       insufficient_data: < 4 quality efforts
       low:  4-6 efforts
-      medium: 7-12 efforts
+      medium: 7-11 efforts
       high: 12+ efforts
     """
     # Extract all efforts from rides list (each ride IS an effort dict)
@@ -61,14 +61,26 @@ def estimate_ftp_from_rides(rides: list[dict]) -> ToolResult:
     durations = np.array([e["duration_secs"] for e in quality_efforts], dtype=float)
     mean_powers = np.array([e["mean_power_watts"] for e in quality_efforts], dtype=float)
 
-    popt, _ = curve_fit(
-        _cp_model,
-        durations,
-        mean_powers,
-        p0=[200.0, 20000.0],                         # initial guess: CP=200W, W'=20kJ
-        bounds=([50.0, 1000.0], [500.0, 100000.0]),  # physiological bounds (Assumption A4)
-        maxfev=5000,
-    )
+    try:
+        popt, _ = curve_fit(
+            _cp_model,
+            durations,
+            mean_powers,
+            p0=[200.0, 20000.0],                         # initial guess: CP=200W, W'=20kJ
+            bounds=([50.0, 1000.0], [500.0, 100000.0]),  # physiological bounds (Assumption A4)
+            maxfev=5000,
+        )
+    except (RuntimeError, ValueError):
+        return ToolResult(
+            value=None,
+            unit="watts",
+            methodology="2-parameter Critical Power model (Morton 1996) -- convergence failed",
+            inputs={
+                "quality_efforts": len(quality_efforts),
+                "required": MIN_QUALITY_EFFORTS,
+                "confidence": "insufficient_data",
+            },
+        )
     cp, wprime = popt
 
     # FTP is approximately equal to CP for the CP2 model
