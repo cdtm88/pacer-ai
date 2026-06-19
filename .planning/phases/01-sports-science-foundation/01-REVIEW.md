@@ -1,8 +1,15 @@
 ---
-phase: 01-sports-science-foundation
-reviewed: 2026-06-19T00:00:00Z
+status: issues_found
+phase: "01"
+phase_name: "sports-science-foundation"
+files_reviewed: 23
 depth: standard
-files_reviewed: 20
+reviewed_at: "2026-06-19"
+findings:
+  critical: 4
+  warning: 7
+  info: 5
+  total: 16
 files_reviewed_list:
   - sports_science/__init__.py
   - sports_science/capability_gap.py
@@ -14,7 +21,10 @@ files_reviewed_list:
   - sports_science/pmc.py
   - sports_science/types.py
   - sports_science/zones.py
+  - supabase/config.toml
   - supabase/migrations/0001_initial_schema.sql
+  - tests/__init__.py
+  - tests/sports_science/__init__.py
   - tests/sports_science/conftest.py
   - tests/sports_science/test_capability_gap.py
   - tests/sports_science/test_compliance.py
@@ -25,40 +35,32 @@ files_reviewed_list:
   - tests/sports_science/test_pmc.py
   - tests/sports_science/test_types.py
   - tests/sports_science/test_zones.py
-findings:
-  critical: 3
-  warning: 7
-  info: 4
-  total: 14
-status: issues_found
 ---
 
-# Phase 01: Code Review Report
-
-**Reviewed:** 2026-06-19
-**Depth:** standard
-**Files Reviewed:** 20
-**Status:** issues_found
+# Code Review: Phase 01 -- Sports Science Foundation
 
 ## Summary
 
-The sports-science library is structurally sound: the tool boundary, ToolResult contract, and PMC EWMA math are correct. Three blockers require fixes before this ships. The most dangerous is an unguarded `ZeroDivisionError` in `compute_tss` when `ftp=0`; the second is an unguarded `RuntimeError` from `curve_fit` in `estimate_ftp_from_rides` that will crash the agent on bad data; the third is a missing `UNIQUE(user_id, date)` constraint in `pmc_history` that allows duplicate entries to silently corrupt the time series. All three are fixable in under 10 lines each.
+The library is structurally sound. The tool boundary (TRUST-01/TRUST-02), ToolResult contract, PMC EWMA math, and Coggan zone boundaries are all correctly implemented. Four critical defects require fixes before any code in this package is exercised against real data or a live DB.
+
+The most dangerous: `compute_tss` crashes with `ZeroDivisionError` on `ftp=0`; `estimate_ftp_from_rides` raises an unhandled `RuntimeError` on any `curve_fit` convergence failure; `log_capability_gap` raises `KeyError` on missing env vars instead of returning its fallback; and the `messages` RLS policy allows cross-conversation message injection. Secondary issues include the `pmc_history` duplicate-date gap, a permanently-stalled load ramp for zero-CTL back-constrained users, and the `google_tokens` column accepting plaintext OAuth tokens before encryption is wired.
 
 ---
 
-## Narrative Findings (AI reviewer)
+## Findings
 
-## Critical Issues
+### CR-001: `compute_tss` crashes with `ZeroDivisionError` when `ftp=0`
 
-### CR-01: `compute_tss` crashes with `ZeroDivisionError` when `ftp=0`
-
+**Severity:** Critical
 **File:** `sports_science/metrics.py:86`
 
-**Issue:** `intensity_factor = np_watts / ftp` performs integer division with `ftp` in the denominator. When `ftp=0` is passed and `np_watts > 0` (i.e., the ride has non-zero power), this raises `ZeroDivisionError`. The spike-filter on line 28 already handles the `ftp=0` case by falling back to `NP_SPIKE_FALLBACK_WATTS`, so `_compute_np` does not crash — but the TSS calculation does. No test covers `ftp=0` with a non-zero power array. The function signature types `ftp: float` (not `Optional`), but callers could supply 0 for a rider with no FTP yet.
+**Issue:** `intensity_factor = np_watts / ftp` divides by `ftp` with no guard. When `ftp=0` is passed (new user, FTP not yet estimated) and the power array is non-zero, this raises `ZeroDivisionError`. The spike-filter in `_compute_np` already handles `ftp=0` by falling back to `NP_SPIKE_FALLBACK_WATTS` -- but the outer `compute_tss` function does not. No test covers `ftp=0` with a non-zero power array, so this crash is completely untested.
+
+Confirmed with: `python3 -c "ftp=0.0; np_watts=150.0; print(np_watts/ftp)"` -> `ZeroDivisionError: division by zero`.
 
 **Fix:**
 ```python
-# Guard at the top of compute_tss, before NP calculation
+# Add before the NP calculation (line 65), or before line 86 after np_watts is known:
 if ftp <= 0:
     return ToolResult(
         value=None,
@@ -70,11 +72,14 @@ if ftp <= 0:
 
 ---
 
-### CR-02: `estimate_ftp_from_rides` raises unhandled `RuntimeError` on convergence failure
+### CR-002: `estimate_ftp_from_rides` raises unhandled `RuntimeError` on convergence failure
 
+**Severity:** Critical
 **File:** `sports_science/ftp.py:64-71`
 
-**Issue:** `scipy.optimize.curve_fit` raises `RuntimeError` when the optimizer cannot converge within `maxfev=5000` iterations. There is no try/except around this call. With real-world FIT data, degenerate effort distributions (e.g., all efforts at nearly identical durations, or power data with systematic measurement errors) will cause the entire agent tool call to raise an unhandled exception rather than returning `value=None` with a diagnostic confidence flag. This violates the D-04 contract that the function "never fabricates a number from sparse data" — an uncaught exception is worse than a fabrication.
+**Issue:** `scipy.optimize.curve_fit` raises `RuntimeError` when the optimizer cannot converge within `maxfev=5000` iterations, and `ValueError` on malformed inputs. Neither exception is caught. Real-world triggers include: all quality efforts at identical or near-identical durations (degenerate CP curve), power data with systematic sensor errors, or any data set where the 2-parameter CP model cannot be fit within the stated physiological bounds. The uncaught exception propagates through the tool layer and crashes the agent call -- violating the D-04 contract that the function never fabricates a number from sparse data (a crash is worse than a fabrication).
+
+No test exercises a convergence-failure path.
 
 **Fix:**
 ```python
@@ -87,109 +92,151 @@ try:
         bounds=([50.0, 1000.0], [500.0, 100000.0]),
         maxfev=5000,
     )
-except RuntimeError:
+except (RuntimeError, ValueError):
     return ToolResult(
         value=None,
         unit="watts",
-        methodology="2-parameter Critical Power model (Morton 1996) — convergence failed",
+        methodology="2-parameter Critical Power model (Morton 1996) -- convergence failed",
         inputs={
             "quality_efforts": len(quality_efforts),
             "required": MIN_QUALITY_EFFORTS,
             "confidence": "insufficient_data",
         },
     )
+cp, wprime = popt
 ```
 
 ---
 
-### CR-03: `pmc_history` has no `UNIQUE(user_id, date)` constraint
+### CR-003: `log_capability_gap` raises `KeyError` on missing env vars instead of returning fallback
 
-**File:** `supabase/migrations/0001_initial_schema.sql:88-102`
+**Severity:** Critical
+**File:** `sports_science/capability_gap.py:19-22`
 
-**Issue:** The `pmc_history` table stores one PMC row per user per day. There is no unique constraint on `(user_id, date)`. If the caller to `update_pmc` inserts a row for a date that already has an entry (e.g., a retry, a bug, or a re-sync), multiple rows exist for the same day. When the PMC time series is later read sequentially, duplicate dates silently corrupt CTL/ATL/TSB values because the algorithm applies EWMA steps in order. A duplicate row adds a phantom training day that inflates ATL and skews form scores.
+**Issue:** `_get_supabase()` uses bracket access `os.environ["SUPABASE_URL"]` and `os.environ["SUPABASE_SERVICE_ROLE_KEY"]`. If either env var is absent (misconfigured deploy, CI environment without secrets loaded, test run without `.env`), this raises `KeyError` before any Supabase call. The `log_capability_gap` function is supposed to always return a `ToolResult` -- a `KeyError` violates that contract. Tests pass only because they patch `_get_supabase` at the module level and never exercise this path.
+
+Additionally, even with valid env vars, the `supabase.table(...).insert(...).execute()` call (line 47-52) has no error handling. Any DB error (network timeout, schema mismatch, RLS violation) also crashes the function instead of returning the fallback message.
+
+**Fix:**
+```python
+def _get_supabase() -> Client:
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not url or not key:
+        raise EnvironmentError(
+            "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set"
+        )
+    return create_client(url, key)
+
+
+def log_capability_gap(method_name, context, user_id=None) -> ToolResult:
+    try:
+        supabase = _get_supabase()
+        supabase.table("capability_gaps").insert({
+            "user_id": user_id,
+            "method_name": method_name,
+            "description": f"Missing tool: {method_name}",
+            "context": context,
+        }).execute()
+    except Exception:
+        pass  # gap logging is best-effort; never block the fallback response
+
+    user_message = (
+        "I don't have a specialized tool for that calculation yet. "
+        "I've logged it for the development team. "
+        "I'll use a qualitative approach for now."
+    )
+    return ToolResult(
+        value={"status": "logged", "message": user_message},
+        unit="",
+        methodology="capability_gap_log",
+        inputs={"context_keys": list(context.keys())},
+    )
+```
+
+---
+
+### CR-004: `messages` RLS allows cross-conversation message injection
+
+**Severity:** Critical
+**File:** `supabase/migrations/0001_initial_schema.sql:132-133`
+
+**Issue:** The messages RLS policy is `USING (user_id = auth.uid())`. For INSERT, PostgreSQL applies the USING expression as the WITH CHECK when no explicit WITH CHECK is defined. This prevents a user from setting `user_id` to another user's ID -- but it does NOT prevent a user from inserting a message with their own `user_id` and a `conversation_id` that belongs to another user. The FK constraint ensures the conversation exists, but not that it belongs to the authenticated user.
+
+Result: User B can inject messages into User A's conversation. Those messages will appear in User A's coaching context and AI message history, corrupting the coaching session.
+
+**Fix:**
+```sql
+DROP POLICY "messages: own row" ON public.messages;
+
+CREATE POLICY "messages: own row" ON public.messages
+    USING (user_id = auth.uid())
+    WITH CHECK (
+        user_id = auth.uid()
+        AND EXISTS (
+            SELECT 1 FROM public.conversations c
+            WHERE c.id = conversation_id
+              AND c.user_id = auth.uid()
+        )
+    );
+```
+
+---
+
+### WR-001: `estimate_ftp_from_rides` always passes `best_ftp_estimate=None` -- quality filter permanently degraded
+
+**Severity:** Warning
+**File:** `sports_science/ftp.py:46`
+
+**Issue:** The quality-effort filter is always called with `best_ftp_estimate=None`, unconditionally falling back to `QUALITY_EFFORT_FALLBACK_WATTS=150W`. The `_is_quality_effort` function was designed to accept an estimated FTP and apply the tighter `85% of FTP` threshold, but this code path is never used. For a strong rider with FTP ~300W, efforts at 155W (barely above the 150W fallback) qualify as "quality efforts" and pollute the CP model with sub-threshold data, producing an underestimated FTP. The parameter exists but is dead code at the call site.
+
+**Fix:** Either implement a bootstrap pass (compute the mean of the top-N effort mean powers as an initial FTP proxy), or if two-pass filtering is a Phase 2 enhancement, document that explicitly and remove the unused parameter from `_is_quality_effort`.
+
+---
+
+### WR-002: `progress_load` stalls permanently when `current_ctl=0` and `back_issues=True`
+
+**Severity:** Warning
+**File:** `sports_science/load.py:25-26`
+
+**Issue:** `back_cap = current_ctl * ramp_threshold`. When `current_ctl=0` (new user, cold start) and `back_issues=True`, `back_cap = 0 * 0.10 = 0.0`, so `max_ctl_increase = min(8.0, 0.0) = 0.0` and `recommended_ctl_target = 0.0`. A new user starting from zero CTL with back constraints will always be told to train at 0 CTL and can never begin training. The back-protective cap is intended to limit relative load increases, not prevent any load.
+
+**Fix:**
+```python
+BACK_CONSTRAINT_MIN_INCREASE: float = 2.0  # floor: even back-constrained beginners can start
+
+if back_constraints_applied:
+    ramp_threshold = constraints.get("load_ramp_flag_threshold_pct", 10) / 100
+    back_cap = max(current_ctl * ramp_threshold, BACK_CONSTRAINT_MIN_INCREASE)
+    max_ctl_increase = min(max_ctl_increase, back_cap)
+```
+
+---
+
+### WR-003: `pmc_history` has no `UNIQUE(user_id, date)` constraint -- duplicate PMC rows corrupt CTL/ATL
+
+**Severity:** Warning
+**File:** `supabase/migrations/0001_initial_schema.sql:88-103`
+
+**Issue:** There is no unique constraint on `(user_id, date)` in `pmc_history`. If `update_pmc` is called twice for the same day (retry, re-sync, bug), duplicate rows are silently inserted. When the PMC time series is later read sequentially, duplicate dates silently corrupt CTL/ATL/TSB values because the algorithm applies an extra EWMA step for a phantom day.
 
 **Fix:**
 ```sql
 ALTER TABLE public.pmc_history
     ADD CONSTRAINT pmc_history_user_date_unique UNIQUE (user_id, date);
 ```
-Alternatively, callers should use `INSERT ... ON CONFLICT (user_id, date) DO UPDATE` (upsert).
+Callers should use `INSERT ... ON CONFLICT (user_id, date) DO UPDATE` (upsert) to update existing rows.
 
 ---
 
-## Warnings
+### WR-004: `ftp.py` docstring says `medium: 7-12` but code produces `high` at `n=12`
 
-### WR-01: `estimate_ftp_from_rides` quality-effort filter ignores estimated FTP
+**Severity:** Warning
+**File:** `sports_science/ftp.py:41, 83`
 
-**File:** `sports_science/ftp.py:46`
+**Issue:** The docstring states `medium: 7-12 efforts`. The code at line 83 is `elif n < 12: confidence = "medium"`, so `n=12` produces `"high"`, not `"medium"`. The boundary is off-by-one relative to the documentation. The test `test_confidence_levels` passes 12 efforts and expects `"high"`, confirming the code is correct -- the docstring is wrong. Anyone reading the docstring to implement a caller will misunderstand the confidence tiers.
 
-**Issue:** The quality-effort filter is called with `best_ftp_estimate=None` for all rides unconditionally. This means the power threshold is always `QUALITY_EFFORT_FALLBACK_WATTS` (150 W), regardless of what the data suggests the rider's FTP might be. The `_is_quality_effort` function supports a `best_ftp_estimate` argument specifically to apply a tighter `85% of FTP` filter, but that path is never exercised. A beginner with FTP ~140 W would have all efforts passing the 150 W filter with `None` but would correctly fail when the estimated FTP is used. The filter could also reject valid efforts for stronger riders if 85% of their FTP > 150 W, but that direction is safe. Consequence: the data set fed to `curve_fit` is noisier than intended.
-
-**Fix:** Compute a preliminary FTP estimate from duration/power data, then re-filter with that estimate before the final fit. Alternatively, document that the two-pass refinement is a deliberate future enhancement.
-
----
-
-### WR-02: `compute_tss` warning trigger uses `ftp` instead of `ftp` — checks `intensity_factor > 1.05` but `if` key stored as string
-
-**File:** `sports_science/metrics.py:90-93`
-
-**Issue:** Minor but real: the value dict stores `"if"` as the key (line 99), which is a Python reserved word and will silently collide in any context that tries to unpack this dict into keyword arguments (`**result.value`). This is legal as a dict key but pathological to use. Additionally `"if"` as a key name makes the downstream tool schema harder to express (some JSON schema validators and OpenAPI generators treat `if` as a reserved keyword in draft-7+).
-
-**Fix:** Rename the key to `"intensity_factor"` to match the variable name and avoid the reserved-word collision:
-```python
-value={
-    "tss": round(tss, 1),
-    "np_watts": round(np_watts, 0),
-    "intensity_factor": round(intensity_factor, 3),
-    "warnings": warnings,
-},
-```
-
----
-
-### WR-03: `progress_load` stalls permanently when `current_ctl=0` and `back_issues=True`
-
-**File:** `sports_science/load.py:25-26`
-
-**Issue:** When `current_ctl=0` and `back_issues=True`, `back_cap = 0 * ramp_threshold = 0.0`, so `max_ctl_increase = min(8.0, 0.0) = 0.0` and `recommended_ctl_target = 0.0`. A new user starting from zero CTL with back issues will always be told to train at 0 CTL — they can never begin training. This is physiologically wrong: a beginner must start somewhere. The back-protective cap is intended to limit *relative* increases, not to prevent any load at all.
-
-**Fix:** Apply a minimum floor to `back_cap` when `current_ctl` is near zero:
-```python
-back_cap = max(current_ctl * ramp_threshold, 2.0)  # minimum 2 CTL pts/week floor
-```
-
----
-
-### WR-04: `test_import_boundary.py` silently passes when `grep` receives a non-existent path
-
-**File:** `tests/sports_science/test_import_boundary.py:7-14`
-
-**Issue:** The test runs `grep -r anthropic sports_science/` with a relative path. If pytest is invoked from any directory other than the project root, `grep` will exit with returncode 2 (path error), not returncode 1 (no matches). The assertion `assert result.returncode != 0` passes for both returncode 1 (correct: no imports found) and returncode 2 (incorrect: path not found — grep never ran). A misconfigured CI job would silently report this test as passing even though the import boundary was never checked.
-
-**Fix:**
-```python
-import subprocess, pathlib
-
-def test_sports_science_has_zero_anthropic_imports():
-    pkg_dir = pathlib.Path(__file__).parents[2] / "sports_science"
-    result = subprocess.run(
-        ["grep", "-r", "--include=*.py", "anthropic", str(pkg_dir)],
-        capture_output=True, text=True,
-    )
-    assert result.returncode == 1, (  # 1 = no matches; 0 = found; 2 = error
-        f"Unexpected grep result (rc={result.returncode}):\n{result.stdout}{result.stderr}"
-    )
-```
-
----
-
-### WR-05: `ftp.py` docstring says `medium: 7-12` but code produces `high` at `n=12`
-
-**File:** `sports_science/ftp.py:41`
-
-**Issue:** The docstring states `medium: 7-12 efforts`. The code at line 83 is `elif n < 12: confidence = "medium"`, so `n=12` produces `"high"`, not `"medium"`. The boundary is off-by-one relative to the documentation. The test (`test_confidence_levels`) passes 12 efforts and expects `"high"`, so the test is aligned with the code — but the docstring is wrong and will mislead anyone relying on it to understand the confidence tiers.
-
-**Fix:** Correct the docstring to match code behaviour:
+**Fix:** Correct the docstring:
 ```
 medium: 7-11 efforts
 high: 12+ efforts
@@ -197,47 +244,90 @@ high: 12+ efforts
 
 ---
 
-### WR-06: `sessions` table accepts arbitrary `status` strings
+### WR-005: `compute_tss` value dict uses `"if"` as a key -- Python reserved word
 
-**File:** `supabase/migrations/0001_initial_schema.sql:56-57`
+**Severity:** Warning
+**File:** `sports_science/metrics.py:99, 79`
 
-**Issue:** `status text NOT NULL DEFAULT 'planned'` has no `CHECK` constraint. Any string (including typos like `'compelted'`) is accepted. Application-level compliance checking via `validate_session_vs_actual` relies on sessions having a known status to identify which sessions are ready for comparison. Unexpected status values will silently pass through and cause logic errors in downstream queries.
+**Issue:** The value dict stores the intensity factor as `"if"` (line 99). `if` is a Python reserved keyword. While it is legal as a dict string key, it is pathological in practice: any code that tries to unpack this dict as keyword arguments (`**result.value`) will fail with a `SyntaxError`, and some JSON schema generators and OpenAPI tools treat `if` as a reserved keyword in JSON Schema draft-7+. This will cause breakage when the tool schema is generated in Phase 2.
+
+**Fix:** Rename the key to `"intensity_factor"` throughout (metrics.py lines 79, 99; all test assertions on `result.value["if"]` in test_metrics.py).
+
+---
+
+### WR-006: `sessions.status` and `messages.role` have no CHECK constraints
+
+**Severity:** Warning
+**File:** `supabase/migrations/0001_initial_schema.sql:56, 125`
+
+**Issue:** `sessions.status` (default `'planned'`) and `messages.role` (documented as `'user' | 'assistant'`) are unconstrained `text` columns. Any string is accepted without error. Downstream code that switches on these values will silently malfunction on typos or unexpected values (e.g., `'compelted'`, `'system'`).
 
 **Fix:**
 ```sql
+-- sessions
 status text NOT NULL DEFAULT 'planned'
     CHECK (status IN ('planned', 'completed', 'skipped', 'partial')),
+
+-- messages
+role text NOT NULL
+    CHECK (role IN ('user', 'assistant', 'tool')),
 ```
 
 ---
 
-### WR-07: `users.google_tokens` stores OAuth tokens unencrypted
+### WR-007: `users.google_tokens` stores OAuth refresh tokens unencrypted
 
+**Severity:** Warning
 **File:** `supabase/migrations/0001_initial_schema.sql:13`
 
-**Issue:** The comment says "encrypted at app layer (Phase 3)" — this is a known deferred item, but the migration ships the column as raw `jsonb` with no encryption. Google OAuth refresh tokens are long-lived credentials. If the Supabase instance is compromised or a misconfigured RLS policy allows a row leak, tokens are exposed in plaintext. This is a security gap that exists in the delivered schema regardless of the future-phase comment.
+**Issue:** The comment says "encrypted at app layer (Phase 3)" but the column ships as plain `jsonb` with no encryption, no access restriction beyond RLS, and no constraint preventing writes before Phase 3. Google OAuth refresh tokens are long-lived credentials. If Phase 2 code writes a real token here before encryption is in place, those tokens are stored in plaintext in Postgres, accessible via any backup, the Supabase Studio admin panel, or any service-role query.
 
-**Fix:** Either encrypt the value before writing (using `pgcrypto` or application-layer encryption) now, or document this explicitly as an accepted risk with a tracking issue. The column should not ship in Phase 1 if it will store live credentials before Phase 3 encryption is in place. Consider storing `NULL` until Phase 3 and adding a `NOT NULL` constraint only after encryption is wired.
+**Fix:** Do not add this column until Phase 3 encryption is wired. For Phase 1-2, track `google_connected: boolean` instead and add the tokens column in the Phase 3 migration. Add a migration comment with an explicit tracking issue reference.
 
 ---
 
-## Info
+### IN-001: `calculate_hr_zones` parameter named `max_hr_or_lthr` but zone boundaries assume LTHR
 
-### IN-01: `calculate_hr_zones` parameter named `max_hr_or_lthr` but always used as LTHR
-
+**Severity:** Info
 **File:** `sports_science/zones.py:31`
 
-**Issue:** The parameter name `max_hr_or_lthr` implies the function accepts either max HR or LTHR. But the HR zone multipliers in `HR_ZONE_BOUNDARIES` (e.g., zone 4 upper = 1.00, zone 5 lower = 1.00) are calibrated for LTHR — not max HR. Passing true max HR would place zones incorrectly. The `inputs` dict stores the value as `"lthr"`, and the docstring says "LTHR", so the parameter name is the outlier.
+**Issue:** The parameter name implies it accepts either max HR or LTHR. The zone multipliers in `HR_ZONE_BOUNDARIES` (zone 4 upper = 1.00, zone 5 lower = 1.00) are calibrated for LTHR only. Passing max HR would place zones incorrectly (zone 5 would start at max HR rather than at LTHR). The `inputs` dict stores the value as `"lthr"` and the docstring says "LTHR", so the parameter name is the sole outlier.
 
-**Fix:** Rename parameter to `lthr: float` and update the docstring accordingly.
+**Fix:** Rename the parameter to `lthr: float`.
 
 ---
 
-### IN-02: `capability_gaps.conversation_id` has no foreign key constraint
+### IN-002: `test_import_boundary.py` silently passes when `grep` receives a non-existent path
 
+**Severity:** Info
+**File:** `tests/sports_science/test_import_boundary.py:8-14`
+
+**Issue:** The subprocess uses `["grep", "-r", "anthropic", "sports_science/"]` with a relative path. If pytest is invoked from any directory other than the project root, `grep` exits with returncode 2 (path error, not found), not returncode 1 (no matches). The assertion `assert result.returncode != 0` passes for both returncode 1 (correct) and returncode 2 (incorrect: grep never ran). A misconfigured CI job silently reports this security boundary test as passing even though the check was never performed.
+
+**Fix:**
+```python
+import pathlib, subprocess
+
+def test_sports_science_has_zero_anthropic_imports():
+    pkg_dir = pathlib.Path(__file__).parents[2] / "sports_science"
+    result = subprocess.run(
+        ["grep", "-r", "--include=*.py", "anthropic", str(pkg_dir)],
+        capture_output=True, text=True,
+    )
+    # returncode 1 = no matches (pass); 0 = found (fail); 2 = error (fail)
+    assert result.returncode == 1, (
+        f"Unexpected grep result (rc={result.returncode}):\n{result.stdout}{result.stderr}"
+    )
+```
+
+---
+
+### IN-003: `capability_gaps.conversation_id` has no FK constraint
+
+**Severity:** Info
 **File:** `supabase/migrations/0001_initial_schema.sql:147`
 
-**Issue:** `conversation_id uuid` in `capability_gaps` has no `REFERENCES public.conversations` FK. Any UUID can be stored, including deleted or never-existing conversation IDs, silently corrupting audit trails.
+**Issue:** `conversation_id uuid` in `capability_gaps` is stored without a `REFERENCES public.conversations` FK. Any UUID can be written, including deleted or never-existing conversation IDs, silently corrupting the audit trail.
 
 **Fix:**
 ```sql
@@ -246,23 +336,29 @@ conversation_id uuid REFERENCES public.conversations(id) ON DELETE SET NULL,
 
 ---
 
-### IN-03: `rides` table has no `session_id` foreign key
+### IN-004: No database indexes on high-frequency query patterns
 
-**File:** `supabase/migrations/0001_initial_schema.sql:69-78`
+**Severity:** Info
+**File:** `supabase/migrations/0001_initial_schema.sql:88-103, 69-84`
 
-**Issue:** There is no column linking a ride to the planned session it fulfills. `validate_session_vs_actual` accepts `planned` and `actual` as plain dicts at the Python layer, but the schema cannot enforce or query the relationship between a completed ride and its planned session. This makes "which ride fulfills which session" a purely application-level concern with no DB integrity.
+**Issue:** The `pmc_history` table will be queried by date range per user on every PMC display load. The `rides` table will be queried by user for FTP estimation. Neither has an index beyond the primary key. Sequential scans on these tables will be unacceptable in production.
 
-**Fix:** Add `session_id uuid REFERENCES public.sessions(id) ON DELETE SET NULL` to the `rides` table.
+**Fix:**
+```sql
+CREATE INDEX idx_pmc_history_user_date  ON public.pmc_history (user_id, date DESC);
+CREATE INDEX idx_rides_user_created     ON public.rides (user_id, created_at DESC);
+```
 
 ---
 
-### IN-04: `estimate_ftp_from_rides` silently ignores `scipy.optimize.OptimizeWarning`
+### IN-005: `rides` table has no `session_id` FK -- ride/session relationship is schema-invisible
 
-**File:** `sports_science/ftp.py:64`
+**Severity:** Info
+**File:** `supabase/migrations/0001_initial_schema.sql:69-78`
 
-**Issue:** `curve_fit` emits `OptimizeWarning` when covariance estimation is unreliable (e.g., poor data spread). This is distinct from the `RuntimeError` in CR-02. The warning does not crash but indicates the fit quality is low. Currently no warning is surfaced in the `ToolResult`. A caller cannot distinguish a well-converged fit from a poorly-constrained one except by confidence tier.
+**Issue:** There is no column linking a completed ride to the planned session it fulfills. `validate_session_vs_actual` accepts plain dicts at the Python layer, but the DB schema cannot enforce or query which ride maps to which session. The relationship is purely application-layer, with no referential integrity or query path.
 
-**Fix:** Capture the warning with `warnings.catch_warnings` and, if raised, downgrade confidence to `"low"` regardless of effort count, or include a `"fit_warning"` key in the value dict.
+**Fix:** Add `session_id uuid REFERENCES public.sessions(id) ON DELETE SET NULL` to the `rides` table.
 
 ---
 
