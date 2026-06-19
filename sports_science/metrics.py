@@ -48,10 +48,18 @@ def compute_tss(
     TOOL-04: Training Stress Score from a power-meter ride.
 
     Returns ToolResult with value=None for rides shorter than NP_MIN_DURATION_SECS (10 min).
-    For valid rides returns value={tss, np_watts, if, warnings}.
+    For valid rides returns value={tss, np_watts, intensity_factor, warnings}.
 
     TSS formula: (duration_secs * NP * IF) / (FTP * 3600) * 100
     """
+    if ftp <= 0:
+        return ToolResult(
+            value=None,
+            unit="TSS",
+            methodology="TSS requires positive FTP; ftp=0 is not valid",
+            inputs={"duration_secs": duration_secs, "ftp": ftp},
+        )
+
     if duration_secs < NP_MIN_DURATION_SECS:
         return ToolResult(
             value=None,
@@ -76,7 +84,7 @@ def compute_tss(
     # Protect against division-by-zero on all-zero arrays (NP == 0).
     if np_watts == 0.0:
         return ToolResult(
-            value={"tss": 0.0, "np_watts": 0.0, "if": 0.0, "warnings": []},
+            value={"tss": 0.0, "np_watts": 0.0, "intensity_factor": 0.0, "warnings": []},
             unit="TSS",
             methodology="TrainingPeaks TSS = (duration * NP * IF) / (FTP * 3600) * 100",
             inputs={"duration_secs": duration_secs, "ftp": ftp,
@@ -96,7 +104,7 @@ def compute_tss(
         value={
             "tss": round(tss, 1),
             "np_watts": round(np_watts, 0),
-            "if": round(intensity_factor, 3),
+            "intensity_factor": round(intensity_factor, 3),
             "warnings": warnings,
         },
         unit="TSS",

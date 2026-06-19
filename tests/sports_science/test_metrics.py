@@ -137,5 +137,5 @@ class TestReturnsToolResult:
         assert result.value is not None
         assert "tss" in result.value
         assert "np_watts" in result.value
-        assert "if" in result.value
+        assert "intensity_factor" in result.value
         assert "warnings" in result.value
