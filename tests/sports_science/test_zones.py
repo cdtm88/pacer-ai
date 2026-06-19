@@ -38,9 +38,9 @@ def test_power_zones_ftp200():
 
 
 @pytest.mark.parametrize("ftp,power,expected_zone", [
-    (200, 100, 1),   # 50% FTP -> Z1
-    (200, 110, 2),   # 55% FTP -> Z2 (exact boundary belongs to higher zone's lower)
-    (200, 150, 2),   # 75% FTP -> Z2 (upper bound exclusive: 150 < 150 is false, 150 >= 110 and 150 < 150 -> Z2 upper=150, exclusive upper means 150 is not in Z2... need to check boundary table)
+    (200, 100, 1),   # 50% FTP -> Z1 (100 >= 0, 100 < 110)
+    (200, 110, 2),   # 55% FTP boundary -> Z2 (110 >= 110, 110 < 150); exact lower boundary of Z2
+    (200, 150, 3),   # 75% FTP boundary -> Z3 (150 >= 150, 150 < 180); Z2 upper is exclusive (150 < 150 = false)
     (200, 151, 3),   # just above 75% FTP -> Z3
 ])
 def test_zone_boundary_no_overlap(ftp, power, expected_zone):
