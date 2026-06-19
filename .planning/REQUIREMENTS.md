@@ -150,19 +150,76 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TOOL-01 through TOOL-10 | Phase 1 | Pending |
-| TRUST-01 through TRUST-05 | Phase 1-2 | Pending |
-| AGENT-01 through AGENT-06 | Phase 2 | Pending |
-| ONBD-01 through ONBD-04 | Phase 3 | Pending |
-| PLAN-01 through PLAN-06 | Phase 3 | Pending |
-| FIT-01 through FIT-06 | Phase 3 | Pending |
-| ADAPT-01 through ADAPT-05 | Phase 3 | Pending |
-| TRANSP-01 through TRANSP-03 | Phase 3 | Pending |
-| CAL-01 through CAL-04 | Phase 4 | Pending |
-| ZWO-01 through ZWO-05 | Phase 5 | Pending |
-| UI-01 through UI-10 | Phase 4 | Pending |
-| IOS-01 through IOS-03 | Phase 5 | Pending |
-| GAP-01 through GAP-03 | Phase 1-2 | Pending |
+| TOOL-01 | Phase 1 | Pending |
+| TOOL-02 | Phase 1 | Pending |
+| TOOL-03 | Phase 1 | Pending |
+| TOOL-04 | Phase 1 | Pending |
+| TOOL-05 | Phase 1 | Pending |
+| TOOL-06 | Phase 1 | Pending |
+| TOOL-07 | Phase 1 | Pending |
+| TOOL-08 | Phase 1 | Pending |
+| TOOL-09 | Phase 1 | Pending |
+| TOOL-10 | Phase 1 | Pending |
+| TRUST-01 | Phase 1 | Pending |
+| TRUST-02 | Phase 1 | Pending |
+| TRUST-03 | Phase 2 | Pending |
+| TRUST-04 | Phase 2 | Pending |
+| TRUST-05 | Phase 2 | Pending |
+| AGENT-01 | Phase 2 | Pending |
+| AGENT-02 | Phase 2 | Pending |
+| AGENT-03 | Phase 2 | Pending |
+| AGENT-04 | Phase 2 | Pending |
+| AGENT-05 | Phase 2 | Pending |
+| AGENT-06 | Phase 2 | Pending |
+| ONBD-01 | Phase 3 | Pending |
+| ONBD-02 | Phase 3 | Pending |
+| ONBD-03 | Phase 3 | Pending |
+| ONBD-04 | Phase 3 | Pending |
+| PLAN-01 | Phase 3 | Pending |
+| PLAN-02 | Phase 3 | Pending |
+| PLAN-03 | Phase 3 | Pending |
+| PLAN-04 | Phase 3 | Pending |
+| PLAN-05 | Phase 3 | Pending |
+| PLAN-06 | Phase 3 | Pending |
+| FIT-01 | Phase 3 | Pending |
+| FIT-02 | Phase 3 | Pending |
+| FIT-03 | Phase 3 | Pending |
+| FIT-04 | Phase 3 | Pending |
+| FIT-05 | Phase 3 | Pending |
+| FIT-06 | Phase 3 | Pending |
+| ADAPT-01 | Phase 3 | Pending |
+| ADAPT-02 | Phase 3 | Pending |
+| ADAPT-03 | Phase 3 | Pending |
+| ADAPT-04 | Phase 3 | Pending |
+| ADAPT-05 | Phase 3 | Pending |
+| TRANSP-01 | Phase 3 | Pending |
+| TRANSP-02 | Phase 3 | Pending |
+| TRANSP-03 | Phase 3 | Pending |
+| GAP-01 | Phase 1 | Pending |
+| GAP-02 | Phase 1 | Pending |
+| GAP-03 | Phase 1 | Pending |
+| CAL-01 | Phase 4 | Pending |
+| CAL-02 | Phase 4 | Pending |
+| CAL-03 | Phase 4 | Pending |
+| CAL-04 | Phase 4 | Pending |
+| UI-01 | Phase 4 | Pending |
+| UI-02 | Phase 4 | Pending |
+| UI-03 | Phase 4 | Pending |
+| UI-04 | Phase 4 | Pending |
+| UI-05 | Phase 4 | Pending |
+| UI-06 | Phase 4 | Pending |
+| UI-07 | Phase 4 | Pending |
+| UI-08 | Phase 4 | Pending |
+| UI-09 | Phase 4 | Pending |
+| UI-10 | Phase 4 | Pending |
+| ZWO-01 | Phase 5 | Pending |
+| ZWO-02 | Phase 5 | Pending |
+| ZWO-03 | Phase 5 | Pending |
+| ZWO-04 | Phase 5 | Pending |
+| ZWO-05 | Phase 5 | Pending |
+| IOS-01 | Phase 5 | Pending |
+| IOS-02 | Phase 5 | Pending |
+| IOS-03 | Phase 5 | Pending |
 
 **Coverage:**
 - v1 requirements: 63 total
@@ -171,4 +228,4 @@
 
 ---
 *Requirements defined: 2026-06-19*
-*Last updated: 2026-06-19 after initial definition*
+*Last updated: 2026-06-19 after roadmap creation*
