@@ -34,12 +34,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. The `log_capability_gap` function appends a structured entry to the `capability_gaps` table and returns a user-facing fallback message; it is registered as an Anthropic tool schema in TRUST-02 and only the tool registry maps sports_science functions to tool schemas
   5. The 8-table Supabase schema (users, profiles, sessions, rides, pmc_history, conversations, messages, capability_gaps) is migrated and accessible
 
-**Plans**: 2/5 plans executed
+**Plans**: 3/5 plans executed
 **Wave 1**
 
 - [x] 01-01-PLAN.md — Wave 0: test infra, deps, venv, Supabase CLI, ToolResult contract + constants
 - [x] 01-02-PLAN.md — Wave 1: power and HR zones (TOOL-01, TOOL-02)
-- [ ] 01-03-PLAN.md — Wave 1: TSS/NP/IF metrics and Banister PMC (TOOL-04, TOOL-05)
+- [x] 01-03-PLAN.md — Wave 1: TSS/NP/IF metrics and Banister PMC (TOOL-04, TOOL-05)
 - [ ] 01-04-PLAN.md — Wave 1: FTP CP model, load progression, compliance (TOOL-03, TOOL-06, TOOL-07)
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -112,7 +112,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Sports-Science Foundation | 2/5 | In Progress|  |
+| 1. Sports-Science Foundation | 3/5 | In Progress|  |
 | 2. Agent Core | 0/0 | Not started | - |
 | 3. Coaching Loop | 0/0 | Not started | - |
 | 4. UI and Calendar | 0/0 | Not started | - |
