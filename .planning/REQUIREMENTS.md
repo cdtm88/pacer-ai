@@ -7,8 +7,8 @@
 
 ### Sports-Science Tool Library
 
-- [ ] **TOOL-01**: `calculate_power_zones(ftp)` returns 7 Coggan/Allen power zones with boundary values, zone names, and methodology string
-- [ ] **TOOL-02**: `calculate_hr_zones(max_hr_or_lthr)` returns HR zones with boundary values and methodology string
+- [x] **TOOL-01**: `calculate_power_zones(ftp)` returns 7 Coggan/Allen power zones with boundary values, zone names, and methodology string
+- [x] **TOOL-02**: `calculate_hr_zones(max_hr_or_lthr)` returns HR zones with boundary values and methodology string
 - [ ] **TOOL-03**: `estimate_ftp_from_rides(rides)` returns FTP estimate, confidence level (low/medium/high), and methodology string; requires minimum 4 quality efforts before emitting any estimate
 - [ ] **TOOL-04**: `compute_tss(ride)` returns TSS, IF, and NP for a ride; NP calculation includes zeros, applies spike filter (clip power > FTP*3), uses NP not average power; returns null for rides under 10 minutes
 - [ ] **TOOL-05**: `update_pmc(tss_history)` returns CTL (fitness), ATL (fatigue), and TSB (form) using Banister/PMC EWMA model; cold-start guard: does not emit TSB values until 28+ days of data
@@ -20,7 +20,7 @@
 
 ### Trust Model Enforcement
 
-- [ ] **TRUST-01**: The `sports_science/` module has zero Anthropic SDK imports; no path exists for the LLM to call physiological logic except through the tool registry
+- [x] **TRUST-01**: The `sports_science/` module has zero Anthropic SDK imports; no path exists for the LLM to call physiological logic except through the tool registry
 - [ ] **TRUST-02**: The agent tool registry maps only registered sports_science functions to Anthropic tool schemas; ad-hoc tool definitions are not permitted
 - [ ] **TRUST-03**: Every assistant response is parsed before display; any response containing an unsourced physiological number (watts, zones, TSS, FTP, CTL/ATL/TSB values) triggers a retry and capability-gap log entry
 - [ ] **TRUST-04**: Every physiological number in any plan or chat message is traceable to a tool-library call verifiable in application logs
@@ -150,8 +150,8 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TOOL-01 | Phase 1 | Pending |
-| TOOL-02 | Phase 1 | Pending |
+| TOOL-01 | Phase 1 | Complete |
+| TOOL-02 | Phase 1 | Complete |
 | TOOL-03 | Phase 1 | Pending |
 | TOOL-04 | Phase 1 | Pending |
 | TOOL-05 | Phase 1 | Pending |
@@ -160,7 +160,7 @@
 | TOOL-08 | Phase 1 | Pending |
 | TOOL-09 | Phase 1 | Complete |
 | TOOL-10 | Phase 1 | Pending |
-| TRUST-01 | Phase 1 | Pending |
+| TRUST-01 | Phase 1 | Complete |
 | TRUST-02 | Phase 1 | Pending |
 | TRUST-03 | Phase 2 | Pending |
 | TRUST-04 | Phase 2 | Pending |
