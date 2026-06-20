@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Sports-Science Foundation** - Tool library, DB schema, and Supabase setup — the trust anchor everything else depends on (completed 2026-06-19)
 - [x] **Phase 2: Agent Core** - Agent loop, tool registry, SSE streaming, and trust-model enforcement proven end-to-end (completed 2026-06-20)
 - [x] **Phase 3: Coaching Loop** - FIT ingestion, plan generation, onboarding interview, and adaptive re-planning (completed 2026-06-20)
-- [ ] **Phase 4: UI and Calendar** - React PWA, all screens, Google Calendar integration, Vercel deployment
+- [x] **Phase 4: UI and Calendar** - React PWA, all screens, Google Calendar integration, Vercel deployment (completed 2026-06-20)
 - [ ] **Phase 5: During-Session and ZWO Export** - iOS-safe session stepper with wake lock, ZWO file generator with Zwift acceptance test
 
 ## Phase Details
@@ -118,7 +118,7 @@ Plans:
   4. Calendar sync failures surface gracefully to the user without disrupting the plan or chat
   5. The app is installable as a PWA on iOS and Android; it works offline for the during-session view; the iOS install instructional banner appears on first visit; light mode only with no pure blacks and no em dashes in any copy
 
-**Plans**: 6/8 plans executed
+**Plans**: 8/8 plans complete
 
 Plans:
 **Wave 1** *(foundation, parallel)*
@@ -141,8 +141,8 @@ Plans:
 
 **Wave 5** *(calendar + during-session/PWA, parallel)*
 
-- [ ] 04-07-PLAN.md — Google Calendar OAuth2 + sync hooks (initial + replan push) + Settings screen
-- [ ] 04-08-PLAN.md — During-Session static screen + iOS install banner + PWA icons + Vercel deploy
+- [x] 04-07-PLAN.md — Google Calendar OAuth2 + sync hooks (initial + replan push) + Settings screen
+- [x] 04-08-PLAN.md — During-Session static screen + iOS install banner + PWA icons + Vercel deploy
 
 **UI hint**: yes
 
@@ -168,5 +168,5 @@ Plans:
 | 1. Sports-Science Foundation | 5/5 | Complete   | 2026-06-19 |
 | 2. Agent Core | 6/6 | Complete    | 2026-06-20 |
 | 3. Coaching Loop | 5/5 | Complete    | 2026-06-20 |
-| 4. UI and Calendar | 6/8 | In Progress|  |
+| 4. UI and Calendar | 8/8 | Complete   | 2026-06-20 |
 | 5. During-Session and ZWO Export | 0/0 | Not started | - |
