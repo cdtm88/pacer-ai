@@ -118,7 +118,32 @@ Plans:
   4. Calendar sync failures surface gracefully to the user without disrupting the plan or chat
   5. The app is installable as a PWA on iOS and Android; it works offline for the during-session view; the iOS install instructional banner appears on first visit; light mode only with no pure blacks and no em dashes in any copy
 
-**Plans**: TBD
+**Plans**: 8 plans
+
+Plans:
+**Wave 1** *(foundation, parallel)*
+
+- [ ] 04-01-PLAN.md — DB migration 0003 + [BLOCKING] supabase db push, new backend read/create endpoints, api/auth.py
+- [ ] 04-03-PLAN.md — Frontend scaffold (Vite/React 19/Tailwind v4/shadcn), design tokens, PWA config, router skeleton
+
+**Wave 2** *(JWT auth gate)*
+
+- [ ] 04-02-PLAN.md — JWT middleware across all existing routes + auth tests
+
+**Wave 3** *(auth shell)*
+
+- [ ] 04-04-PLAN.md — Supabase magic-link auth, API client, stores, AuthGate + FirstRunGate
+
+**Wave 4** *(core screens, parallel)*
+
+- [ ] 04-05-PLAN.md — Navigation shell + Today + Agenda screens
+- [ ] 04-06-PLAN.md — History (FIT upload + CTL sparkline) + Chat + Onboarding (SSE)
+
+**Wave 5** *(calendar + during-session/PWA, parallel)*
+
+- [ ] 04-07-PLAN.md — Google Calendar OAuth2 + sync hooks + Settings screen
+- [ ] 04-08-PLAN.md — During-Session static screen + iOS install banner + PWA icons + Vercel deploy
+
 **UI hint**: yes
 
 ### Phase 5: During-Session and ZWO Export
@@ -143,5 +168,5 @@ Plans:
 | 1. Sports-Science Foundation | 5/5 | Complete   | 2026-06-19 |
 | 2. Agent Core | 6/6 | Complete    | 2026-06-20 |
 | 3. Coaching Loop | 5/5 | Complete    | 2026-06-20 |
-| 4. UI and Calendar | 0/0 | Not started | - |
+| 4. UI and Calendar | 0/8 | Planned | - |
 | 5. During-Session and ZWO Export | 0/0 | Not started | - |
