@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+@theme {
+  /* Primary blue scale */
+  --color-blue-0: #E9F3FC;
+  --color-blue-1: #CEE5FA;
+  --color-blue-2: #ABD3F6;
+  --color-blue-3: #7FBCF0;
+  --color-blue-4: #53A5EC;
+  --color-blue-5: #3494E8;
+  --color-blue-6: #228BE6;   /* primary fills, buttons, large text */
+  --color-blue-7: #1B73C0;   /* small blue text (4.95:1 on white) */
+  --color-blue-8: #155EA0;
+  --color-blue-9: #104C82;
+
+  /* Neutrals (faint blue undertone; no pure black) */
+  --color-ink:    #1A2230;   /* primary text */
+  --color-ink-2:  #5F646E;   /* secondary text, body-safe */
+  --color-ink-3:  #888C93;   /* muted, large text only (3.0:1 min) */
+  --color-line:   #DFE0E2;   /* borders, dividers */
+  --color-line-2: #EDEDEE;   /* subtle separators */
+  --color-surface: #FFFFFF;  /* card backgrounds */
+  --color-bg:     #F9F9FA;   /* app background */
+  --color-bg-2:   #F6F6F7;   /* alternate surface, hover states */
+
+  /* Warm accent and semantic */
+  --color-warm:      #FF8A5C;  /* accent warm (CTAs on non-primary surfaces) */
+  --color-warm-soft: #FFEDE7;  /* warm background tint */
+  --color-amber:     #F0A030;  /* warning state, tempo zone */
+  --color-good:      #2B8A5B;  /* success state, zone-recovery */
+  --color-warn:      #9A6700;  /* warning text on light bg */
+  --color-bad:       #C0341D;  /* error text on light bg */
+
+  /* Zone colors (must match PRD exactly) */
+  --color-zone-recovery:  #2B8A5B;
+  --color-zone-endurance: #228BE6;
+  --color-zone-tempo:     #F0A030;
+  --color-zone-threshold: #E8590C;
+  --color-zone-vo2:       #C92A2A;
+
+  /* Font */
+  --font-family-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-family-sans);
+  margin: 0;
+}
