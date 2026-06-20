@@ -1,8 +1,9 @@
 ---
-phase: 04-ui-and-calendar
-reviewed: 2026-06-20T00:00:00Z
-depth: quick
-files_reviewed: 57
+phase: "04"
+phase_name: "ui-and-calendar"
+status: "issues-found"
+depth: "standard"
+files_reviewed: 66
 files_reviewed_list:
   - api/auth.py
   - api/calendar_sync.py
@@ -13,7 +14,10 @@ files_reviewed_list:
   - api/routes/onboarding.py
   - api/routes/rides.py
   - api/routes/sessions.py
-  - frontend/src/App.tsx
+  - frontend/.env.example
+  - frontend/components.json
+  - frontend/index.html
+  - frontend/package.json
   - frontend/src/components/AppLayout.tsx
   - frontend/src/components/chat/ChatBubble.tsx
   - frontend/src/components/chat/ChatInput.tsx
@@ -28,9 +32,17 @@ files_reviewed_list:
   - frontend/src/components/session/TsbChip.tsx
   - frontend/src/components/session/ZoneChip.tsx
   - frontend/src/components/settings/CalendarStatus.tsx
+  - frontend/src/components/ui/accordion.tsx
+  - frontend/src/components/ui/alert-dialog.tsx
+  - frontend/src/components/ui/badge.tsx
+  - frontend/src/components/ui/button.tsx
+  - frontend/src/components/ui/separator.tsx
+  - frontend/src/components/ui/skeleton.tsx
+  - frontend/src/components/ui/tooltip.tsx
   - frontend/src/hooks/useAuth.ts
   - frontend/src/hooks/useCalendarStatus.ts
   - frontend/src/hooks/useSSEStream.ts
+  - frontend/src/index.css
   - frontend/src/lib/api.ts
   - frontend/src/lib/supabase.ts
   - frontend/src/lib/utils.ts
@@ -53,8 +65,12 @@ files_reviewed_list:
   - frontend/src/tests/setup.ts
   - frontend/src/tests/today.test.tsx
   - frontend/src/vite-env.d.ts
+  - frontend/tsconfig.app.json
+  - frontend/tsconfig.json
+  - frontend/vercel.json
   - frontend/vite.config.ts
   - frontend/vitest.config.ts
+  - supabase/migrations/0003_phase4_schema.sql
   - tests/api/conftest.py
   - tests/api/test_adaptations.py
   - tests/api/test_auth.py
@@ -63,175 +79,114 @@ files_reviewed_list:
   - tests/api/test_rides.py
   - tests/api/test_sessions.py
 findings:
-  critical: 4
-  warning: 5
-  info: 2
-  total: 11
-status: issues_found
+  critical: 7
+  warning: 9
+  info: 4
+  total: 20
+reviewed_at: "2026-06-20"
 ---
 
-# Phase 04: Code Review Report
-
-**Reviewed:** 2026-06-20
-**Depth:** quick (with targeted file reads on flagged areas)
-**Files Reviewed:** 57
-**Status:** issues_found
+# Phase 04 Code Review
 
 ## Summary
 
-Phase 04 introduces JWT auth, Google Calendar OAuth2, the SSE streaming layer, and the full React frontend. The highest-risk surface is the OAuth2 callback flow and the JWT-in-URL pattern used by both SSE clients and the Calendar connect flow. Four critical findings were confirmed by reading the code directly; five warnings cover logic gaps and missing hardening. The SSE ?token= fallback is an accepted architectural trade-off (EventSource cannot send headers), but the Calendar connect flow compounds the exposure unnecessarily.
+The Phase 4 implementation is architecturally sound on the auth and data-isolation axes, but carries several correctness defects that will cause crashes or silent data loss in production. The most severe issues are: a missing CORS middleware that blocks all browser API calls; JWT tokens exposed in server-side redirect URLs and browser history; a `BackgroundTasks()` instantiation anti-pattern that silently discards calendar sync work; unchecked DB insert results that crash the adaptation logging path; and a frontend API type mismatch where `getUpcomingSessions` deserializes to the wrong shape. The JWT verification implementation is correct; the calendar OAuth CSRF guard and Fernet encryption are solid.
 
 ---
 
-## Critical Issues
+## Findings
 
-### CR-01: Supabase JWT sent as URL query parameter to the backend OAuth /auth endpoint
+### CR-001 — CORS middleware absent: all browser API calls blocked [CRITICAL]
 
-**File:** `frontend/src/components/settings/CalendarStatus.tsx:30`
-**Issue:** `window.location.href = \`${API_URL}/calendar/auth?token=${encodeURIComponent(token)}\`` navigates the browser to the backend OAuth redirect with the user's Supabase access token in the URL. This is distinct from the SSE case: here the browser navigates to a backend page, meaning the token appears in:
-- Browser history (and any browser sync)
-- Nginx/server access logs for the backend
-- The HTTP `Referer` header sent to Google's authorization endpoint
-- Any browser extensions or corporate proxies that log URLs
-
-The SSE `?token=` design is a documented architectural trade-off (EventSource cannot send Authorization headers). This calendar case has no such constraint — the frontend could instead call a short-lived `POST /calendar/auth/session` endpoint that returns a one-time redirect URL (backend holds the JWT, returns the Google URL), or the backend could accept the token only in the body of a POST. Sending a long-lived access token in a navigation URL is a straightforward credential leak.
-
-**Fix:** Change the OAuth initiation to a POST request. The backend generates the Google auth URL and returns it in the response body; the frontend then redirects to that URL.
-
-```typescript
-// CalendarStatus.tsx
-async function handleConnect() {
-  const res = await apiFetch('/calendar/auth', { method: 'POST' })
-  if (!res.ok) { toast.error('Could not initiate connection.'); return }
-  const { auth_url } = await res.json()
-  window.location.href = auth_url
-}
-```
-
-```python
-# api/routes/calendar.py -- change @router.get("/auth") to @router.post("/auth")
-@router.post("/auth")
-async def calendar_auth(current_user: dict = Depends(get_current_user)) -> dict:
-    ...
-    return {"auth_url": auth_url}
-```
-
----
-
-### CR-02: OAuth callback endpoint is unauthenticated -- any caller can exchange a valid state token
-
-**File:** `api/routes/calendar.py:208-266`
-**Issue:** `GET /calendar/callback` takes only `code` and `state` query parameters; it has no `Depends(get_current_user)`. The CSRF state lookup does authenticate indirectly (state -> user_id), but the endpoint is exploitable if an attacker intercepts the code from a victim's OAuth flow: they can submit a valid `code` + valid `state` to the callback and have the tokens stored for the victim's account, since there is no second factor binding the request to a specific browser session or principal. Additionally, the `state` parameter is looked up by value in the database with no constant-time comparison, making it theoretically vulnerable to timing attacks (though Supabase's DB latency dwarfs timing differences in practice, this is still a correctness gap).
-
-More concretely: if the victim's OAuth redirect is intercepted (e.g., via open redirect or network position), the attacker holds both `code` and `state` and can complete the exchange on behalf of the victim with no server-side protection beyond the state match.
-
-**Fix:** Bind the OAuth state to a user-specific session cookie or PKCE verifier so that only the originating browser session can complete the exchange. At minimum, set a short TTL on `oauth_states` rows (e.g., 10 minutes) and delete them immediately after first use (which the code does do on line 264, but the TTL enforcement is missing).
-
-```python
-# In oauth_states upsert, add an expiry column and enforce it in the callback:
-await supabase.table("oauth_states").upsert(
-    {"user_id": user_id, "state": state, "expires_at": (datetime.utcnow() + timedelta(minutes=10)).isoformat()}
-).execute()
-
-# In callback, check expiry:
-if rows[0].get("expires_at") and rows[0]["expires_at"] < datetime.utcnow(tz=timezone.utc).isoformat():
-    raise HTTPException(status_code=400, detail={"error": "state_expired", ...})
-```
-
----
-
-### CR-03: `markSessionDone` calls a PATCH /sessions/{id} endpoint that does not exist in the backend
-
-**File:** `frontend/src/lib/api.ts:181-187` and `api/routes/sessions.py`
-**Issue:** `markSessionDone` sends `PATCH /sessions/{sessionId}` with `{ status: 'completed' }`. No such endpoint is defined in `api/routes/sessions.py` or `api/main.py`. The sessions router only exposes GET endpoints (`/sessions/today`, `/sessions/upcoming`). This call will return 404 or 405 at runtime. The "Mark done" button in `SessionCard.tsx` is silently broken: `handleMarkDone` catches no errors (the `finally` block only clears loading state), so the user sees no feedback and the session status never changes.
-
-**Fix:** Add the missing PATCH endpoint to the sessions router, or route it through the adaptations router for consistency:
-
-```python
-# api/routes/sessions.py
-@router.patch("/sessions/{session_id}")
-async def update_session(
-    session_id: str = Path(...),
-    body: dict = Body(...),
-    current_user: dict = Depends(get_current_user),
-) -> dict:
-    user_id = current_user["user_id"]
-    validate_uuid(session_id, "session_id")
-    allowed_fields = {"status"}
-    update_data = {k: v for k, v in body.items() if k in allowed_fields}
-    if not update_data:
-        raise HTTPException(status_code=422, detail={"error": "no_valid_fields"})
-    supabase = await _get_async_supabase()
-    # Verify ownership before update
-    check = await supabase.table("sessions").select("id").eq("id", session_id).eq("user_id", user_id).execute()
-    if not check.data:
-        raise HTTPException(status_code=404, detail={"error": "session_not_found"})
-    result = await supabase.table("sessions").update(update_data).eq("id", session_id).execute()
-    return result.data[0]
-```
-
----
-
-### CR-04: `process_ride_background` queries `training_sessions` table but the rest of the codebase uses `sessions`
-
-**File:** `api/routes/rides.py:309`
-**Issue:** The session compliance check in `process_ride_background` queries `.table("training_sessions")`, but every other query in the codebase (adaptations.py, sessions.py) uses `.table("sessions")`. If the actual table name is `sessions` (the dominant usage), the compliance check silently returns no rows every time, meaning `compliance_result` is always `None`, `compliance_pct` is never written to the ride row, and session compliance is never validated. This is a silent data correctness failure.
-
+**File:** `api/main.py:27`
+**Issue:** The FastAPI application has no `CORSMiddleware` registered. The frontend runs at a different origin from the API server (`VITE_API_URL`); every `fetch` and `EventSource` request from the browser will be blocked by the browser's CORS preflight check. No REST endpoint or SSE stream is reachable from the browser in any deployed environment.
 **Fix:**
 ```python
-# api/routes/rides.py:309 -- change table name to match the rest of the codebase
-session_result = await (
-    supabase.table("sessions")  # was: "training_sessions"
-    .select("tss_target, session_type")
-    .eq("user_id", user_id)
-    .eq("scheduled_date", date.today().isoformat())
-    .execute()
+from fastapi.middleware.cors import CORSMiddleware
+import os
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[os.environ.get("FRONTEND_URL", "http://localhost:5173")],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 ```
 
-Also note: the query selects `tss` but the sessions table column is `tss_target` (used everywhere else). Fix the select to `tss_target`:
-```python
-.select("tss_target, session_type")
-# then:
-planned={"tss": planned_session.get("tss_target", 0)},
-```
-
 ---
 
-## Warnings
+### CR-002 — JWT access token exposed in browser redirect URL and server logs [CRITICAL]
 
-### WR-01: Error swallowed silently in `handleMarkDone` -- user gets no failure feedback
-
-**File:** `frontend/src/components/session/SessionCard.tsx:72-79`
-**Issue:** `handleMarkDone` has no `catch` block. If `markSessionDone` throws (404 from the missing endpoint in CR-03, or any network error), the error is silently swallowed. The loading spinner clears but the user has no indication the action failed. The `handleMarkMissed` function on line 83 has the same pattern.
-
-**Fix:**
+**File:** `frontend/src/components/settings/CalendarStatus.tsx:30`
+**Issue:** `handleConnect` constructs `window.location.href = \`${API_URL}/calendar/auth?token=${encodeURIComponent(token)}\`` which embeds the Supabase access token as a query parameter in a browser navigation. This causes the full JWT to appear in: (1) browser history, (2) server access logs on the API server, (3) any CDN or reverse-proxy request logs, and (4) the `Referer` header on subsequent requests. Access tokens are long-lived (typically 1 hour) and are full bearer credentials. The `/calendar/auth` backend endpoint already accepts `?token=` as an SSE fallback for `get_current_user`, so this technically authenticates, but the exposure is a security defect.
+**Fix:** Replace the direct redirect with a fetch that passes the token in the Authorization header, then redirects to the returned URL:
 ```typescript
-async function handleMarkDone() {
-  setIsDoneLoading(true)
-  try {
-    await markSessionDone(session.id)
-    queryClient.invalidateQueries({ queryKey: ['session', 'today'] })
-    queryClient.invalidateQueries({ queryKey: ['sessions', 'upcoming'] })
-    toast.success('Session marked complete.')
-  } catch {
-    toast.error('Could not mark session done. Try again.')
-  } finally {
-    setIsDoneLoading(false)
+async function handleConnect() {
+  const res = await apiFetch('/calendar/auth-redirect-url')
+  if (res.ok) {
+    const { url } = await res.json() as { url: string }
+    window.location.href = url
   }
 }
 ```
+On the backend, add a `GET /calendar/auth-redirect-url` endpoint that builds and returns the Google OAuth URL (authenticated via `Depends(get_current_user)`) without performing a redirect, keeping the token out of the URL.
 
 ---
 
-### WR-02: `getUpcomingSessions` returns an object `{ sessions: [] }` but callers expect `Session[]`
+### CR-003 — `asyncio.ensure_future` in request handler: calendar push dropped under multi-worker deployments [CRITICAL]
 
-**File:** `frontend/src/lib/api.ts:121-125` and `api/routes/sessions.py:141`
-**Issue:** `GET /sessions/upcoming` returns `{"sessions": [...]}` (a dict with a key). The frontend helper `getUpcomingSessions` casts the response directly as `Promise<Session[]>` without unwrapping the `sessions` key. This means `useQuery` data in `TodayScreen.tsx` and `AgendaScreen.tsx` will be the raw object `{ sessions: [...] }`, not an array. Downstream, `upcoming?.find(...)` and `sessions.length === 0` behave as if the array is empty or undefined depending on the JS coercion. The `AgendaScreen` casts with `sessions as unknown as SessionRow[]` which would silently give a non-array value.
+**File:** `api/routes/onboarding.py:230`
+**Issue:** `_asyncio.ensure_future(push_all_sessions_to_calendar(user_id))` schedules a coroutine on the current event loop without registering it with FastAPI's `BackgroundTasks` mechanism. Under Gunicorn with multiple Uvicorn workers, or when the worker process is recycled before the coroutine completes, the future is silently dropped. Additionally, `ensure_future` does not attach error handling; any exception inside `push_all_sessions_to_calendar` will produce an "unhandled exception in asyncio Future" warning and the caller will never know.
+**Fix:**
+```python
+@router.post("/plan-calendar-sync")
+async def onboarding_plan_calendar_sync(
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    user_id = current_user["user_id"]
+    background_tasks.add_task(push_all_sessions_to_calendar, user_id)
+    return {"status": "scheduled"}
+```
 
+---
+
+### CR-004 — `BackgroundTasks()` as default parameter: calendar sync silently never executes [CRITICAL]
+
+**File:** `api/routes/adaptations.py:679`
+**Issue:** `mark_session_missed` declares `background_tasks: BackgroundTasks = BackgroundTasks()`. FastAPI injects a `BackgroundTasks` instance at request time and executes its registered tasks after the response is sent. A `BackgroundTasks()` created as a Python default parameter value is a stale empty instance that is never connected to FastAPI's response lifecycle. Calls to `background_tasks.add_task(update_calendar_event, ...)` on lines 729-730 register tasks on this disconnected object, which FastAPI will never execute. Every calendar sync triggered by `mark_session_missed` is silently dropped.
+**Fix:**
+```python
+@router.post("/sessions/{session_id}/missed")
+async def mark_session_missed(
+    session_id: str = Path(...),
+    background_tasks: BackgroundTasks,          # no default
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+```
+
+---
+
+### CR-005 — Unchecked DB insert result in `log_adaptation`: `IndexError` on empty response [CRITICAL]
+
+**File:** `api/routes/adaptations.py:340`
+**Issue:** `log_adaptation` returns `result.data[0]["id"]` without verifying that `result.data` is non-empty. If the Supabase insert fails silently (RLS rejection, constraint violation, transient network error), `result.data` is `[]` and `result.data[0]` raises `IndexError`. Unlike the `create_conversation` call in `onboarding.py` (which is wrapped in a best-effort try/except), `log_adaptation` is called from `apply_micro_adjustment` (line 424) and `apply_macro_replan` (line 578) with no surrounding exception handler — an `IndexError` here will propagate as a 500 response to the caller after sessions have already been mutated, leaving the system in a partially-applied state with no adaptation log entry.
+**Fix:**
+```python
+if not result.data:
+    raise RuntimeError("adaptations INSERT returned no rows — check RLS and schema")
+return result.data[0]["id"]
+```
+
+---
+
+### CR-006 — `getUpcomingSessions` returns wrong shape: `Session[]` vs `{sessions: Session[]}` [CRITICAL]
+
+**File:** `frontend/src/lib/api.ts:121-125`
+**Issue:** `getUpcomingSessions` does `return res.json() as Promise<Session[]>` but the backend `GET /sessions/upcoming` returns `{"sessions": [...]}` (a dict with a `sessions` key, not a bare array). Every caller receives the wrapper object typed as `Session[]`. `TodayScreen.tsx` line 90 calls `upcoming?.find(...)` which returns `undefined` (arrays have `find`; plain objects do not). `AgendaScreen.tsx` line 110 checks `sessions.length === 0` which is `undefined` (the `sessions` property of the deserialized wrapper is the actual array), causing the empty-state branch to never fire, and line 135 calls `sessions as unknown as SessionRow[]` then iterates with `for (const s of rows)` — this will iterate over the keys of `{"sessions": [...]}` rather than the session rows.
 **Fix:**
 ```typescript
-// api.ts
 export async function getUpcomingSessions(): Promise<Session[]> {
   const res = await apiFetch('/sessions/upcoming')
   if (!res.ok) throw new Error(`getUpcomingSessions failed: ${res.status}`)
@@ -242,66 +197,210 @@ export async function getUpcomingSessions(): Promise<Session[]> {
 
 ---
 
-### WR-03: `apply_macro_replan` shifts every session by +1 day unconditionally, then checks the 30% guard
+### CR-007 — OAuth callback endpoint is unauthenticated: state token alone authorizes token storage [CRITICAL]
 
-**File:** `api/routes/adaptations.py:527`
-**Issue:** The macro replan shifts every session out by 1 day (`new_date = (sched + timedelta(days=1)).isoformat()`), which means 100% of sessions shift by exactly 1 day. The `check_shift_limit` function counts sessions that shift by **more than** 1 day (`delta_days > 1`), so the guard never fires (0% of sessions shift by >1 day when all shift by exactly 1). The 30% guard is effectively dead code for the current replan logic. If the intent is to detect any shift at all, the threshold in `check_shift_limit` should be `>= 1` not `> 1`, or the replan should vary shift amounts. As-is, the guard required by ADAPT-03/D-19 is bypassed.
+**File:** `api/routes/calendar.py:208-266`
+**Issue:** `GET /calendar/callback` has no `Depends(get_current_user)`. The user whose `google_tokens` are updated is determined solely by a DB lookup on the `state` parameter (line 238: `user_id = rows[0]["user_id"]`). While the state is a 32-byte random value stored server-side (CSRF protection is present), the callback is completely unauthenticated. An attacker who observes the `state` value from an access log or referrer leak can call the callback endpoint with a valid OAuth `code` obtained from their own Google authorization and link Google tokens of their choosing to any victim user's account. The `/auth` endpoint correctly authenticates the user before generating the state; the callback must verify that the same user is completing the flow.
+**Fix:** Embed the user_id in the state as an HMAC-signed binding, or require a short-lived session cookie set at `/auth` that the callback verifies:
+```python
+# At /auth: sign state with user_id
+import hmac, hashlib
+state_nonce = secrets.token_urlsafe(32)
+state_sig = hmac.new(
+    os.environ["SUPABASE_JWT_SECRET"].encode(),
+    f"{state_nonce}:{user_id}".encode(),
+    hashlib.sha256
+).hexdigest()
+state = f"{state_nonce}.{user_id}.{state_sig}"
 
-**Fix:** Either change the guard threshold to `delta_days >= 1` to match the actual shift amounts, or implement variable shift logic that can produce multi-day shifts so the guard has meaningful input to test.
+# At /callback: verify signature before trusting user_id
+parts = state.split(".")
+if len(parts) != 3:
+    raise HTTPException(status_code=400, ...)
+nonce, claimed_user_id, sig = parts
+expected = hmac.new(secret.encode(), f"{nonce}:{claimed_user_id}".encode(), hashlib.sha256).hexdigest()
+if not hmac.compare_digest(sig, expected):
+    raise HTTPException(status_code=400, detail={"error": "invalid_state"})
+```
 
 ---
 
-### WR-04: `getLatestPmc` returns `null` silently when the `date` field is missing, masking valid data
+### WR-001 — `handleConfirm` stale closure: `queryClient` and `navigate` not in dependency array [WARNING]
 
-**File:** `frontend/src/lib/api.ts:139-143`
-**Issue:** `getLatestPmc` checks `if (!data || !data.date) return null`. The backend `latest_pmc` returns an empty dict `{}` for cold-start, but a valid PMC row should always have a `date`. However, if the schema or ORM returns a different field name (e.g., `created_at` but no `date`), the function silently returns null and the TsbChip/SessionCard never show PMC data even though it exists. The empty-dict check on line 139 is sufficient; the `!data.date` guard adds fragility.
-
+**File:** `frontend/src/screens/OnboardingScreen.tsx:344`
+**Issue:** `handleConfirm` is wrapped in `useCallback(async () => { ... }, [])` with an empty dependency array, but the inner function `pollForProfile` captures `queryClient` and `navigate` from the enclosing component scope. If React re-renders create new identities for these (possible in test environments or with React concurrent mode), the stale closure references the wrong values. Additionally, ESLint's exhaustive-deps rule will flag this, and future developers may be misled about what state the function captures.
 **Fix:**
 ```typescript
-// Check only for empty dict (cold-start); don't gate on field presence
-if (!data || Object.keys(data).length === 0) return null
-return data as unknown as PmcEntry
+const handleConfirm = useCallback(async () => {
+  // ...
+}, [queryClient, navigate])
 ```
 
 ---
 
-### WR-05: `onboarding_start` creates a conversation row but ignores the returned ID -- SSE never loads prior history
+### WR-002 — SSE error handler fires on normal stream close: shows "Stream error" after successful completion [WARNING]
 
-**File:** `api/routes/onboarding.py:258-263`
-**Issue:** `await create_conversation(user_id, context_type="onboarding")` creates a DB row and returns a UUID, but the return value is discarded. The `sse_generator` is then called with a static `messages` list that does not reference any conversation. This means the onboarding conversation is never loaded from DB on subsequent SSE calls (e.g., when the user sends their answer and `runStream(text)` re-POSTs to `/onboarding/start`). Each POST re-creates a fresh context with only the static opening message, losing all prior interview turns. The onboarding agent has no memory of the interview across multiple SSE calls.
-
-This is distinct from the "new messages are NOT persisted" note in the docstring: the problem is that prior messages are not *loaded* either.
-
-**Fix:** Either persist the conversation_id and use `load_conversation` before each `sse_generator` call (which requires passing the conversation_id from the frontend), or document explicitly that the entire onboarding interview is conducted in a single SSE stream (which contradicts the current frontend that re-POSTs per user message).
-
----
-
-## Info
-
-### IN-01: `App.tsx` is the Vite scaffold default -- never used, not wired to the router
-
-**File:** `frontend/src/App.tsx:1-122`
-**Issue:** This file is the stock Vite scaffold with a counter, hero image, and React/Vite logos. It is never imported by `main.tsx` or the router (the router is mounted directly via `RouterProvider`). Dead file.
-
-**Fix:** Delete `frontend/src/App.tsx` and `frontend/src/App.css`. Also delete `frontend/src/assets/react.svg`, `frontend/src/assets/vite.svg`, and `frontend/src/assets/hero.png` if they are not used elsewhere.
-
----
-
-### IN-02: `router.tsx` exports placeholder screen stubs that shadow real screen implementations
-
-**File:** `frontend/src/router.tsx:114-128`
-**Issue:** `router.tsx` exports `OnboardingScreen`, `HistoryScreen`, `ChatScreen`, and `SettingsScreen` as stub divs (`return <div>Onboarding</div>` etc.) even though real implementations exist in `src/screens/`. The router uses these stubs for `/onboarding`, `/history`, `/chat`, and `/settings`, not the real screens. The real screens in `frontend/src/screens/` are not imported by the router at all for these routes.
-
-**Fix:** Remove the stubs and import the real screen implementations:
+**File:** `frontend/src/hooks/useSSEStream.ts:68-80`
+**Issue:** When the backend closes the SSE connection after emitting the `done` event, `EventSource` fires its `error` event handler automatically (this is how EventSource signals connection closure). The `done` handler closes the EventSource (line 63: `es.close()`), but there is a microtask-scheduling race: the `done` event and the subsequent network close may both be queued before the `close()` call takes effect. If the `error` handler fires after `done`, it calls `setError('Stream error')` even though the stream completed successfully. This will show a red "Connection lost" banner to the user after every coaching turn that ends normally.
+**Fix:** Track whether the stream has completed and ignore error events that follow a done:
 ```typescript
-import { OnboardingScreen } from './screens/OnboardingScreen'
-import { HistoryScreen } from './screens/HistoryScreen'
-import { ChatScreen } from './screens/ChatScreen'
-import { SettingsScreen } from './screens/SettingsScreen'
+let streamCompleted = false
+
+es.addEventListener('done', () => {
+  streamCompleted = true
+  setIsDone(true)
+  setIsThinking(false)
+  es.close()
+})
+
+es.addEventListener('error', (e: Event) => {
+  if (streamCompleted) return   // ignore post-done connection close
+  try {
+    const data = JSON.parse((e as MessageEvent).data ?? '{}') as {
+      code?: string; message?: string
+    }
+    setError(data.message ?? 'Stream error')
+  } catch {
+    setError('Stream error')
+  }
+  setIsThinking(false)
+  es.close()
+})
 ```
 
 ---
 
-_Reviewed: 2026-06-20_
+### WR-003 — Five independent Supabase client singletons: duplicated code, multiple connection pools [WARNING]
+
+**File:** `api/routes/adaptations.py:53`, `api/routes/calendar.py:47`, `api/routes/onboarding.py:89`, `api/routes/rides.py:54`, `api/routes/sessions.py:34`, `api/calendar_sync.py:33`
+**Issue:** Identical copy-paste `_supabase_client` singleton + `_get_async_supabase` function exists in six modules. Each creates its own httpx connection pool to Supabase. Any change to initialization logic (e.g., adding connection pool limits, lifespan management, or service role key rotation) requires changes in six places. Test monkeypatching must be applied per-module rather than centrally.
+**Fix:** Extract to a single `api/db.py` module and import `get_async_supabase` everywhere.
+
+---
+
+### WR-004 — Macro replan shifts all sessions by exactly 1 day: 30% shift guard is unreachable dead code [WARNING]
+
+**File:** `api/routes/adaptations.py:527`
+**Issue:** `apply_macro_replan` shifts every upcoming session forward by exactly 1 day. `check_shift_limit` counts shifts only where `abs(delta_days) > 1` (strictly greater than). A shift of exactly 1 day does not count as "shifted." Therefore, the macro replan as implemented will always produce a `shifted_count` of 0, `shift_pct` of 0.0, and `requires_user_confirmation` of `False` — the 30% guard at D-19 is structurally unreachable with the current replan logic. This makes the ADAPT-03 requirement a no-op in practice.
+**Fix:** Either change `check_shift_limit` to count shifts `>= 1` day, or change the macro replan to apply variable-day shifts so that some sessions exceed the 1-day boundary and the guard can meaningfully fire.
+
+---
+
+### WR-005 — `onboarding_start` creates a new conversation on every request: multi-turn context is lost [WARNING]
+
+**File:** `api/routes/onboarding.py:262`
+**Issue:** Every `POST /onboarding/start` call creates a new `conversations` row via `create_conversation`. Since the frontend calls this endpoint for every user message turn, each turn sees a fresh empty conversation and `load_conversation` returns `[]`, causing the agent to restart the interview from the beginning on every message. The onboarding cannot progress beyond the first exchange.
+**Fix:** The backend should accept an optional `conversation_id` in the request body and only create a new conversation when it is absent. The frontend should create one conversation on mount and pass the same ID on every subsequent turn.
+
+---
+
+### WR-006 — JWT in SSE query param written to server access logs [WARNING]
+
+**File:** `frontend/src/lib/api.ts:26-30`, `api/auth.py:41`
+**Issue:** The SSE URL includes the full Supabase JWT as `?token=<jwt>`. Any access log from Uvicorn, Nginx, Railway, or a CDN will record the full token. Access tokens are valid bearer credentials for ~1 hour. This is a known constraint of `EventSource` (which cannot send custom headers), but it is currently unmitigated. A compromise of server logs yields all active user sessions.
+**Fix:** Implement a short-lived exchange endpoint: the frontend POSTs (with Authorization header) to `POST /chat/token` and receives a one-time opaque token valid for 30-60 seconds. The SSE URL includes only this ephemeral token, which the backend maps to a user_id. This is the standard mitigation for the EventSource header limitation.
+
+---
+
+### WR-007 — `handleMarkDone` and `handleMarkMissed` swallow errors silently [WARNING]
+
+**File:** `frontend/src/components/session/SessionCard.tsx:72-93`
+**Issue:** Both action handlers use `try { ... } finally { setIsLoading(false) }` with no `catch`. API errors are discarded with no user feedback. For `handleMarkMissed`, `setMissedOpen(false)` is in `finally`, so the dialog closes on both success and failure — a network error appears identical to success from the user's perspective.
+**Fix:**
+```typescript
+async function handleMarkDone() {
+  setIsDoneLoading(true)
+  try {
+    await markSessionDone(session.id)
+    queryClient.invalidateQueries({ queryKey: ['session', 'today'] })
+    queryClient.invalidateQueries({ queryKey: ['sessions', 'upcoming'] })
+  } catch {
+    toast.error('Could not mark session as done. Please try again.')
+  } finally {
+    setIsDoneLoading(false)
+  }
+}
+
+async function handleMarkMissed() {
+  setIsMissedLoading(true)
+  try {
+    await markSessionMissed(session.id)
+    queryClient.invalidateQueries({ queryKey: ['session', 'today'] })
+    queryClient.invalidateQueries({ queryKey: ['sessions', 'upcoming'] })
+    setMissedOpen(false)
+  } catch {
+    toast.error('Could not mark session as missed. Please try again.')
+  } finally {
+    setIsMissedLoading(false)
+  }
+}
+```
+
+---
+
+### WR-008 — `ChatScreen` invalidates `active-conversation` after each turn: triggers new conversation creation [WARNING]
+
+**File:** `frontend/src/screens/ChatScreen.tsx:101-103`
+**Issue:** When a stream completes, `ChatScreen` calls `queryClient.invalidateQueries({ queryKey: ['active-conversation'] })`. The `queryFn` for `active-conversation` calls `createConversation(...)`, so invalidation triggers a new DB insert. On the next invalidation cycle, `conversation.id` changes and the subsequent message sends to a fresh conversation context with no history. The user appears to get a new coaching conversation after every turn.
+**Fix:** Remove the `invalidateQueries` call for `active-conversation` from the stream completion handler. Only invalidate if a "New conversation" action is explicitly requested.
+
+---
+
+### WR-009 — `ride_date` uses upload timestamp instead of FIT file ride date [WARNING]
+
+**File:** `api/routes/rides.py:506`
+**Issue:** The ride stub insert sets `ride_date = datetime.now(timezone.utc).date().isoformat()`. This is the upload date, not the date the ride was performed. Users who upload rides retroactively (e.g., uploading last Tuesday's Zwift session on Friday) will have the ride recorded as today. The `detect_signals` function in `adaptations.py` matches rides to planned sessions by date within +/-1 day; rides recorded as "today" will never match a past-due planned session, breaking missed-session detection and underperformance detection for retroactive uploads.
+**Fix:** Extract the session start timestamp from the FIT file during parsing and use it as `ride_date`. The FIT `session` message type contains a `start_time` field; alternatively, the minimum `timestamp` across all `record` frames gives the ride start. Fall back to `date.today()` only when no timestamp is present in the file.
+
+---
+
+### IN-001 — `_load_credentials` duplicated in `calendar.py` and `calendar_sync.py` [INFO]
+
+**File:** `api/routes/calendar.py:131`, `api/calendar_sync.py:54`
+**Issue:** Two nearly identical `_load_credentials` functions exist. Any change to credential loading (e.g., adding token refresh on expiry) must be applied in both places.
+**Fix:** Extract to a shared `api/google_auth.py` module.
+
+---
+
+### IN-002 — `_parse_date` format-string length slice produces wrong index for all three strptime branches [INFO]
+
+**File:** `api/routes/adaptations.py:95-98`
+**Issue:** The loop tries `val[:len(fmt)]` where `fmt` is the format string literal (e.g., `"%Y-%m-%d"` has `len == 8`). The formatted output of a date like `"2026-06-20"` is 10 characters, so `val[:8] == "2026-06-"` will never parse. All three `strptime` branches in the loop are dead code; only the `fromisoformat` fallback at line 102 actually works. This is harmless in practice but the dead code is misleading.
+**Fix:** Remove the `strptime` loop and use only `fromisoformat`:
+```python
+def _parse_date(val) -> Optional[date]:
+    if val is None:
+        return None
+    if isinstance(val, date) and not isinstance(val, datetime):
+        return val
+    if isinstance(val, datetime):
+        return val.date()
+    if isinstance(val, str):
+        try:
+            return datetime.fromisoformat(val.replace("Z", "+00:00")).date()
+        except ValueError:
+            pass
+    return None
+```
+
+---
+
+### IN-003 — `SettingsScreen` imports `React` at the bottom of the file after its usage [INFO]
+
+**File:** `frontend/src/screens/SettingsScreen.tsx:121`
+**Issue:** `import React from 'react'` appears at line 121, after `React.useState` and `React.useEffect` are used in `SettingsScreenInner`. This works due to module hoisting but violates standard TypeScript/React conventions and will be flagged by import-ordering linters.
+**Fix:** Move the import to the top of the file, or switch to named imports: `import { useState, useEffect } from 'react'`.
+
+---
+
+### IN-004 — SSE parser resets `currentEvent` inside `data:` branch instead of on blank line only [INFO]
+
+**File:** `frontend/src/screens/OnboardingScreen.tsx:208`, `OnboardingScreen.tsx:320`
+**Issue:** In the SSE line loop, `currentEvent = ''` is reset after processing a `data:` line (line 208 and line 320). Per the SSE spec, the event name should persist until a blank-line event dispatch separator. If two events arrive in the same TCP chunk without intervening blank lines (possible under high-throughput streaming), the second event's `data:` line will be processed with `currentEvent = ''` and `parseSSELine('', ...)` returns `null`, silently dropping the event.
+**Fix:** Remove `currentEvent = ''` from inside the `data:` handler and only reset it in the blank-line branch (which already exists at line 209/334).
+
+---
+
+_Reviewed: 2026-06-20T00:00:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
-_Depth: quick (with targeted reads on flagged security surfaces)_
+_Depth: standard_
