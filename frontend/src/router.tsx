@@ -6,6 +6,9 @@ import { useAuthStore } from './stores/authStore'
 import { getProfileMe } from './lib/api'
 import { supabase } from './lib/supabase'
 import { LoginScreen } from './screens/LoginScreen'
+import { AppLayout } from './components/AppLayout'
+import { TodayScreen } from './screens/TodayScreen'
+import { AgendaScreen } from './screens/AgendaScreen'
 
 // ---------------------------------------------------------------------------
 // RootProvider: activate auth listener at the app root.
@@ -104,27 +107,11 @@ export function FirstRunGate() {
 }
 
 // ---------------------------------------------------------------------------
-// AppLayout placeholder (replaced in later plan by full tab bar implementation)
-// ---------------------------------------------------------------------------
-
-export function AppLayout() {
-  return <Outlet />
-}
-
-// ---------------------------------------------------------------------------
 // Placeholder screen components (replaced in later plans by src/screens/)
 // ---------------------------------------------------------------------------
 
 export function OnboardingScreen() {
   return <div>Onboarding</div>
-}
-
-export function TodayScreen() {
-  return <div>Today</div>
-}
-
-export function AgendaScreen() {
-  return <div>Agenda</div>
 }
 
 export function HistoryScreen() {
