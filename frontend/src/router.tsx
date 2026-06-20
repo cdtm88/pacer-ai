@@ -1,8 +1,10 @@
 import { createBrowserRouter, Navigate, Outlet } from 'react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { useAuth } from './hooks/useAuth'
 import { useAuthStore } from './stores/authStore'
 import { getProfileMe } from './lib/api'
+import { supabase } from './lib/supabase'
 import { LoginScreen } from './screens/LoginScreen'
 
 // ---------------------------------------------------------------------------
@@ -12,6 +14,19 @@ import { LoginScreen } from './screens/LoginScreen'
 
 export function RootProvider() {
   useAuth()
+  const queryClient = useQueryClient()
+
+  // Clear all cached queries on sign-out to prevent cross-user data leakage.
+  // Also fires on user-id change (e.g. switching accounts in the same browser).
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
+        queryClient.clear()
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [queryClient])
+
   return <Outlet />
 }
 
@@ -49,12 +64,18 @@ export function AuthGate() {
 // ---------------------------------------------------------------------------
 
 export function FirstRunGate() {
-  const { data: profile, isLoading } = useQuery({
-    queryKey: ['profile'],
+  const { user } = useAuthStore()
+  const userId = user?.id
+
+  const { data: profile, isLoading, isError } = useQuery({
+    queryKey: ['profile', userId],
     queryFn: getProfileMe,
+    // Don't fetch if there's no authenticated user — gate should not be reached
+    // without a session, but guard defensively.
+    enabled: !!userId,
   })
 
-  if (isLoading) {
+  if (isLoading || !userId) {
     return (
       <div
         className="min-h-screen flex items-center justify-center"
@@ -69,7 +90,13 @@ export function FirstRunGate() {
     )
   }
 
-  if (profile === null) {
+  // 401 / network error: treat as session-invalid and redirect to login.
+  if (isError) {
+    return <Navigate to="/login" replace />
+  }
+
+  // Null profile means onboarding hasn't been completed.
+  if (profile === null || profile === undefined) {
     return <Navigate to="/onboarding" replace />
   }
 

@@ -50,16 +50,6 @@ function makeQueryClient() {
   })
 }
 
-function renderRouter(routes: Parameters<typeof createMemoryRouter>[0], initialPath = '/') {
-  const queryClient = makeQueryClient()
-  const router = createMemoryRouter(routes, { initialEntries: [initialPath] })
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>,
-  )
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
