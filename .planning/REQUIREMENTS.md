@@ -53,11 +53,11 @@
 
 ### FIT File Ingestion
 
-- [ ] **FIT-01**: User can drag or select a .FIT file (Zwift or compatible head unit) in the web app to upload it
+- [x] **FIT-01**: User can drag or select a .FIT file (Zwift or compatible head unit) in the web app to upload it
 - [x] **FIT-02**: The parser uses `fitdecode` with `error_handling=ErrorHandling.WARN`; all field access uses `get_value('field', fallback=None)`; GPS fields are not required (indoor rides)
-- [ ] **FIT-03**: The parser extracts power, heart rate, cadence, and duration from the .FIT file; missing fields are handled gracefully with fallback to null
+- [x] **FIT-03**: The parser extracts power, heart rate, cadence, and duration from the .FIT file; missing fields are handled gracefully with fallback to null
 - [x] **FIT-04**: After parsing, `compute_tss` is called on the ride data; `update_pmc` is called to update the PMC history; results are persisted to `rides` and `pmc_history` tables
-- [ ] **FIT-05**: The parsed ride feeds `validate_session_vs_actual` to produce a compliance percentage, delta metrics, and flags
+- [x] **FIT-05**: The parsed ride feeds `validate_session_vs_actual` to produce a compliance percentage, delta metrics, and flags
 - [x] **FIT-06**: A real Zwift .FIT file is used as an acceptance test before the FIT pipeline is considered production-ready
 
 ### Adaptive Re-Planning
@@ -181,11 +181,11 @@
 | PLAN-04 | Phase 3 | Complete |
 | PLAN-05 | Phase 3 | Complete |
 | PLAN-06 | Phase 3 | Complete |
-| FIT-01 | Phase 3 | Pending |
+| FIT-01 | Phase 3 | Complete |
 | FIT-02 | Phase 3 | Complete |
-| FIT-03 | Phase 3 | Pending |
+| FIT-03 | Phase 3 | Complete |
 | FIT-04 | Phase 3 | Complete |
-| FIT-05 | Phase 3 | Pending |
+| FIT-05 | Phase 3 | Complete |
 | FIT-06 | Phase 3 | Complete |
 | ADAPT-01 | Phase 3 | Pending |
 | ADAPT-02 | Phase 3 | Pending |

@@ -83,7 +83,7 @@ Plans:
   4. A missed session causes the agent to re-plan; micro-adjustments (1-3 sessions) are distinguished from macro replanning (2+ signals required); no macro replan shifts more than 30% of upcoming sessions without surfacing a change summary
   5. Every plan change is explained in chat with specific TSS/CTL/ATL/TSB values cited from tool calls and a named sports-science principle; every change is persisted to the adaptation log
 
-**Plans**: 3/5 plans executed
+**Plans**: 4/5 plans executed
 
 Plans:
 **Wave 1**
@@ -97,7 +97,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 03-04-PLAN.md — Wave 3: FIT ingestion pipeline, TSS/PMC background task, real Zwift acceptance test (FIT-01..06)
+- [x] 03-04-PLAN.md — Wave 3: FIT ingestion pipeline, TSS/PMC background task, real Zwift acceptance test (FIT-01..06)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -142,6 +142,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Sports-Science Foundation | 5/5 | Complete   | 2026-06-19 |
 | 2. Agent Core | 6/6 | Complete    | 2026-06-20 |
-| 3. Coaching Loop | 3/5 | In Progress|  |
+| 3. Coaching Loop | 4/5 | In Progress|  |
 | 4. UI and Calendar | 0/0 | Not started | - |
 | 5. During-Session and ZWO Export | 0/0 | Not started | - |
