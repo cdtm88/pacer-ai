@@ -240,7 +240,7 @@ async function mockBackendApis(
   )
   await page.route(/\/calendar\/settings/, (route) =>
     route.fulfill(
-      respond(overrides.calendar ?? { connected: false, calendar_id: null, sync_enabled: false }),
+      respond(overrides.calendar ?? { connected: false }),
     ),
   )
   await page.route(/\/calendar\//, (route) => route.fulfill(respond({})))

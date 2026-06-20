@@ -103,8 +103,6 @@ export interface Conversation {
 
 export interface CalendarSettings {
   connected: boolean
-  calendar_id: string | null
-  sync_enabled: boolean
 }
 
 // GET /profiles/me — returns null on 404 (no profile yet, triggers first-run gate)
