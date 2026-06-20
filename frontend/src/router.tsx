@@ -10,6 +10,10 @@ import { LoginScreen } from './screens/LoginScreen'
 import { AppLayout } from './components/AppLayout'
 import { TodayScreen } from './screens/TodayScreen'
 import { AgendaScreen } from './screens/AgendaScreen'
+import { OnboardingScreen } from './screens/OnboardingScreen'
+import { HistoryScreen } from './screens/HistoryScreen'
+import { ChatScreen } from './screens/ChatScreen'
+import { SettingsScreen } from './screens/SettingsScreen'
 
 // ---------------------------------------------------------------------------
 // RootProvider: activate auth listener at the app root.
@@ -108,27 +112,11 @@ export function FirstRunGate() {
 }
 
 // ---------------------------------------------------------------------------
-// Placeholder screen components (replaced in later plans by src/screens/)
+// DuringSessionScreen: delegates to the real implementation
 // ---------------------------------------------------------------------------
-
-export function OnboardingScreen() {
-  return <div>Onboarding</div>
-}
-
-export function HistoryScreen() {
-  return <div>History</div>
-}
-
-export function ChatScreen() {
-  return <div>Chat</div>
-}
 
 export function DuringSessionScreen() {
   return <DuringSessionScreenImpl />
-}
-
-export function SettingsScreen() {
-  return <div>Settings</div>
 }
 
 // ---------------------------------------------------------------------------
