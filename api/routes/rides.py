@@ -87,6 +87,10 @@ def parse_fit_file(file_bytes: bytes) -> Optional[dict]:
     hr_samples: list[float] = []
     cadence_samples: list[float] = []
     _first_record_logged = False
+    # WR-009: capture ride start time from FIT session or first record timestamp
+    # so we record the ride date the session occurred, not the upload date.
+    ride_start_time: Optional[datetime] = None
+    first_record_ts: Optional[datetime] = None
 
     try:
         with fitdecode.FitReader(
@@ -96,6 +100,15 @@ def parse_fit_file(file_bytes: bytes) -> Optional[dict]:
             for frame in reader:
                 if not isinstance(frame, fitdecode.FitDataMessage):
                     continue
+
+                # Extract start_time from FIT session message (most reliable source).
+                if frame.name == "session":
+                    ts = frame.get_value("start_time", fallback=None)
+                    if ts is not None and ride_start_time is None:
+                        if isinstance(ts, datetime):
+                            ride_start_time = ts
+                    continue
+
                 if frame.name != "record":
                     continue
 
@@ -111,8 +124,11 @@ def parse_fit_file(file_bytes: bytes) -> Optional[dict]:
                 power = frame.get_value("power", fallback=None)
                 hr = frame.get_value("heart_rate", fallback=None)
                 cadence = frame.get_value("cadence", fallback=None)
-                # timestamp is read but not used for duration (1 Hz assumption is sufficient)
-                _ts = frame.get_value("timestamp", fallback=None)
+                ts = frame.get_value("timestamp", fallback=None)
+
+                # Capture the earliest record timestamp as fallback for ride date (WR-009).
+                if ts is not None and first_record_ts is None and isinstance(ts, datetime):
+                    first_record_ts = ts
 
                 # Power: zeros are valid (coasting still counts for NP). Convert None -> 0.
                 power_samples.append(float(power) if power is not None else 0.0)
@@ -137,6 +153,9 @@ def parse_fit_file(file_bytes: bytes) -> Optional[dict]:
         float(np.mean(np.array(cadence_samples, dtype=float))) if cadence_samples else None
     )
 
+    # Prefer session start_time; fall back to earliest record timestamp; then None.
+    start_time = ride_start_time or first_record_ts
+
     return {
         "power_array": power_samples,
         "hr_array": hr_samples,
@@ -145,6 +164,7 @@ def parse_fit_file(file_bytes: bytes) -> Optional[dict]:
         "avg_power": avg_power,
         "avg_hr": avg_hr,
         "avg_cadence": avg_cadence,
+        "start_time": start_time,
     }
 
 
@@ -474,7 +494,17 @@ async def upload_fit(
     # --- INSERT stub rides row ---
     try:
         supabase = await _get_async_supabase()
-        ride_date = datetime.now(timezone.utc).date().isoformat()
+        # WR-009: use the ride's actual start_time from the FIT file so retroactive
+        # uploads are recorded on the day the ride occurred, not the upload date.
+        # Fall back to today only when no timestamp is present in the file.
+        fit_start_time: Optional[datetime] = parsed.get("start_time")
+        if fit_start_time is not None:
+            # Ensure timezone-aware for consistent isoformat output.
+            if fit_start_time.tzinfo is None:
+                fit_start_time = fit_start_time.replace(tzinfo=timezone.utc)
+            ride_date = fit_start_time.date().isoformat()
+        else:
+            ride_date = datetime.now(timezone.utc).date().isoformat()
         result = await (
             supabase.table("rides")
             .insert(
