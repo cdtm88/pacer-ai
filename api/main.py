@@ -15,7 +15,10 @@ Deferred (per CONTEXT.md):
   - Lifespan for Supabase singleton: Phase 3 (per-request in Phase 2, Open Question 3).
 """
 
+import os
+
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from api.routes.adaptations import router as adaptations_router
 from api.routes.calendar import router as calendar_router
@@ -31,6 +34,14 @@ app = FastAPI(
         "Provides SSE streaming for multi-turn coaching conversations."
     ),
     version="0.1.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[os.environ.get("FRONTEND_URL", "http://localhost:5173")],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Mount the chat router.
