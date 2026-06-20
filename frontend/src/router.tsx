@@ -1,16 +1,84 @@
-import { createBrowserRouter, Outlet } from 'react-router'
+import { createBrowserRouter, Navigate, Outlet } from 'react-router'
+import { useQuery } from '@tanstack/react-query'
+import { useAuth } from './hooks/useAuth'
+import { useAuthStore } from './stores/authStore'
+import { getProfileMe } from './lib/api'
+import { LoginScreen } from './screens/LoginScreen'
 
 // ---------------------------------------------------------------------------
-// Placeholder gate components (replaced in plan 04-04 with real logic)
+// RootProvider: activate auth listener at the app root.
+// Rendered as the root element so onAuthStateChange is always active.
+// ---------------------------------------------------------------------------
+
+export function RootProvider() {
+  useAuth()
+  return <Outlet />
+}
+
+// ---------------------------------------------------------------------------
+// AuthGate: redirect to /login when no session (D-01)
 // ---------------------------------------------------------------------------
 
 export function AuthGate() {
+  const { session, isLoading } = useAuthStore()
+
+  if (isLoading) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ backgroundColor: 'var(--color-bg)' }}
+      >
+        <div
+          className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
+          style={{ borderColor: 'var(--color-blue-6)', borderTopColor: 'transparent' }}
+          aria-label="Loading"
+        />
+      </div>
+    )
+  }
+
+  if (!session) {
+    return <Navigate to="/login" replace />
+  }
+
   return <Outlet />
 }
 
+// ---------------------------------------------------------------------------
+// FirstRunGate: redirect to /onboarding when no profile exists (D-02)
+// ---------------------------------------------------------------------------
+
 export function FirstRunGate() {
+  const { data: profile, isLoading } = useQuery({
+    queryKey: ['profile'],
+    queryFn: getProfileMe,
+  })
+
+  if (isLoading) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ backgroundColor: 'var(--color-bg)' }}
+      >
+        <div
+          className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
+          style={{ borderColor: 'var(--color-blue-6)', borderTopColor: 'transparent' }}
+          aria-label="Loading"
+        />
+      </div>
+    )
+  }
+
+  if (profile === null) {
+    return <Navigate to="/onboarding" replace />
+  }
+
   return <Outlet />
 }
+
+// ---------------------------------------------------------------------------
+// AppLayout placeholder (replaced in later plan by full tab bar implementation)
+// ---------------------------------------------------------------------------
 
 export function AppLayout() {
   return <Outlet />
@@ -19,10 +87,6 @@ export function AppLayout() {
 // ---------------------------------------------------------------------------
 // Placeholder screen components (replaced in later plans by src/screens/)
 // ---------------------------------------------------------------------------
-
-export function LoginScreen() {
-  return <div>Login</div>
-}
 
 export function OnboardingScreen() {
   return <div>Onboarding</div>
@@ -53,52 +117,65 @@ export function SettingsScreen() {
 }
 
 // ---------------------------------------------------------------------------
-// Router: full route tree with placeholder gates and screens
+// Router: full route tree with real gates
 // ---------------------------------------------------------------------------
 
 export const router = createBrowserRouter([
   {
-    path: '/login',
-    element: <LoginScreen />,
-  },
-  {
-    path: '/onboarding',
-    element: <OnboardingScreen />,
-  },
-  {
-    // Root branch: AuthGate -> FirstRunGate -> AppLayout -> screen
-    path: '/',
-    element: <AuthGate />,
+    // RootProvider wraps all routes so useAuth() is active globally
+    element: <RootProvider />,
     children: [
       {
-        element: <FirstRunGate />,
+        path: '/login',
+        element: <LoginScreen />,
+      },
+      {
+        // /onboarding: requires auth session but NOT a profile (so it's outside FirstRunGate)
+        path: '/onboarding',
+        element: <AuthGate />,
         children: [
           {
-            element: <AppLayout />,
+            index: true,
+            element: <OnboardingScreen />,
+          },
+        ],
+      },
+      {
+        // Root protected branch: AuthGate -> FirstRunGate -> AppLayout -> screen
+        path: '/',
+        element: <AuthGate />,
+        children: [
+          {
+            element: <FirstRunGate />,
             children: [
               {
-                index: true,
-                element: <TodayScreen />,
-              },
-              {
-                path: 'agenda',
-                element: <AgendaScreen />,
-              },
-              {
-                path: 'history',
-                element: <HistoryScreen />,
-              },
-              {
-                path: 'chat',
-                element: <ChatScreen />,
-              },
-              {
-                path: 'session',
-                element: <DuringSessionScreen />,
-              },
-              {
-                path: 'settings',
-                element: <SettingsScreen />,
+                element: <AppLayout />,
+                children: [
+                  {
+                    index: true,
+                    element: <TodayScreen />,
+                  },
+                  {
+                    path: 'agenda',
+                    element: <AgendaScreen />,
+                  },
+                  {
+                    path: 'history',
+                    element: <HistoryScreen />,
+                  },
+                  {
+                    path: 'chat',
+                    element: <ChatScreen />,
+                  },
+                  {
+                    path: 'session',
+                    element: <DuringSessionScreen />,
+                  },
+                  {
+                    path: 'settings',
+                    element: <SettingsScreen />,
+                  },
+                ],
               },
             ],
           },
