@@ -36,11 +36,12 @@ import os
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Path
 from pydantic import BaseModel
 from supabase import AsyncClient, acreate_client
 
 from api.auth import get_current_user
+from api.calendar_sync import delete_calendar_event, update_calendar_event
 from api.utils import validate_uuid
 from sports_science.compliance import validate_session_vs_actual
 from sports_science.load import progress_load
@@ -632,6 +633,7 @@ async def list_adaptations(
 
 @router.post("/check")
 async def check_adaptations(
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
 ) -> dict:
     """
@@ -639,6 +641,7 @@ async def check_adaptations(
 
     Runs signal detection independently of upload events (weekly check).
     Dispatches to micro or macro adaptation when signals are present.
+    Calendar sync scheduled as a fire-and-forget background task (CAL-02, CAL-04).
     user_id is sourced from the verified JWT.
     """
     user_id = current_user["user_id"]
@@ -652,6 +655,17 @@ async def check_adaptations(
     elif scope == "macro":
         result = await apply_macro_replan(user_id, signals)
 
+    # CAL-02: fire-and-forget calendar sync after sessions change (CAL-04: never 500 on failure).
+    if result and result.get("status") == "applied":
+        after_sessions = result.get("after", [])
+        before_sessions = result.get("before", [])
+        # Build lookup of before sessions by id for calendar_event_id.
+        before_by_id = {s["id"]: s for s in before_sessions}
+        for session in after_sessions:
+            event_id = session.get("calendar_event_id") or before_by_id.get(session["id"], {}).get("calendar_event_id")
+            if event_id:
+                background_tasks.add_task(update_calendar_event, user_id, event_id, session)
+
     return {
         "signals": signals,
         "scope": scope,
@@ -662,6 +676,7 @@ async def check_adaptations(
 @router.post("/sessions/{session_id}/missed")
 async def mark_session_missed(
     session_id: str = Path(...),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
     current_user: dict = Depends(get_current_user),
 ) -> dict:
     """
@@ -703,6 +718,16 @@ async def mark_session_missed(
         result = await apply_micro_adjustment(user_id, signals[0])
     elif scope == "macro":
         result = await apply_macro_replan(user_id, signals)
+
+    # CAL-02: fire-and-forget calendar sync (CAL-04: never 500 on failure).
+    if result and result.get("status") == "applied":
+        after_sessions = result.get("after", [])
+        before_sessions = result.get("before", [])
+        before_by_id = {s["id"]: s for s in before_sessions}
+        for session in after_sessions:
+            event_id = session.get("calendar_event_id") or before_by_id.get(session["id"], {}).get("calendar_event_id")
+            if event_id:
+                background_tasks.add_task(update_calendar_event, user_id, event_id, session)
 
     return {
         "session_id": session_id,
