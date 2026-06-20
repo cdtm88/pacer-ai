@@ -3,6 +3,7 @@ import { Settings } from 'lucide-react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { BottomTabBar } from './nav/BottomTabBar'
 import { DesktopSidebar } from './nav/DesktopSidebar'
+import { IOSInstallBanner } from './pwa/IOSInstallBanner'
 
 export function AppLayout() {
   const navigate = useNavigate()
@@ -47,6 +48,9 @@ export function AppLayout() {
 
         {/* Mobile bottom tab bar */}
         <BottomTabBar />
+
+        {/* iOS PWA install banner (appears above tab bar on iOS Safari first visit) */}
+        <IOSInstallBanner />
       </div>
     </TooltipProvider>
   )

@@ -1,0 +1,10 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/((?!assets|icons|favicon|apple-touch-icon|pwa-|manifest|sw\\.js|workbox-).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
