@@ -37,13 +37,18 @@ export function useSSEStream(url: string | null): SSEStreamState {
 
     const es = new EventSource(url)
 
+    // Track whether the stream completed successfully to suppress the spurious
+    // error event that EventSource fires when the server closes the connection
+    // after the done event (WR-002).
+    let streamCompleted = false
+
     // token: append streamed text to the accumulating content buffer
     es.addEventListener('token', (e: MessageEvent) => {
       try {
         const { text } = JSON.parse(e.data) as { text: string }
         setContent((prev) => prev + text)
       } catch {
-        // malformed token event — ignore
+        // malformed token event -- ignore
       }
     })
 
@@ -59,13 +64,15 @@ export function useSSEStream(url: string | null): SSEStreamState {
 
     // done: stream complete; close the EventSource
     es.addEventListener('done', () => {
+      streamCompleted = true
       setIsDone(true)
       setIsThinking(false)
       es.close()
     })
 
-    // error: surface message and close
+    // error: surface message and close; ignore post-done connection-close events
     es.addEventListener('error', (e: Event) => {
+      if (streamCompleted) return // EventSource fires error on normal server close after done
       try {
         const data = JSON.parse((e as MessageEvent).data) as {
           code?: string
