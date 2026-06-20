@@ -122,7 +122,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Sports-Science Foundation | 5/5 | Complete   | 2026-06-19 |
-| 2. Agent Core | 6/6 | Complete   | 2026-06-20 |
+| 2. Agent Core | 6/6 | Complete    | 2026-06-20 |
 | 3. Coaching Loop | 0/0 | Not started | - |
 | 4. UI and Calendar | 0/0 | Not started | - |
 | 5. During-Session and ZWO Export | 0/0 | Not started | - |
