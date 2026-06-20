@@ -217,17 +217,19 @@ async function mockBackendApis(
       route.fallback() // fall through to more-specific /sessions/today and /sessions/upcoming handlers
     }
   })
-  await page.route(/\/pmc_history\/latest/, (route) =>
-    route.fulfill(respond(overrides.pmc ?? fixturePmcReady)),
-  )
+  // Register general routes before specific ones — Playwright uses LIFO so the last
+  // registered handler wins; specific routes must be registered after the general ones.
   await page.route(/\/pmc_history\//, (route) =>
     route.fulfill(respond({ history: [] })),
   )
-  await page.route(/\/rides\/upload/, (route) =>
-    route.fulfill(respond(fixtureRides[0])),
+  await page.route(/\/pmc_history\/latest/, (route) =>
+    route.fulfill(respond(overrides.pmc ?? fixturePmcReady)),
   )
   await page.route(/\/rides\//, (route) =>
     route.fulfill(respond(overrides.rides ?? fixtureRides)),
+  )
+  await page.route(/\/rides\/upload/, (route) =>
+    route.fulfill(respond(fixtureRides[0])),
   )
   await page.route(/\/adaptations\/sessions\/[^/]+\/missed/, (route) =>
     route.fulfill(respond({})),
@@ -440,8 +442,8 @@ test.describe('T10 — Agenda Screen', () => {
     await page.goto('/agenda')
 
     // Sessions should appear (type or objective text)
-    await expect(page.getByText('tempo', { exact: false })).toBeVisible()
-    await expect(page.getByText('recovery', { exact: false })).toBeVisible()
+    await expect(page.getByText('tempo', { exact: false }).first()).toBeVisible()
+    await expect(page.getByText('recovery', { exact: false }).first()).toBeVisible()
   })
 
   test('shows empty state when no sessions', async ({ page }) => {
@@ -479,8 +481,8 @@ test.describe('T12 — History Screen', () => {
     // Upload area should exist
     await expect(page.getByText(/drag/i).or(page.getByText(/upload/i)).first()).toBeVisible()
 
-    // Ride row should appear
-    await expect(page.getByText('morning_ride.fit')).toBeVisible()
+    // Ride row should appear (compliance chip visible in collapsed state)
+    await expect(page.getByText('95% on target')).toBeVisible()
   })
 
   test('empty state when no rides', async ({ page }) => {
@@ -517,7 +519,7 @@ test.describe('T13 — FIT Upload (mocked backend)', () => {
     await page.goto('/history')
 
     // Use file chooser (click the upload zone)
-    const fileChooserPromise = page.waitForEvent('filechooser')
+    const fileChooserPromise = page.waitForEvent('filechooser', { timeout: 5000 })
     await page.locator('[data-testid="fit-upload-zone"]').click().catch(async () => {
       // If no data-testid, click the first input[type=file] or the upload zone text
       await page.locator('input[type="file"]').first().click({ force: true })
@@ -565,9 +567,9 @@ test.describe('T15 — Onboarding Screen', () => {
     await injectAuth(page)
     await interceptSupabaseAuth(page)
 
-    // Profile returns 404 → no profile → redirected to /onboarding
+    await mockBackendApis(page) // other routes registered first
+    // Profile returns 404 → no profile → redirected to /onboarding (registered last = wins)
     await page.route(/\/profiles\/me/, (route) => route.fulfill({ status: 404, body: 'null' }))
-    await mockBackendApis(page) // other routes still needed
 
     await page.goto('/')
 
@@ -591,9 +593,9 @@ test.describe('T16 — Settings Screen', () => {
     await setupAuthenticated(page)
     await page.goto('/settings')
 
-    await expect(page.getByText('Settings')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible()
     await expect(page.getByText(/Profile/i)).toBeVisible()
-    await expect(page.getByText(/Google Calendar/i)).toBeVisible()
+    await expect(page.getByRole('heading', { name: /Google Calendar/i })).toBeVisible()
     await expect(page.getByText(/Account/i)).toBeVisible()
   })
 
@@ -635,6 +637,6 @@ test.describe('T18 — During-Session Screen', () => {
     await page.goto('/session')
 
     await page.getByRole('button', { name: /End session/i }).click()
-    await expect(page).toHaveURL('http://localhost:5173/')
+    await expect(page).toHaveURL('http://localhost:5174/')
   })
 })

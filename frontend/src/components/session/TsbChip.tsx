@@ -23,17 +23,17 @@ const STATE_STYLE: Record<'fresh' | 'balanced' | 'fatigued', { bg: string; text:
   fresh: {
     bg:    'color-mix(in srgb, var(--color-good) 15%, transparent)',
     text:  'var(--color-good)',
-    label: 'fresh',
+    label: 'Fresh',
   },
   balanced: {
     bg:    'var(--color-blue-0)',
     text:  'var(--color-blue-7)',
-    label: 'balanced',
+    label: 'Balanced',
   },
   fatigued: {
     bg:    'color-mix(in srgb, var(--color-amber) 15%, transparent)',
     text:  'var(--color-warn)',
-    label: 'fatigued',
+    label: 'Fatigued',
   },
 }
 

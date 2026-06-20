@@ -88,6 +88,7 @@ export function FitUploadZone() {
       <div
         role="button"
         tabIndex={0}
+        data-testid="fit-upload-zone"
         aria-label="Drop a .FIT file here, or tap to upload"
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
