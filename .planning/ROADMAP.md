@@ -118,7 +118,7 @@ Plans:
   4. Calendar sync failures surface gracefully to the user without disrupting the plan or chat
   5. The app is installable as a PWA on iOS and Android; it works offline for the during-session view; the iOS install instructional banner appears on first visit; light mode only with no pure blacks and no em dashes in any copy
 
-**Plans**: 2/8 plans executed
+**Plans**: 3/8 plans executed
 
 Plans:
 **Wave 1** *(foundation, parallel)*
@@ -128,7 +128,7 @@ Plans:
 
 **Wave 2** *(data layer)*
 
-- [ ] 04-01-PLAN.md — DB migration 0003 + [BLOCKING] supabase db push, new backend read/create endpoints (consume api/auth.py)
+- [x] 04-01-PLAN.md — DB migration 0003 + [BLOCKING] supabase db push, new backend read/create endpoints (consume api/auth.py)
 
 **Wave 3** *(auth shell)*
 
@@ -168,5 +168,5 @@ Plans:
 | 1. Sports-Science Foundation | 5/5 | Complete   | 2026-06-19 |
 | 2. Agent Core | 6/6 | Complete    | 2026-06-20 |
 | 3. Coaching Loop | 5/5 | Complete    | 2026-06-20 |
-| 4. UI and Calendar | 2/8 | In Progress|  |
+| 4. UI and Calendar | 3/8 | In Progress|  |
 | 5. During-Session and ZWO Export | 0/0 | Not started | - |
