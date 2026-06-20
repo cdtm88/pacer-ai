@@ -38,6 +38,7 @@ import numpy as np
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from supabase import AsyncClient, acreate_client
 
+from api.utils import validate_uuid
 from sports_science.compliance import validate_session_vs_actual
 from sports_science.ftp import estimate_ftp_from_rides
 from sports_science.metrics import compute_tss
@@ -82,12 +83,7 @@ MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25 MB (T-03-11: DoS guard)
 MIN_RIDE_DURATION_SECS = 600          # 10 minutes (NP_MIN_DURATION_SECS)
 COLD_START_FTP = 150.0                # Placeholder FTP for new riders (D-15)
 
-# UUID regex for user_id validation (defence-in-depth: prevents path traversal and
-# trivial IDOR via malformed IDs before any DB/storage access).
-# Phase 4 auth middleware will make this redundant by deriving user_id from a verified JWT.
-_UUID_RE = re.compile(
-    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
-)
+# UUID validation is provided by api.utils.validate_uuid (shared across all route modules).
 
 # ---------------------------------------------------------------------------
 # FIT parser (sync, runs under asyncio.to_thread)
@@ -463,11 +459,7 @@ async def upload_fit(
     # TODO(phase-4-auth): replace with `user_id = current_user.id` from JWT dependency.
 
     # --- UUID validation (defence-in-depth: blocks path traversal + malformed IDs) ---
-    if not _UUID_RE.match(user_id):
-        raise HTTPException(
-            status_code=400,
-            detail={"error": "invalid_user_id", "detail": "user_id must be a valid UUID"},
-        )
+    validate_uuid(user_id, "user_id")
 
     # --- Size cap (T-03-11): read at most MAX_UPLOAD_BYTES+1 so we never load
     #     the full body of an oversized file into memory before rejecting it. ---

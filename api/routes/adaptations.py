@@ -39,6 +39,7 @@ from fastapi import APIRouter, Body, HTTPException, Path, Query
 from pydantic import BaseModel
 from supabase import AsyncClient, acreate_client
 
+from api.utils import validate_uuid
 from sports_science.compliance import validate_session_vs_actual
 from sports_science.load import progress_load
 
@@ -627,6 +628,8 @@ async def list_adaptations(
     Phase 4 will extract it from a verified JWT. Until then, this endpoint is
     filtered by user_id as defence-in-depth but is not authenticated (T-03-16).
     """
+    # TODO(phase-4-auth): replace with `user_id = current_user.id` from JWT dependency.
+    validate_uuid(user_id, "user_id")
     supabase = await _get_async_supabase()
     rows = await (
         supabase.table("adaptations")
@@ -650,7 +653,9 @@ async def check_adaptations(
 
     SECURITY TODO (Phase 4): user_id accepted from request body without auth.
     """
+    # TODO(phase-4-auth): replace with `user_id = current_user.id` from JWT dependency.
     user_id = body.user_id
+    validate_uuid(user_id, "user_id")
     signals = await detect_signals(user_id)
     scope = decide_scope(signals)
 
@@ -680,7 +685,10 @@ async def mark_session_missed(
 
     SECURITY TODO (Phase 4): user_id accepted from request body without auth.
     """
+    # TODO(phase-4-auth): replace with `user_id = current_user.id` from JWT dependency.
     user_id = body.user_id
+    validate_uuid(user_id, "user_id")
+    validate_uuid(session_id, "session_id")
     supabase = await _get_async_supabase()
 
     # Verify the session belongs to the requesting user before marking missed.
