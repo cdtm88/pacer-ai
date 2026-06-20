@@ -121,7 +121,8 @@ export async function getSessionToday(): Promise<Session | null> {
 export async function getUpcomingSessions(): Promise<Session[]> {
   const res = await apiFetch('/sessions/upcoming')
   if (!res.ok) throw new Error(`getUpcomingSessions failed: ${res.status}`)
-  return res.json() as Promise<Session[]>
+  const data = await res.json() as { sessions: Session[] }
+  return data.sessions ?? []
 }
 
 // GET /rides/
