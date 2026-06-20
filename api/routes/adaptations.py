@@ -261,7 +261,7 @@ def check_shift_limit(
             continue
 
         delta_days = abs((after_date - before_date).days)
-        if delta_days > 1:
+        if delta_days >= 1:
             shifted_count += 1
 
     shift_pct = shifted_count / total_upcoming
