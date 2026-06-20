@@ -27,7 +27,9 @@ The LLM owns judgement; a validated tool library owns numbers.
 
 ### Validated
 
-(None yet — ship to validate)
+- Sports-science tool library: calculate_power_zones, calculate_hr_zones, estimate_ftp_from_rides, compute_tss, update_pmc, progress_load, validate_session_vs_actual — Validated in Phase 01 (64 tests)
+- Agent trust-model enforcement: all physiological numbers traceable to tool-library calls — Validated in Phase 02 (trust scanner, attribution, corpus proof)
+- Runtime capability-gap logging when a needed calculation has no tool — Validated in Phase 02 (handle_violation + async Supabase write)
 
 ### Active
 
@@ -99,4 +101,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-19 after initialization*
+*Last updated: 2026-06-20 — Phase 02 (agent-core) complete: FastAPI backend, agent loop, tool registry, SSE streaming, trust enforcement all shipped and verified (159 tests)*
