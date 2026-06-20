@@ -75,6 +75,7 @@ export interface PmcEntry {
   ctl: number
   atl: number
   tsb: number
+  tss_display_ready?: boolean
 }
 
 export interface Adaptation {
@@ -134,7 +135,18 @@ export async function getLatestPmc(): Promise<PmcEntry | null> {
   const res = await apiFetch('/pmc_history/latest')
   if (res.status === 404) return null
   if (!res.ok) throw new Error(`getLatestPmc failed: ${res.status}`)
-  return res.json() as Promise<PmcEntry>
+  const data = await res.json() as Record<string, unknown>
+  // Empty dict returned when no PMC data exists yet
+  if (!data || !data.date) return null
+  return data as unknown as PmcEntry
+}
+
+// GET /pmc_history/ — up to 30 rows (ascending) for CTL sparkline
+export async function getPmcHistory(): Promise<PmcEntry[]> {
+  const res = await apiFetch('/pmc_history/')
+  if (!res.ok) throw new Error(`getPmcHistory failed: ${res.status}`)
+  const data = await res.json() as { history: PmcEntry[] }
+  return data.history ?? []
 }
 
 // GET /adaptations/

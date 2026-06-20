@@ -175,6 +175,41 @@ async def latest_pmc(
 
 
 # ---------------------------------------------------------------------------
+# GET /pmc_history/
+# ---------------------------------------------------------------------------
+
+
+@router.get("/pmc_history/")
+async def list_pmc_history(
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """
+    GET /pmc_history/
+
+    Returns up to 30 most recent PMC history rows for the authenticated user,
+    ordered by date ascending (oldest first) for sparkline rendering.
+    Returns empty list when no PMC data exists yet.
+
+    Added in plan 04-06 (Rule 2): required for CtlSparkline CTL trend display.
+    """
+    user_id = current_user["user_id"]
+    supabase = await _get_async_supabase()
+
+    result = await (
+        supabase.table("pmc_history")
+        .select("id, user_id, date, ctl, atl, tsb, tss_display_ready, created_at")
+        .eq("user_id", user_id)
+        .order("date", desc=True)
+        .limit(30)
+        .execute()
+    )
+
+    # Reverse to ascending order for sparkline chart
+    rows = list(reversed(result.data)) if result.data else []
+    return {"history": rows}
+
+
+# ---------------------------------------------------------------------------
 # GET /profiles/me
 # ---------------------------------------------------------------------------
 
