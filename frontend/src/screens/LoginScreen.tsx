@@ -27,7 +27,10 @@ export function LoginScreen() {
 
     setEmailError('')
 
-    const { error } = await supabase.auth.signInWithOtp({ email: email.trim() })
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: { emailRedirectTo: window.location.origin },
+    })
 
     if (error) {
       toast.error('Could not send magic link. Try again.')
