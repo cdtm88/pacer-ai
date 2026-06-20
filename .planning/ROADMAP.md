@@ -59,10 +59,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. Chat responses stream correctly to the frontend via SSE using EventSource; the SSE endpoint is functional
   5. The compliance test suite passes: the agent does not emit unsourced physiological numbers across a representative set of scenarios
 
-**Plans**: 6 plans
+**Plans**: 1/6 plans executed
 
 Plans:
-- [ ] 02-01-PLAN.md — Wave 1: backend deps (no claude-agent-sdk), agent/ + api/ scaffolding, async capability_gap upgrade
+
+- [x] 02-01-PLAN.md — Wave 1: backend deps (no claude-agent-sdk), agent/ + api/ scaffolding, async capability_gap upgrade
 - [ ] 02-02-PLAN.md — Wave 2: tool registry + dispatcher and the raw-SDK agent loop (dedup, parallel gather, retry, audit)
 - [ ] 02-03-PLAN.md — Wave 3: trust-model response scanner and FastAPI SSE chat endpoint
 - [ ] 02-04-PLAN.md — Wave 4: tests/agent/ compliance suite proving AGENT-01..06 and TRUST-03/04/05
@@ -121,7 +122,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Sports-Science Foundation | 5/5 | Complete   | 2026-06-19 |
-| 2. Agent Core | 0/6 | Planned | - |
+| 2. Agent Core | 1/6 | In Progress|  |
 | 3. Coaching Loop | 0/0 | Not started | - |
 | 4. UI and Calendar | 0/0 | Not started | - |
 | 5. During-Session and ZWO Export | 0/0 | Not started | - |

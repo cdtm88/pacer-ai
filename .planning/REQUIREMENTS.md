@@ -24,7 +24,7 @@
 - [x] **TRUST-02**: The agent tool registry maps only registered sports_science functions to Anthropic tool schemas; ad-hoc tool definitions are not permitted
 - [ ] **TRUST-03**: Every assistant response is parsed before display; any response containing an unsourced physiological number (watts, zones, TSS, FTP, CTL/ATL/TSB values) triggers a retry and capability-gap log entry
 - [ ] **TRUST-04**: Every physiological number in any plan or chat message is traceable to a tool-library call verifiable in application logs
-- [ ] **TRUST-05**: When the agent needs a quantitative method the tool library lacks, it calls `log_capability_gap`, surfaces a brief chat note, and falls back to qualitative reasoning; it never improvises a number
+- [x] **TRUST-05**: When the agent needs a quantitative method the tool library lacks, it calls `log_capability_gap`, surfaces a brief chat note, and falls back to qualitative reasoning; it never improvises a number
 
 ### Agent Core
 
@@ -164,7 +164,7 @@
 | TRUST-02 | Phase 1 | Complete |
 | TRUST-03 | Phase 2 | Pending |
 | TRUST-04 | Phase 2 | Pending |
-| TRUST-05 | Phase 2 | Pending |
+| TRUST-05 | Phase 2 | Complete |
 | AGENT-01 | Phase 2 | Pending |
 | AGENT-02 | Phase 2 | Pending |
 | AGENT-03 | Phase 2 | Pending |
