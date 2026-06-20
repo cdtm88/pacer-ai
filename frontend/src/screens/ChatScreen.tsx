@@ -98,8 +98,10 @@ export function ChatScreen() {
       ])
       setActiveStreamUrl(null)
       setPendingUserMessage(null)
-      // Invalidate conversation query so history stays fresh
-      queryClient.invalidateQueries({ queryKey: ['active-conversation'] })
+      // WR-008: do NOT invalidate active-conversation here -- the queryFn calls
+      // createConversation(), so invalidation would create a new DB row and reset
+      // the conversation context on every turn. Only invalidate session/history
+      // queries that reflect content changes from the coaching response.
     }
   }, [isDone, content, queryClient])
 
