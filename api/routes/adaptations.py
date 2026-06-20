@@ -32,49 +32,18 @@ Security (Phase 4):
   - Backend writes use SERVICE_ROLE_KEY (never anon key)
 """
 
-import os
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Path
 from pydantic import BaseModel
-from supabase import AsyncClient, acreate_client
 
 from api.auth import get_current_user
 from api.calendar_sync import delete_calendar_event, update_calendar_event
+from api.db import get_async_supabase as _get_async_supabase
 from api.utils import validate_uuid
 from sports_science.compliance import validate_session_vs_actual
 from sports_science.load import progress_load
-
-# ---------------------------------------------------------------------------
-# Supabase async singleton (WR-04 pattern from capability_gap.py)
-# ---------------------------------------------------------------------------
-
-_supabase_client: Optional[AsyncClient] = None
-
-
-async def _get_async_supabase() -> AsyncClient:
-    """
-    Return a cached async Supabase client using the service-role key (bypasses RLS).
-
-    WR-04: Creates the client once and reuses it across calls to avoid
-    leaking httpx connection pools. Backend writes use SERVICE_ROLE_KEY only --
-    never expose this key to frontend or client-side code (T-03-16).
-    """
-    global _supabase_client
-    if _supabase_client is not None:
-        return _supabase_client
-
-    url = os.environ.get("SUPABASE_URL")
-    # Service-role key is required for backend inserts that bypass RLS.
-    # NEVER expose this key to any frontend or client-side code.
-    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-    if not url or not key:
-        raise EnvironmentError(
-            "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set"
-        )
-    _supabase_client = await acreate_client(url, key)
-    return _supabase_client
 
 
 # ---------------------------------------------------------------------------

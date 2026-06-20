@@ -36,9 +36,9 @@ from typing import Optional
 import fitdecode
 import numpy as np
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
-from supabase import AsyncClient, acreate_client
 
 from api.auth import get_current_user
+from api.db import get_async_supabase as _get_async_supabase
 from api.utils import validate_uuid
 from sports_science.compliance import validate_session_vs_actual
 from sports_science.ftp import estimate_ftp_from_rides
@@ -46,35 +46,6 @@ from sports_science.metrics import compute_tss
 from sports_science.pmc import update_pmc
 
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Async Supabase singleton (WR-04 pattern from capability_gap.py)
-# ---------------------------------------------------------------------------
-
-_supabase_client: Optional[AsyncClient] = None
-
-
-async def _get_async_supabase() -> AsyncClient:
-    """
-    Return a cached async Supabase client using the service-role key (bypasses RLS).
-
-    WR-04: Creates the client once and reuses it across calls to avoid
-    leaking httpx connection pools. The singleton is module-level and is
-    never explicitly closed (acceptable for a long-lived server process).
-    """
-    global _supabase_client
-    if _supabase_client is not None:
-        return _supabase_client
-
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-    if not url or not key:
-        raise EnvironmentError(
-            "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set"
-        )
-    _supabase_client = await acreate_client(url, key)
-    return _supabase_client
-
 
 # ---------------------------------------------------------------------------
 # Constants

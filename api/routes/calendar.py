@@ -27,13 +27,11 @@ import hmac
 import logging
 import os
 import secrets
-from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 
 from api.auth import get_current_user
-from supabase import AsyncClient, acreate_client
+from api.db import get_async_supabase as _get_async_supabase
 
 logger = logging.getLogger(__name__)
 
@@ -41,25 +39,6 @@ router = APIRouter()
 
 # Google Calendar scope -- least privilege (T-04-24).
 SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
-
-# ---------------------------------------------------------------------------
-# Supabase async singleton (WR-04 pattern from adaptations.py)
-# ---------------------------------------------------------------------------
-
-_supabase_client: Optional[AsyncClient] = None
-
-
-async def _get_async_supabase() -> AsyncClient:
-    """Return a cached async Supabase client using the service-role key (bypasses RLS)."""
-    global _supabase_client
-    if _supabase_client is not None:
-        return _supabase_client
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-    if not url or not key:
-        raise EnvironmentError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set")
-    _supabase_client = await acreate_client(url, key)
-    return _supabase_client
 
 
 # ---------------------------------------------------------------------------

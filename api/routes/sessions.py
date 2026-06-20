@@ -18,43 +18,12 @@ so each handler path below is the final URL.
 """
 
 import datetime
-import os
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from supabase import AsyncClient, acreate_client
 
 from api.auth import get_current_user
+from api.db import get_async_supabase as _get_async_supabase
 from api.utils import validate_uuid
-
-# ---------------------------------------------------------------------------
-# Supabase async singleton (WR-04 pattern from adaptations.py / capability_gap.py)
-# ---------------------------------------------------------------------------
-
-_supabase_client: Optional[AsyncClient] = None
-
-
-async def _get_async_supabase() -> AsyncClient:
-    """
-    Return a cached async Supabase client using the service-role key (bypasses RLS).
-
-    WR-04: Creates the client once and reuses it across calls to avoid
-    leaking httpx connection pools. Backend reads use SERVICE_ROLE_KEY only --
-    the user_id filter applied in every query enforces per-user access control
-    at the application layer (T-04-03).
-    """
-    global _supabase_client
-    if _supabase_client is not None:
-        return _supabase_client
-
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-    if not url or not key:
-        raise EnvironmentError(
-            "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set"
-        )
-    _supabase_client = await acreate_client(url, key)
-    return _supabase_client
 
 
 # ---------------------------------------------------------------------------

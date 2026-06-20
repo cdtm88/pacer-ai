@@ -32,17 +32,16 @@ Architecture notes:
 
 import json
 import os
-from typing import Optional
 
 import anthropic
 from fastapi import APIRouter, BackgroundTasks, Depends
 from fastapi.responses import StreamingResponse
-from supabase import AsyncClient, acreate_client
 
 from agent.loop import run_turn  # noqa: F401 -- module-scope import for test monkeypatching
 from agent.trust import scan_buffer
 from api.auth import get_current_user
 from api.calendar_sync import push_all_sessions_to_calendar
+from api.db import get_async_supabase as _get_async_supabase
 from api.routes._sse import sse_generator
 
 router = APIRouter()
@@ -81,35 +80,6 @@ ONBOARDING_SYSTEM_PROMPT = (
     "Never emit a physiological number from your own reasoning. "
     "If no tool covers the needed calculation, call log_capability_gap."
 )
-
-# ---------------------------------------------------------------------------
-# Supabase singleton (WR-04: reuses exact pattern from capability_gap.py)
-# ---------------------------------------------------------------------------
-
-_supabase_client: Optional[AsyncClient] = None
-
-
-async def _get_async_supabase() -> AsyncClient:
-    """
-    Return a cached async Supabase client using the service-role key (bypasses RLS).
-
-    WR-04: Creates the client once and reuses it across calls to avoid
-    leaking httpx connection pools. The singleton is module-level and is
-    never explicitly closed (acceptable for a long-lived server process).
-    """
-    global _supabase_client
-    if _supabase_client is not None:
-        return _supabase_client
-
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-    if not url or not key:
-        raise EnvironmentError(
-            "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set"
-        )
-    _supabase_client = await acreate_client(url, key)
-    return _supabase_client
-
 
 # ---------------------------------------------------------------------------
 # Conversation persistence helpers

@@ -23,27 +23,9 @@ import logging
 import os
 from typing import Optional
 
+from api.db import get_async_supabase as _get_async_supabase
+
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Supabase singleton (shared pattern -- WR-04)
-# ---------------------------------------------------------------------------
-
-_supabase_client = None
-
-
-async def _get_async_supabase():
-    """Return a cached async Supabase client (service-role key)."""
-    global _supabase_client
-    if _supabase_client is not None:
-        return _supabase_client
-    from supabase import acreate_client
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-    if not url or not key:
-        raise EnvironmentError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set")
-    _supabase_client = await acreate_client(url, key)
-    return _supabase_client
 
 
 # ---------------------------------------------------------------------------
