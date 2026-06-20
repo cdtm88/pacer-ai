@@ -341,7 +341,7 @@ export function OnboardingScreen() {
       setIsStreaming(false)
       await pollForProfile()
     }
-  }, [])
+  }, [queryClient, navigate])
 
   async function pollForProfile() {
     // Poll GET /profiles/me; once a profile exists, invalidate and navigate to Today (D-02)
