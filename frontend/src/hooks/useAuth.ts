@@ -11,16 +11,11 @@ export function useAuth() {
   const { session, user, isLoading, setAuth } = useAuthStore()
 
   useEffect(() => {
-    // Seed initial state from the current session
-    supabase.auth.getSession().then(({ data }) => {
-      setAuth({
-        session: data.session,
-        user: data.session?.user ?? null,
-        isLoading: false,
-      })
-    })
-
-    // Subscribe to ongoing auth state changes
+    // onAuthStateChange fires INITIAL_SESSION once Supabase has fully determined
+    // the session — including parsing magic-link tokens from the URL hash.
+    // Using getSession() here races against that hash parsing and can resolve
+    // null before the token is extracted, causing AuthGate to redirect to /login
+    // and discard the hash before onAuthStateChange fires.
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, newSession) => {
