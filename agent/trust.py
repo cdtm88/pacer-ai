@@ -93,7 +93,7 @@ class TrustViolation:
 
 def scan_buffer(
     text: str,
-    tool_result_values: "set[str]",
+    tool_result_values: "list[str]",
 ) -> Optional[TrustViolation]:
     """
     Scan assistant text for unsourced physiological numbers.

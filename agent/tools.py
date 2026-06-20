@@ -262,10 +262,11 @@ TOOL_SCHEMAS: list[dict] = [
 
 _schema_names = {s["name"] for s in TOOL_SCHEMAS}
 _registry_names = set(TOOL_REGISTRY)
-assert _schema_names == _registry_names, (
-    f"TRUST-02 violation: TOOL_SCHEMAS names {_schema_names} "
-    f"!= TOOL_REGISTRY keys {_registry_names}"
-)
+if _schema_names != _registry_names:
+    raise RuntimeError(
+        f"TRUST-02 violation: TOOL_SCHEMAS names {_schema_names} "
+        f"!= TOOL_REGISTRY keys {_registry_names}"
+    )
 
 
 # ---------------------------------------------------------------------------

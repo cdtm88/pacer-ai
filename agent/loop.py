@@ -15,11 +15,11 @@ Key invariants:
   - TRUST-04: audit_log receives one entry per dispatched tool call.
   - TRUST-05 / D-09: injected trust_scanner intercepts buffered assistant
     text before it is forwarded; on violation the corrective user message
-    is appended (not the violating assistant message — Pitfall 5).
+    is appended (not the violating assistant message -- Pitfall 5).
 
 The trust_scanner is injected so the loop is unit-testable without the
 real regex (Plan 04). Signature: trust_scanner(text: str, tool_result_values:
-list[dict]) -> TrustViolation | None.
+list[str]) -> TrustViolation | None.
 
 Streaming pitfall (Pitfall 3): get_final_message() must be awaited AFTER
 the async-for over stream events completes, never inside the loop.
@@ -30,15 +30,24 @@ import json
 from typing import AsyncIterator
 
 from agent.tools import TOOL_SCHEMAS, dedup_key, dispatch_tool
+from agent.trust import handle_violation
 
 MAX_RETRIES: int = 3
+MAX_TOOL_TURNS: int = 10
+
+SYSTEM_PROMPT = (
+    "You are PacerAI, an evidence-based adaptive cycling coach. "
+    "You MUST call a tool for any physiological number (power zones, TSS, FTP, CTL, ATL, TSB, HR zones). "
+    "Never emit a physiological number from your own reasoning -- use only the provided tools. "
+    "If no tool covers the needed calculation, call log_capability_gap."
+)
 
 
 async def run_turn(
     messages: list[dict],
-    client,  # anthropic.AsyncAnthropic — injected for testability
+    client,  # anthropic.AsyncAnthropic -- injected for testability
     model: str,
-    trust_scanner,  # callable: (str, list) -> TrustViolation | None
+    trust_scanner,  # callable: (str, list[str]) -> TrustViolation | None
     audit_log: list,
 ) -> AsyncIterator[dict]:
     """
@@ -61,10 +70,13 @@ async def run_turn(
         audit_log:     List accumulating per-call audit entries (TRUST-04).
     """
     retries: int = 0
+    tool_turns: int = 0
 
     while retries <= MAX_RETRIES:
         text_buffer: list[str] = []
-        tool_result_values: list[dict] = []
+        # CR-01: tool_result_values is list[str] (JSON text from tool results),
+        # not list[dict]. scan_buffer does substring checks on these strings.
+        tool_result_values: list[str] = []
 
         # Per-turn dedup dict (D-13 / Anti-Pattern: fresh per iteration, not module-level)
         seen_calls: dict[tuple, bool] = {}
@@ -76,11 +88,12 @@ async def run_turn(
             model=model,
             max_tokens=4096,
             tools=TOOL_SCHEMAS,
+            system=SYSTEM_PROMPT,
             messages=messages,
         ) as stream:
             async for event in stream:
                 # Collect text deltas into the per-turn buffer.
-                # TRUST-03: Do NOT yield token events yet — buffer first, trust-scan after.
+                # TRUST-03: Do NOT yield token events yet -- buffer first, trust-scan after.
                 # Anti-pattern (RESEARCH.md): yielding tokens before scan lets unsourced
                 # physiological numbers reach the SSE stream before the violation is caught.
                 if hasattr(event, "type") and event.type == "content_block_delta":
@@ -101,15 +114,18 @@ async def run_turn(
 
         if violation:
             retries += 1
+            # CR-02: await handle_violation to satisfy TRUST-05 (log capability gap).
+            # Best-effort: handle_violation swallows DB errors internally.
+            await handle_violation(violation)
             # Pitfall 5: Do NOT append the violating assistant message.
             # Append a correction user message asking for qualitative rephrasing.
-            # TRUST-03: Do NOT yield the buffered tokens — they contain the unsourced
+            # TRUST-03: Do NOT yield the buffered tokens -- they contain the unsourced
             # number and must never reach the SSE stream on a violation path.
             messages.append({
                 "role": "user",
                 "content": (
                     "Please rephrase your response without specific physiological "
-                    "numbers. Use qualitative descriptions only — any numbers must "
+                    "numbers. Use qualitative descriptions only -- any numbers must "
                     "come from the tool results in this conversation."
                 ),
             })
@@ -123,7 +139,7 @@ async def run_turn(
             continue  # retry the turn
 
         # ------------------------------------------------------------------
-        # 3. Trust scan passed — now safe to emit buffered token events.
+        # 3. Trust scan passed -- now safe to emit buffered token events.
         #    Emit all buffered text deltas as individual token events before
         #    routing on stop_reason. This preserves the streaming-text UX
         #    while enforcing the trust invariant (numbers only after scan).
@@ -135,6 +151,18 @@ async def run_turn(
         # 4. Route on stop_reason
         # ------------------------------------------------------------------
         if stop_reason == "tool_use":
+            # CR-03: bound tool-use iterations independently of trust retries.
+            tool_turns = tool_turns + 1
+            if tool_turns > MAX_TOOL_TURNS:
+                yield {
+                    "event": "error",
+                    "data": {
+                        "code": "max_tool_turns",
+                        "message": f"Tool-use turn limit ({MAX_TOOL_TURNS}) exceeded",
+                    },
+                }
+                return
+
             # Append assistant message now that it has passed trust scan
             messages.append({"role": "assistant", "content": final_msg.content})
 
@@ -159,31 +187,41 @@ async def run_turn(
                         },
                     }
 
-            # D-12 / AGENT-02: dispatch unique blocks concurrently
-            result_blocks = await asyncio.gather(
-                *[dispatch_tool(b, audit_log) for b in unique_blocks]
-            )
+            # WR-01: guard against all blocks being duplicated in a single turn,
+            # which would produce an empty content array rejected by the API.
+            if not unique_blocks:
+                messages.append({
+                    "role": "user",
+                    "content": [{"type": "text", "text": "(duplicate tool calls skipped)"}],
+                })
+            else:
+                # D-12 / AGENT-02: dispatch unique blocks concurrently
+                result_blocks = await asyncio.gather(
+                    *[dispatch_tool(b, audit_log) for b in unique_blocks]
+                )
 
-            # Yield tool_result events and accumulate values for trust attribution
-            for block, result_block in zip(unique_blocks, result_blocks):
-                tool_result_values.append(result_block)
-                # Extract value text for trust attribution on next turn
-                content_text = None
-                content_list = result_block.get("content", [])
-                if content_list and isinstance(content_list[0], dict):
-                    content_text = content_list[0].get("text")
-                yield {
-                    "event": "tool_result",
-                    "data": {
-                        "tool_use_id": block.id,
-                        "name": block.name,
-                        "value": content_text,
-                    },
-                }
+                # Yield tool_result events and accumulate values for trust attribution
+                for block, result_block in zip(unique_blocks, result_blocks):
+                    # CR-01: extract JSON text string for trust attribution,
+                    # not the raw dict. scan_buffer does substring checks on strings.
+                    content_text = None
+                    content_list = result_block.get("content", [])
+                    if content_list and isinstance(content_list[0], dict):
+                        content_text = content_list[0].get("text")
+                    if content_text:
+                        tool_result_values.append(content_text)
+                    yield {
+                        "event": "tool_result",
+                        "data": {
+                            "tool_use_id": block.id,
+                            "name": block.name,
+                            "value": content_text,
+                        },
+                    }
 
-            # Append tool results as a user-role message and loop back
-            messages.append({"role": "user", "content": list(result_blocks)})
-            # Continue while loop — next iteration calls the API again
+                # Append tool results as a user-role message and loop back
+                messages.append({"role": "user", "content": list(result_blocks)})
+            # Continue while loop -- next iteration calls the API again
 
         elif stop_reason == "end_turn":
             yield {"event": "done", "data": {}}

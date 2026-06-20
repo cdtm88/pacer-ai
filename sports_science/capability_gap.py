@@ -10,14 +10,34 @@ DB writes use the SERVICE_ROLE_KEY to bypass RLS.
 Never use the anon key for backend writes. Never expose this key to frontend.
 
 Phase 2 upgrade: async Supabase client via acreate_client (D-06, TRUST-05).
+WR-04: module-level singleton client to avoid creating a new connection pool
+on every log_capability_gap call (connection leak fix).
 """
 import os
+from typing import Optional
 from supabase import acreate_client, AsyncClient
 from .types import ToolResult
 
+# WR-04: Module-level cached client. None until first call; then reused.
+# This avoids creating a new httpx.AsyncClient (and connection pool) on
+# every log_capability_gap invocation. The long-term fix (Phase 3) is to
+# initialize this in the FastAPI lifespan and inject it.
+_supabase_client: Optional[AsyncClient] = None
+
 
 async def _get_async_supabase() -> AsyncClient:
-    """Return an async Supabase client using the service-role key (bypasses RLS)."""
+    """
+    Return a cached async Supabase client using the service-role key (bypasses RLS).
+
+    WR-04: Creates the client once and reuses it across calls to avoid
+    leaking httpx connection pools. The singleton is module-level and is
+    never explicitly closed (acceptable for a long-lived server process;
+    the OS reclaims connections on process exit).
+    """
+    global _supabase_client
+    if _supabase_client is not None:
+        return _supabase_client
+
     url = os.environ.get("SUPABASE_URL")
     # Service-role key is required for backend inserts that bypass RLS.
     # NEVER expose this key to any frontend or client-side code.
@@ -26,7 +46,8 @@ async def _get_async_supabase() -> AsyncClient:
         raise EnvironmentError(
             "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set"
         )
-    return await acreate_client(url, key)
+    _supabase_client = await acreate_client(url, key)
+    return _supabase_client
 
 
 async def log_capability_gap(
