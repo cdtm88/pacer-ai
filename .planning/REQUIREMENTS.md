@@ -45,20 +45,20 @@
 ### Plan Generation
 
 - [x] **PLAN-01**: The agent generates a structured, periodised training plan appropriate to a returning beginner (aerobic-base emphasis, sustainable progression)
-- [ ] **PLAN-02**: Cold-start is a first-class supported case: early sessions are prescribed using RPE and heart rate targets (comfortable/conversational aerobic), not power targets
-- [ ] **PLAN-03**: Power targets are introduced only after the FTP estimate reaches medium confidence (minimum 4 quality efforts); the plan does not fabricate power targets before this threshold
+- [x] **PLAN-02**: Cold-start is a first-class supported case: early sessions are prescribed using RPE and heart rate targets (comfortable/conversational aerobic), not power targets
+- [x] **PLAN-03**: Power targets are introduced only after the FTP estimate reaches medium confidence (minimum 4 quality efforts); the plan does not fabricate power targets before this threshold
 - [x] **PLAN-04**: Every session has an explicit plan: objective, structure (warm-up / main set / cool-down), targets (RPE/HR early; power later), and duration
-- [ ] **PLAN-05**: Back-protective constraints surfaced in the interview are reflected in the plan: initial volume cap, no prolonged standing efforts early, no sprint efforts early, and a flag if load ramps too fast
-- [ ] **PLAN-06**: Every physiological number in a generated plan is traceable to a tool-library call (satisfies TRUST-04)
+- [x] **PLAN-05**: Back-protective constraints surfaced in the interview are reflected in the plan: initial volume cap, no prolonged standing efforts early, no sprint efforts early, and a flag if load ramps too fast
+- [x] **PLAN-06**: Every physiological number in a generated plan is traceable to a tool-library call (satisfies TRUST-04)
 
 ### FIT File Ingestion
 
 - [ ] **FIT-01**: User can drag or select a .FIT file (Zwift or compatible head unit) in the web app to upload it
-- [ ] **FIT-02**: The parser uses `fitdecode` with `error_handling=ErrorHandling.WARN`; all field access uses `get_value('field', fallback=None)`; GPS fields are not required (indoor rides)
+- [x] **FIT-02**: The parser uses `fitdecode` with `error_handling=ErrorHandling.WARN`; all field access uses `get_value('field', fallback=None)`; GPS fields are not required (indoor rides)
 - [ ] **FIT-03**: The parser extracts power, heart rate, cadence, and duration from the .FIT file; missing fields are handled gracefully with fallback to null
 - [x] **FIT-04**: After parsing, `compute_tss` is called on the ride data; `update_pmc` is called to update the PMC history; results are persisted to `rides` and `pmc_history` tables
 - [ ] **FIT-05**: The parsed ride feeds `validate_session_vs_actual` to produce a compliance percentage, delta metrics, and flags
-- [ ] **FIT-06**: A real Zwift .FIT file is used as an acceptance test before the FIT pipeline is considered production-ready
+- [x] **FIT-06**: A real Zwift .FIT file is used as an acceptance test before the FIT pipeline is considered production-ready
 
 ### Adaptive Re-Planning
 
@@ -176,17 +176,17 @@
 | ONBD-03 | Phase 3 | Complete |
 | ONBD-04 | Phase 3 | Pending |
 | PLAN-01 | Phase 3 | Complete |
-| PLAN-02 | Phase 3 | Pending |
-| PLAN-03 | Phase 3 | Pending |
+| PLAN-02 | Phase 3 | Complete |
+| PLAN-03 | Phase 3 | Complete |
 | PLAN-04 | Phase 3 | Complete |
-| PLAN-05 | Phase 3 | Pending |
-| PLAN-06 | Phase 3 | Pending |
+| PLAN-05 | Phase 3 | Complete |
+| PLAN-06 | Phase 3 | Complete |
 | FIT-01 | Phase 3 | Pending |
-| FIT-02 | Phase 3 | Pending |
+| FIT-02 | Phase 3 | Complete |
 | FIT-03 | Phase 3 | Pending |
 | FIT-04 | Phase 3 | Complete |
 | FIT-05 | Phase 3 | Pending |
-| FIT-06 | Phase 3 | Pending |
+| FIT-06 | Phase 3 | Complete |
 | ADAPT-01 | Phase 3 | Pending |
 | ADAPT-02 | Phase 3 | Pending |
 | ADAPT-03 | Phase 3 | Pending |
