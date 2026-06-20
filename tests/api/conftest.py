@@ -13,6 +13,7 @@ Provides:
 asyncio_mode = auto (pytest.ini) -- no @pytest.mark.asyncio needed.
 """
 import os
+import time
 import jwt
 import pytest
 from unittest.mock import AsyncMock, MagicMock
@@ -45,7 +46,12 @@ def make_test_token(
         Encoded JWT string suitable for use in Authorization: Bearer headers.
     """
     return jwt.encode(
-        {"sub": user_id, "email": email, "aud": "authenticated"},
+        {
+            "sub": user_id,
+            "email": email,
+            "aud": "authenticated",
+            "exp": int(time.time()) + 3600,
+        },
         secret,
         algorithm="HS256",
     )
