@@ -5,3 +5,7 @@ supabase==2.31.0
 pytest==9.1.1
 pytest-asyncio==1.4.0
 ruff==0.15.18
+anthropic==0.67.*
+fastapi==0.115.*
+uvicorn==0.30.*
+python-multipart
