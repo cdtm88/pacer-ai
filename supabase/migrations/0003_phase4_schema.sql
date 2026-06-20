@@ -35,3 +35,19 @@ ALTER TABLE public.rides
 -- context_data: used by rides.py for ride_debrief context (D-23)
 ALTER TABLE public.conversations
   ADD COLUMN IF NOT EXISTS context_data text;
+
+-- ============================================================
+-- 4. oauth_states: short-lived CSRF nonces for Google OAuth (T-04-21)
+-- ============================================================
+-- Used by /calendar/auth-redirect-url and /calendar/auth callback to
+-- store and verify state nonces, preventing CSRF attacks.
+CREATE TABLE IF NOT EXISTS public.oauth_states (
+    id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id    uuid NOT NULL REFERENCES public.users ON DELETE CASCADE,
+    state      text NOT NULL UNIQUE,
+    created_at timestamptz DEFAULT now() NOT NULL
+);
+
+ALTER TABLE public.oauth_states ENABLE ROW LEVEL SECURITY;
+
+-- Service role writes; no user read policy needed (nonces are server-internal)
