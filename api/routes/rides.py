@@ -30,7 +30,7 @@ import json
 import logging
 import os
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Optional
 
 import fitdecode
@@ -492,7 +492,7 @@ async def upload_fit(
     # --- INSERT stub rides row ---
     try:
         supabase = await _get_async_supabase()
-        ride_date = datetime.utcnow().date().isoformat()
+        ride_date = datetime.now(timezone.utc).date().isoformat()
         result = await (
             supabase.table("rides")
             .insert(
