@@ -135,7 +135,8 @@ export async function getUpcomingSessions(): Promise<Session[]> {
 export async function getRides(): Promise<Ride[]> {
   const res = await apiFetch('/rides/')
   if (!res.ok) throw new Error(`getRides failed: ${res.status}`)
-  return res.json() as Promise<Ride[]>
+  const data = await res.json() as { rides: Ride[] }
+  return data.rides ?? []
 }
 
 // GET /pmc_history/latest
