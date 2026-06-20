@@ -6,14 +6,14 @@ current_phase: 02
 current_phase_name: agent-core
 status: executing
 stopped_at: context exhaustion at 75% (2026-06-19)
-last_updated: "2026-06-20T06:54:44.706Z"
+last_updated: "2026-06-20T06:59:59.916Z"
 last_activity: 2026-06-20
 last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 11
-  completed_plans: 6
+  completed_plans: 7
   percent: 20
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 ## Current Position
 
 Phase: 02 (agent-core) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-06-20 — Phase 02 execution started
 
@@ -59,6 +59,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P04 | 2min | 1 tasks | 7 files |
 | Phase 01 P05 | 2min | 4 tasks | 6 files |
 | Phase 02 P01 | 3min | 3 tasks | 8 files |
+| Phase 02 P02 | 4min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,9 @@ Recent decisions affecting current work:
 - [Phase ?]: 01-05
 - [Phase ?]: 01-05
 - [Phase ?]: 01-05
+- [Phase ?]: Manual Anthropic tool schema dicts; TRUST-02 invariant asserted at import
+- [Phase ?]: dispatch_tool: iscoroutinefunction branch; never raises out (D-14)
+- [Phase ?]: Trust scanner injected; violating assistant message not appended (Pitfall 5)
 
 ### Pending Todos
 
@@ -101,5 +105,5 @@ None yet.
 **Stopped at:** context exhaustion at 75% (2026-06-19)
 **Resume file:** .planning/phases/02-agent-core/02-CONTEXT.md
 
-Last session: 2026-06-20T06:54:44.702Z
+Last session: 2026-06-20T06:59:54.643Z
 Next action: Run `/gsd-plan-phase 1` to create the Phase 1 plan
