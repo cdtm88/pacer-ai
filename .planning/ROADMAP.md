@@ -14,7 +14,7 @@ PacerAI builds trust outward from a single anchor: a deterministic, unit-tested 
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Sports-Science Foundation** - Tool library, DB schema, and Supabase setup — the trust anchor everything else depends on (completed 2026-06-19)
-- [ ] **Phase 2: Agent Core** - Agent loop, tool registry, SSE streaming, and trust-model enforcement proven end-to-end
+- [x] **Phase 2: Agent Core** - Agent loop, tool registry, SSE streaming, and trust-model enforcement proven end-to-end (completed 2026-06-20)
 - [ ] **Phase 3: Coaching Loop** - FIT ingestion, plan generation, onboarding interview, and adaptive re-planning
 - [ ] **Phase 4: UI and Calendar** - React PWA, all screens, Google Calendar integration, Vercel deployment
 - [ ] **Phase 5: During-Session and ZWO Export** - iOS-safe session stepper with wake lock, ZWO file generator with Zwift acceptance test
@@ -59,7 +59,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. Chat responses stream correctly to the frontend via SSE using EventSource; the SSE endpoint is functional
   5. The compliance test suite passes: the agent does not emit unsourced physiological numbers across a representative set of scenarios
 
-**Plans**: 5/6 plans executed
+**Plans**: 6/6 plans complete
 
 Plans:
 
@@ -68,7 +68,7 @@ Plans:
 - [x] 02-03-PLAN.md — Wave 3: trust-model response scanner and FastAPI SSE chat endpoint
 - [x] 02-04-PLAN.md — Wave 4: tests/agent/ compliance suite proving AGENT-01..06 and TRUST-03/04/05
 - [x] 02-05-PLAN.md — Wave 5: offline anthropic SDK contract-conformance test (closes A1/A2/Open Question 1 — loop's assumed SDK shape verified against the real installed package)
-- [ ] 02-06-PLAN.md — Wave 5: trust scanner representative-corpus characterization (Success Criterion 5; zero false-negative/false-positive rates; answers Open Question 2)
+- [x] 02-06-PLAN.md — Wave 5: trust scanner representative-corpus characterization (Success Criterion 5; zero false-negative/false-positive rates; answers Open Question 2)
 
 ### Phase 3: Coaching Loop
 
@@ -122,7 +122,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Sports-Science Foundation | 5/5 | Complete   | 2026-06-19 |
-| 2. Agent Core | 5/6 | In Progress|  |
+| 2. Agent Core | 6/6 | Complete   | 2026-06-20 |
 | 3. Coaching Loop | 0/0 | Not started | - |
 | 4. UI and Calendar | 0/0 | Not started | - |
 | 5. During-Session and ZWO Export | 0/0 | Not started | - |
