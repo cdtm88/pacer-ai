@@ -39,45 +39,21 @@ Phase 2 note:
   - Phase 3 will load the conversation from the Supabase DB here.
 """
 
-import json
 import os
 
-import anthropic
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
-from agent.loop import run_turn
-from agent.trust import scan_buffer
+# run_turn is imported at module scope so tests can monkeypatch chat_module.run_turn.
+# The monkeypatch reaches _sse.py via the shared import; keeping it here ensures
+# the existing test_sse.py monkeypatch target (chat_module.run_turn) still resolves.
+from agent.loop import run_turn  # noqa: F401 (re-exported for test monkeypatching)
+from api.routes._sse import sse_generator
 
 router = APIRouter()
 
 # Default model per CLAUDE.md (AI/LLM Layer section); configurable via env var.
 _DEFAULT_MODEL = "claude-sonnet-4-5"
-
-
-async def sse_generator(messages: list[dict], model: str):
-    """
-    Async generator that drives run_turn and formats each event as an SSE frame.
-
-    Frame format per D-07:
-      event: <event_type>\ndata: <json>\n\n
-
-    Error handling: any unexpected exception from run_turn is caught and emitted
-    as a final `event: error` frame so the stream never dies silently.
-    """
-    # Per-request Anthropic client: reads ANTHROPIC_API_KEY from env.
-    # Instantiated here (not at module import) so the module is importable without the key.
-    client = anthropic.AsyncAnthropic()
-    audit_log: list = []
-
-    try:
-        async for event in run_turn(messages, client, model, scan_buffer, audit_log):
-            event_type = event["event"]
-            data = json.dumps(event["data"])
-            yield f"event: {event_type}\ndata: {data}\n\n"
-    except Exception as exc:  # noqa: BLE001
-        error_data = json.dumps({"code": "server_error", "message": str(exc)})
-        yield f"event: error\ndata: {error_data}\n\n"
 
 
 @router.get("/stream")
@@ -106,7 +82,7 @@ async def chat_stream(conversation_id: str = Query(...)):
     ]
 
     return StreamingResponse(
-        sse_generator(messages, model),
+        sse_generator(messages, model, _run_turn=run_turn),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

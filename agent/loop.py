@@ -49,6 +49,7 @@ async def run_turn(
     model: str,
     trust_scanner,  # callable: (str, list[str]) -> TrustViolation | None
     audit_log: list,
+    system: str = SYSTEM_PROMPT,  # D-22: injectable system prompt; defaults to module constant
 ) -> AsyncIterator[dict]:
     """
     Drive a multi-turn Anthropic conversation with tool use.
@@ -88,7 +89,7 @@ async def run_turn(
             model=model,
             max_tokens=4096,
             tools=TOOL_SCHEMAS,
-            system=SYSTEM_PROMPT,
+            system=system,
             messages=messages,
         ) as stream:
             async for event in stream:
