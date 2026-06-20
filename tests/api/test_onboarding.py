@@ -16,7 +16,7 @@ asyncio_mode = auto (pytest.ini) -- no @pytest.mark.asyncio needed.
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from tests.api.conftest import TEST_USER_ID, parse_sse_frames
+from tests.api.conftest import TEST_USER_ID, parse_sse_frames, TEST_JWT_SECRET, auth_headers
 
 
 # ---------------------------------------------------------------------------
@@ -130,12 +130,15 @@ async def test_onboarding_returns_sse(monkeypatch):
     ONBD-01: POST /onboarding/start returns Content-Type: text/event-stream.
     Monkeypatches run_turn with _mock_interview_run_turn so no live API call.
     Monkeypatches _get_async_supabase so no live DB call.
+    Phase 4: request requires a valid JWT in the Authorization: Bearer header.
     Asserts at least one token frame and one done frame in the parsed SSE output.
     """
     import httpx
     from httpx import ASGITransport
     from api.main import app
     import api.routes.onboarding as onboarding_module
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
     # Patch run_turn (used by sse_generator via _run_turn parameter)
     monkeypatch.setattr(onboarding_module, "run_turn", _mock_interview_run_turn)
@@ -148,7 +151,10 @@ async def test_onboarding_returns_sse(monkeypatch):
         transport=ASGITransport(app=app),
         base_url="http://test",
     ) as client:
-        response = await client.post("/onboarding/start", json={"user_id": TEST_USER_ID})
+        response = await client.post(
+            "/onboarding/start",
+            headers=auth_headers(),
+        )
 
     assert response.status_code == 200
     assert "text/event-stream" in response.headers["content-type"]
@@ -171,6 +177,8 @@ async def test_confirmation_gate(monkeypatch):
     The non-compliant mock (_mock_interview_save_without_approval) emits save_profile
     WITHOUT an approval marker -- used to confirm the structural distinction is detectable.
 
+    Phase 4: both requests require a valid JWT.
+
     Note: LLM gate enforcement (whether Claude actually respects the system prompt)
     is a manual-only verification (ONBD-04-MANUAL in 03-VALIDATION). This test only
     asserts the structural contract on mock sequences.
@@ -179,6 +187,8 @@ async def test_confirmation_gate(monkeypatch):
     from httpx import ASGITransport
     from api.main import app
     import api.routes.onboarding as onboarding_module
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
     mock_factory, _ = _make_onboarding_mock_supabase()
     monkeypatch.setattr(onboarding_module, "_get_async_supabase", mock_factory)
@@ -190,7 +200,10 @@ async def test_confirmation_gate(monkeypatch):
         transport=ASGITransport(app=app),
         base_url="http://test",
     ) as client:
-        response = await client.post("/onboarding/start", json={"user_id": TEST_USER_ID})
+        response = await client.post(
+            "/onboarding/start",
+            headers=auth_headers(),
+        )
 
     frames = parse_sse_frames(response.text)
     event_types = [f["event"] for f in frames]
@@ -223,7 +236,10 @@ async def test_confirmation_gate(monkeypatch):
         transport=ASGITransport(app=app),
         base_url="http://test",
     ) as client:
-        response2 = await client.post("/onboarding/start", json={"user_id": TEST_USER_ID})
+        response2 = await client.post(
+            "/onboarding/start",
+            headers=auth_headers(),
+        )
 
     frames2 = parse_sse_frames(response2.text)
 

@@ -21,7 +21,7 @@ import httpx
 import pytest
 from httpx import ASGITransport
 
-from tests.api.conftest import TEST_USER_ID
+from tests.api.conftest import TEST_USER_ID, TEST_JWT_SECRET, auth_headers
 
 FIXTURE_PATH = pathlib.Path(__file__).parents[1] / "fixtures" / "sample_zwift.fit"
 
@@ -108,10 +108,12 @@ async def test_upload_returns_200(monkeypatch):
     """
     FIT-01: POST /rides/upload with a valid .FIT file returns 200 with ride_id.
     Background task is mocked to avoid live DB calls.
+    Phase 4: request requires a valid JWT; user_id is no longer a form field.
     """
     from api.main import app
     import api.routes.rides as rides_module
 
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
     client_mock, _ = _make_rides_mock()
     monkeypatch.setattr(rides_module, "_get_async_supabase", AsyncMock(return_value=client_mock))
     monkeypatch.setattr(
@@ -130,7 +132,7 @@ async def test_upload_returns_200(monkeypatch):
             response = await client.post(
                 "/rides/upload",
                 files={"file": ("sample_zwift.fit", f, "application/octet-stream")},
-                data={"user_id": TEST_USER_ID},
+                headers=auth_headers(),
             )
 
     assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
@@ -426,6 +428,8 @@ async def test_fit_upload_integration(monkeypatch):
     )
     monkeypatch.setattr(rides_module, "process_ride_background", capture_bg)
 
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
+
     async with httpx.AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
@@ -434,7 +438,7 @@ async def test_fit_upload_integration(monkeypatch):
             response = await client.post(
                 "/rides/upload",
                 files={"file": ("sample_zwift.fit", f, "application/octet-stream")},
-                data={"user_id": TEST_USER_ID},
+                headers=auth_headers(),
             )
 
     assert response.status_code == 200, (
@@ -469,12 +473,16 @@ async def test_fit_upload_integration(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-async def test_corrupt_fit_returns_422():
+async def test_corrupt_fit_returns_422(monkeypatch):
     """
     D-14: Sending non-FIT bytes returns HTTP 422 with error='fit_parse_failed'.
+    Phase 4: a valid JWT is required; auth runs before file parsing so we must
+    include the Authorization header to exercise the 422 parse-error path.
     """
     from api.main import app
     import api.routes.rides as rides_module
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
     # No Supabase mock needed -- 422 is returned before any DB call
     async with httpx.AsyncClient(
@@ -484,7 +492,7 @@ async def test_corrupt_fit_returns_422():
         response = await client.post(
             "/rides/upload",
             files={"file": ("bad.fit", b"not a fit file at all", "application/octet-stream")},
-            data={"user_id": TEST_USER_ID},
+            headers=auth_headers(),
         )
 
     assert response.status_code == 422, (
