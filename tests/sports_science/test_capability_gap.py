@@ -10,12 +10,19 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 
 def _make_mock_async_supabase():
-    """Return a mock AsyncClient that silently accepts awaited inserts."""
-    client = AsyncMock()
-    # acreate_client is awaitable and returns the client
-    client.table.return_value.insert.return_value.execute = AsyncMock(
-        return_value=MagicMock()
-    )
+    """Return a mock AsyncClient that silently accepts awaited inserts.
+
+    The chain is: client.table("x").insert({...}).execute()
+    - client: MagicMock so .table() is a regular sync call returning a MagicMock
+    - execute: AsyncMock so it can be awaited
+    """
+    execute_mock = AsyncMock(return_value=MagicMock())
+    insert_mock = MagicMock()
+    insert_mock.execute = execute_mock
+    table_mock = MagicMock()
+    table_mock.insert.return_value = insert_mock
+    client = MagicMock()
+    client.table.return_value = table_mock
     return client
 
 
@@ -68,8 +75,10 @@ async def test_inputs_no_secret(mock_acreate_client):
 
 
 @patch("sports_science.capability_gap.acreate_client", new_callable=AsyncMock)
-async def test_supabase_insert_called_with_correct_fields(mock_acreate_client):
+async def test_supabase_insert_called_with_correct_fields(mock_acreate_client, monkeypatch):
     """GAP-01: structured row inserted with method_name, description, context."""
+    monkeypatch.setenv("SUPABASE_URL", "http://test-url")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-service-key")
     mock_client = _make_mock_async_supabase()
     mock_acreate_client.return_value = mock_client
     from sports_science.capability_gap import log_capability_gap
@@ -109,12 +118,17 @@ async def test_methodology_is_capability_gap_log(mock_acreate_client):
 
 
 @patch("sports_science.capability_gap.acreate_client", new_callable=AsyncMock)
-async def test_db_error_returns_fallback_tool_result(mock_acreate_client):
+async def test_db_error_returns_fallback_tool_result(mock_acreate_client, monkeypatch):
     """GAP-02: DB insert failure must not prevent returning the fallback ToolResult."""
-    mock_client = AsyncMock()
-    mock_client.table.return_value.insert.return_value.execute = AsyncMock(
-        side_effect=Exception("DB connection failed")
-    )
+    monkeypatch.setenv("SUPABASE_URL", "http://test-url")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-service-key")
+    execute_mock = AsyncMock(side_effect=Exception("DB connection failed"))
+    insert_mock = MagicMock()
+    insert_mock.execute = execute_mock
+    table_mock = MagicMock()
+    table_mock.insert.return_value = insert_mock
+    mock_client = MagicMock()
+    mock_client.table.return_value = table_mock
     mock_acreate_client.return_value = mock_client
     from sports_science.capability_gap import log_capability_gap
     from sports_science.types import ToolResult
