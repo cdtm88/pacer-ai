@@ -118,11 +118,13 @@ Plans:
   4. Calendar sync failures surface gracefully to the user without disrupting the plan or chat
   5. The app is installable as a PWA on iOS and Android; it works offline for the during-session view; the iOS install instructional banner appears on first visit; light mode only with no pure blacks and no em dashes in any copy
 
-**Plans**: 9/9 plans complete
+**Plans**: 11 plans (9 complete + 2 gap-closure)
 
 Plans:
 
 - [x] 04-09-PLAN.md
+- [ ] 04-10-PLAN.md — Commit E2E test fixes and verify 34/34 Playwright tests pass
+- [ ] 04-11-PLAN.md — Human confirmation: Google Cloud OAuth consent screen published (CAL-03)
 
 **Wave 1** *(foundation, parallel)*
 
