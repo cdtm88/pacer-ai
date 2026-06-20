@@ -168,4 +168,21 @@ ATTRIBUTED: list[tuple[str, set[str]]] = [
         "The tool suggests a cadence of 85 rpm for this sweet-spot interval.",
         {"85 rpm", "cadence of 85 rpm"},
     ),
+
+    # TRANSP-01 / ADAPT-05: adaptation explanation echoes CTL and TSS from validate_session_vs_actual
+    # and progress_load results. Numbers in explanation_text are tool-sourced (not LLM-invented).
+    (
+        "Micro-adjustment triggered by underperformance signal on session sess-007 "
+        "(compliance: 45.0% of planned TSS from validate_session_vs_actual). "
+        "Next 3 sessions reduced to 80% intensity.",
+        {"compliance: 45.0%", "45.0%", "validate_session_vs_actual"},
+    ),
+
+    # TRANSP-01 / ADAPT-05: macro replan explanation echoes CTL and TSS values from progress_load
+    (
+        "Macro re-plan triggered by 2 signals (missed, underperformance) in a 7-day window. "
+        "progress_load recommended CTL target 32.4 from current 36.0 (reduced capacity 90%). "
+        "8 sessions rescheduled.",
+        {"CTL target 32.4", "32.4", "36.0", "recommended CTL target 32.4 from current 36.0"},
+    ),
 ]

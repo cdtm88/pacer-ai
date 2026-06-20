@@ -36,6 +36,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Body, HTTPException, Path, Query
+from pydantic import BaseModel
 from supabase import AsyncClient, acreate_client
 
 from sports_science.compliance import validate_session_vs_actual
@@ -595,6 +596,21 @@ async def apply_macro_replan(user_id: str, signals: list[dict]) -> dict:
 # Router + endpoints
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Request body models
+# ---------------------------------------------------------------------------
+
+
+class UserIdBody(BaseModel):
+    """JSON body with user_id field (Pydantic model for proper JSON parsing)."""
+    user_id: str
+
+
+class MissedSessionBody(BaseModel):
+    """JSON body for marking a session missed."""
+    user_id: str
+
+
 router = APIRouter()
 
 
@@ -624,7 +640,7 @@ async def list_adaptations(
 
 @router.post("/check")
 async def check_adaptations(
-    user_id: str = Body(...),  # TODO(phase-4-auth): replace with JWT dependency
+    body: UserIdBody,  # TODO(phase-4-auth): replace with JWT dependency
 ) -> dict:
     """
     ADAPT-04: POST /adaptations/check
@@ -634,6 +650,7 @@ async def check_adaptations(
 
     SECURITY TODO (Phase 4): user_id accepted from request body without auth.
     """
+    user_id = body.user_id
     signals = await detect_signals(user_id)
     scope = decide_scope(signals)
 
@@ -653,7 +670,7 @@ async def check_adaptations(
 @router.post("/sessions/{session_id}/missed")
 async def mark_session_missed(
     session_id: str = Path(...),
-    user_id: str = Body(...),  # TODO(phase-4-auth): replace with JWT dependency
+    body: MissedSessionBody = Body(...),  # TODO(phase-4-auth): replace with JWT dependency
 ) -> dict:
     """
     D-16: POST /adaptations/sessions/{session_id}/missed
@@ -663,6 +680,7 @@ async def mark_session_missed(
 
     SECURITY TODO (Phase 4): user_id accepted from request body without auth.
     """
+    user_id = body.user_id
     supabase = await _get_async_supabase()
 
     # Verify the session belongs to the requesting user before marking missed.
