@@ -1,4 +1,5 @@
 import { createBrowserRouter, Navigate, Outlet } from 'react-router'
+import { DuringSessionScreen as DuringSessionScreenImpl } from './screens/DuringSessionScreen'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { useAuth } from './hooks/useAuth'
@@ -123,7 +124,7 @@ export function ChatScreen() {
 }
 
 export function DuringSessionScreen() {
-  return <div>During Session</div>
+  return <DuringSessionScreenImpl />
 }
 
 export function SettingsScreen() {
