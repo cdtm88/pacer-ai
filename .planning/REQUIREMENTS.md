@@ -38,16 +38,16 @@
 ### Onboarding Interview
 
 - [ ] **ONBD-01**: A new user with zero prior data completes a conversational LLM-led interview that establishes: self-reported baseline fitness, injury and medical status (including back issues), equipment available, weekly time availability and schedule, and short- and long-term goals
-- [ ] **ONBD-02**: Injury and back status established through the interview is persisted to the user profile and applied as back-protective plan constraints; it is never assumed or defaulted
-- [ ] **ONBD-03**: The interview output is a persisted structured user profile stored in the database
+- [x] **ONBD-02**: Injury and back status established through the interview is persisted to the user profile and applied as back-protective plan constraints; it is never assumed or defaulted
+- [x] **ONBD-03**: The interview output is a persisted structured user profile stored in the database
 - [ ] **ONBD-04**: The user sees a confirmation summary of their profile at the end of the interview before the plan is generated
 
 ### Plan Generation
 
-- [ ] **PLAN-01**: The agent generates a structured, periodised training plan appropriate to a returning beginner (aerobic-base emphasis, sustainable progression)
+- [x] **PLAN-01**: The agent generates a structured, periodised training plan appropriate to a returning beginner (aerobic-base emphasis, sustainable progression)
 - [ ] **PLAN-02**: Cold-start is a first-class supported case: early sessions are prescribed using RPE and heart rate targets (comfortable/conversational aerobic), not power targets
 - [ ] **PLAN-03**: Power targets are introduced only after the FTP estimate reaches medium confidence (minimum 4 quality efforts); the plan does not fabricate power targets before this threshold
-- [ ] **PLAN-04**: Every session has an explicit plan: objective, structure (warm-up / main set / cool-down), targets (RPE/HR early; power later), and duration
+- [x] **PLAN-04**: Every session has an explicit plan: objective, structure (warm-up / main set / cool-down), targets (RPE/HR early; power later), and duration
 - [ ] **PLAN-05**: Back-protective constraints surfaced in the interview are reflected in the plan: initial volume cap, no prolonged standing efforts early, no sprint efforts early, and a flag if load ramps too fast
 - [ ] **PLAN-06**: Every physiological number in a generated plan is traceable to a tool-library call (satisfies TRUST-04)
 
@@ -56,7 +56,7 @@
 - [ ] **FIT-01**: User can drag or select a .FIT file (Zwift or compatible head unit) in the web app to upload it
 - [ ] **FIT-02**: The parser uses `fitdecode` with `error_handling=ErrorHandling.WARN`; all field access uses `get_value('field', fallback=None)`; GPS fields are not required (indoor rides)
 - [ ] **FIT-03**: The parser extracts power, heart rate, cadence, and duration from the .FIT file; missing fields are handled gracefully with fallback to null
-- [ ] **FIT-04**: After parsing, `compute_tss` is called on the ride data; `update_pmc` is called to update the PMC history; results are persisted to `rides` and `pmc_history` tables
+- [x] **FIT-04**: After parsing, `compute_tss` is called on the ride data; `update_pmc` is called to update the PMC history; results are persisted to `rides` and `pmc_history` tables
 - [ ] **FIT-05**: The parsed ride feeds `validate_session_vs_actual` to produce a compliance percentage, delta metrics, and flags
 - [ ] **FIT-06**: A real Zwift .FIT file is used as an acceptance test before the FIT pipeline is considered production-ready
 
@@ -71,7 +71,7 @@
 ### Adaptation Transparency
 
 - [ ] **TRANSP-01**: Whenever the plan changes, the agent explains its reasoning in chat by default, citing the data (specific TSS/CTL/TSB/ATL values from tool calls) and the sports-science principle behind the change
-- [ ] **TRANSP-02**: Every plan change is persisted to an adaptation log with: trigger event, reasoning shown to user, and timestamp
+- [x] **TRANSP-02**: Every plan change is persisted to an adaptation log with: trigger event, reasoning shown to user, and timestamp
 - [ ] **TRANSP-03**: The adaptation log is readable (not just a raw database table); the user can review past adaptation decisions
 
 ### Google Calendar Integration
@@ -172,19 +172,19 @@
 | AGENT-05 | Phase 2 | Complete |
 | AGENT-06 | Phase 2 | Complete |
 | ONBD-01 | Phase 3 | Pending |
-| ONBD-02 | Phase 3 | Pending |
-| ONBD-03 | Phase 3 | Pending |
+| ONBD-02 | Phase 3 | Complete |
+| ONBD-03 | Phase 3 | Complete |
 | ONBD-04 | Phase 3 | Pending |
-| PLAN-01 | Phase 3 | Pending |
+| PLAN-01 | Phase 3 | Complete |
 | PLAN-02 | Phase 3 | Pending |
 | PLAN-03 | Phase 3 | Pending |
-| PLAN-04 | Phase 3 | Pending |
+| PLAN-04 | Phase 3 | Complete |
 | PLAN-05 | Phase 3 | Pending |
 | PLAN-06 | Phase 3 | Pending |
 | FIT-01 | Phase 3 | Pending |
 | FIT-02 | Phase 3 | Pending |
 | FIT-03 | Phase 3 | Pending |
-| FIT-04 | Phase 3 | Pending |
+| FIT-04 | Phase 3 | Complete |
 | FIT-05 | Phase 3 | Pending |
 | FIT-06 | Phase 3 | Pending |
 | ADAPT-01 | Phase 3 | Pending |
@@ -193,7 +193,7 @@
 | ADAPT-04 | Phase 3 | Pending |
 | ADAPT-05 | Phase 3 | Pending |
 | TRANSP-01 | Phase 3 | Pending |
-| TRANSP-02 | Phase 3 | Pending |
+| TRANSP-02 | Phase 3 | Complete |
 | TRANSP-03 | Phase 3 | Pending |
 | GAP-01 | Phase 1 | Complete |
 | GAP-02 | Phase 1 | Complete |
