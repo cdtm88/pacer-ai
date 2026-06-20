@@ -231,10 +231,12 @@ async function mockBackendApis(
   await page.route(/\/rides\/upload/, (route) =>
     route.fulfill(respond(fixtureRides[0])),
   )
+  // General handler registered first; specific missed handler registered after so
+  // Playwright's LIFO ordering lets the specific handler win for missed URLs.
+  await page.route(/\/adaptations\//, (route) => route.fulfill(respond([])))
   await page.route(/\/adaptations\/sessions\/[^/]+\/missed/, (route) =>
     route.fulfill(respond({})),
   )
-  await page.route(/\/adaptations\//, (route) => route.fulfill(respond([])))
   await page.route(/\/conversations\//, (route) =>
     route.fulfill(respond(fixtureConversation)),
   )
