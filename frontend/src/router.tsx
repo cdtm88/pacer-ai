@@ -7,6 +7,7 @@ import { useAuthStore } from './stores/authStore'
 import { getProfileMe } from './lib/api'
 import { supabase } from './lib/supabase'
 import { LoginScreen } from './screens/LoginScreen'
+import { AuthCallbackScreen } from './screens/AuthCallbackScreen'
 import { AppLayout } from './components/AppLayout'
 import { TodayScreen } from './screens/TodayScreen'
 import { AgendaScreen } from './screens/AgendaScreen'
@@ -131,6 +132,12 @@ export const router = createBrowserRouter([
       {
         path: '/login',
         element: <LoginScreen />,
+      },
+      {
+        // Handles Supabase PKCE magic-link callback (?code=...).
+        // Must be outside AuthGate so the exchange can happen before a session exists.
+        path: '/auth/callback',
+        element: <AuthCallbackScreen />,
       },
       {
         // /onboarding: requires auth session but NOT a profile (so it's outside FirstRunGate)
