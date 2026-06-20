@@ -1,403 +1,190 @@
 ---
 phase: "04"
 phase_name: "ui-and-calendar"
-status: "issues-found"
+status: "issues_found"
 depth: "standard"
-files_reviewed: 66
+files_reviewed: 3
 files_reviewed_list:
-  - api/auth.py
-  - api/calendar_sync.py
-  - api/main.py
-  - api/routes/adaptations.py
-  - api/routes/calendar.py
-  - api/routes/chat.py
-  - api/routes/onboarding.py
-  - api/routes/rides.py
-  - api/routes/sessions.py
-  - frontend/.env.example
-  - frontend/components.json
-  - frontend/index.html
-  - frontend/package.json
-  - frontend/src/components/AppLayout.tsx
-  - frontend/src/components/chat/ChatBubble.tsx
-  - frontend/src/components/chat/ChatInput.tsx
-  - frontend/src/components/history/CtlSparkline.tsx
+  - frontend/tests/e2e/phase4.spec.ts
   - frontend/src/components/history/FitUploadZone.tsx
-  - frontend/src/components/history/RideRow.tsx
-  - frontend/src/components/nav/BottomTabBar.tsx
-  - frontend/src/components/nav/DesktopSidebar.tsx
-  - frontend/src/components/pwa/IOSInstallBanner.tsx
-  - frontend/src/components/session/SessionCard.tsx
-  - frontend/src/components/session/SessionStepList.tsx
   - frontend/src/components/session/TsbChip.tsx
-  - frontend/src/components/session/ZoneChip.tsx
-  - frontend/src/components/settings/CalendarStatus.tsx
-  - frontend/src/components/ui/accordion.tsx
-  - frontend/src/components/ui/alert-dialog.tsx
-  - frontend/src/components/ui/badge.tsx
-  - frontend/src/components/ui/button.tsx
-  - frontend/src/components/ui/separator.tsx
-  - frontend/src/components/ui/skeleton.tsx
-  - frontend/src/components/ui/tooltip.tsx
-  - frontend/src/hooks/useAuth.ts
-  - frontend/src/hooks/useCalendarStatus.ts
-  - frontend/src/hooks/useSSEStream.ts
-  - frontend/src/index.css
-  - frontend/src/lib/api.ts
-  - frontend/src/lib/supabase.ts
-  - frontend/src/lib/utils.ts
-  - frontend/src/main.tsx
-  - frontend/src/router.tsx
-  - frontend/src/screens/AgendaScreen.tsx
-  - frontend/src/screens/ChatScreen.tsx
-  - frontend/src/screens/DuringSessionScreen.tsx
-  - frontend/src/screens/HistoryScreen.tsx
-  - frontend/src/screens/LoginScreen.tsx
-  - frontend/src/screens/OnboardingScreen.tsx
-  - frontend/src/screens/SettingsScreen.tsx
-  - frontend/src/screens/TodayScreen.tsx
-  - frontend/src/stores/authStore.ts
-  - frontend/src/stores/uiStore.ts
-  - frontend/src/tests/auth.test.tsx
-  - frontend/src/tests/history.test.tsx
-  - frontend/src/tests/onboarding.test.tsx
-  - frontend/src/tests/pwa.test.tsx
-  - frontend/src/tests/setup.ts
-  - frontend/src/tests/today.test.tsx
-  - frontend/src/vite-env.d.ts
-  - frontend/tsconfig.app.json
-  - frontend/tsconfig.json
-  - frontend/vercel.json
-  - frontend/vite.config.ts
-  - frontend/vitest.config.ts
-  - supabase/migrations/0003_phase4_schema.sql
-  - tests/api/conftest.py
-  - tests/api/test_adaptations.py
-  - tests/api/test_auth.py
-  - tests/api/test_calendar.py
-  - tests/api/test_onboarding.py
-  - tests/api/test_rides.py
-  - tests/api/test_sessions.py
 findings:
-  critical: 7
-  warning: 9
-  info: 4
-  total: 20
+  critical: 2
+  warning: 4
+  info: 3
+  total: 9
 reviewed_at: "2026-06-20"
 ---
 
-# Phase 04 Code Review
+# Phase 04 Gap-Closure: Code Review Report
+
+**Reviewed:** 2026-06-20T00:00:00Z
+**Depth:** standard
+**Files Reviewed:** 3
+**Status:** issues_found
 
 ## Summary
 
-The Phase 4 implementation is architecturally sound on the auth and data-isolation axes, but carries several correctness defects that will cause crashes or silent data loss in production. The most severe issues are: a missing CORS middleware that blocks all browser API calls; JWT tokens exposed in server-side redirect URLs and browser history; a `BackgroundTasks()` instantiation anti-pattern that silently discards calendar sync work; unchecked DB insert results that crash the adaptation logging path; and a frontend API type mismatch where `getUpcomingSessions` deserializes to the wrong shape. The JWT verification implementation is correct; the calendar OAuth CSRF guard and Fernet encryption are solid.
+Three gap-closure files that fix E2E test failures and add a testid/label change. The two production source files (FitUploadZone.tsx and TsbChip.tsx) are small and mostly correct, but carry two behavioral bugs. The Playwright suite (phase4.spec.ts) is the main concern: it contains LIFO route-ordering bugs that will cause the wrong mock to answer network requests in tests where `mockBackendApis` is called and then a per-test override is registered, a hardcoded absolute URL that breaks if the port ever changes, unconditional `waitForTimeout` calls that are the standard source of CI flake, and a catch block that silently absorbs test failures rather than failing the test.
 
 ---
 
-## Findings
+## Narrative Findings (AI reviewer)
 
-### CR-001 — CORS middleware absent: all browser API calls blocked [CRITICAL]
+## Critical Issues
 
-**File:** `api/main.py:27`
-**Issue:** The FastAPI application has no `CORSMiddleware` registered. The frontend runs at a different origin from the API server (`VITE_API_URL`); every `fetch` and `EventSource` request from the browser will be blocked by the browser's CORS preflight check. No REST endpoint or SSE stream is reachable from the browser in any deployed environment.
-**Fix:**
-```python
-from fastapi.middleware.cors import CORSMiddleware
-import os
+### CR-01: LIFO ordering inverted — `/rides/upload` and `/pmc_history/latest` overrides are shadowed by the general handlers
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[os.environ.get("FRONTEND_URL", "http://localhost:5173")],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+**File:** `frontend/tests/e2e/phase4.spec.ts:222-232`
+**Issue:** The comment on line 221 says "Register general routes before specific ones — Playwright uses LIFO so the last registered handler wins; specific routes must be registered after the general ones." The registrations that follow do the opposite for two route pairs:
+
+- Lines 222-224: `/pmc_history/` (general) is registered first, then `/pmc_history/latest` (specific) is registered second. In LIFO order the *last registered* handler wins, so `/pmc_history/latest` is correctly prioritised over `/pmc_history/`. This pair is fine.
+- Lines 228-232: `/rides/` (general) is registered first, then `/rides/upload` (specific) is registered second. In LIFO order `/rides/upload` wins over `/rides/`. Also fine.
+
+However, in T13 (lines 510-513) a per-test override for `/rides/upload` is registered *after* `setupAuthenticated` (which includes `mockBackendApis`). In LIFO order the per-test handler wins, which is the intended behaviour. But in T09 (lines 421-429) the per-session override for `/sessions/session-today-id` is registered *after* `setupAuthenticated` which already registered `/sessions/[^/]+$` (the broad catch-all, line 213). In LIFO the per-test specific handler wins — but `route.continue()` on line 426 (the GET branch) re-enters the handler stack; there is no handler lower in the stack that will answer the GET, so the request falls through to the network. In a fully-mocked test environment there is no real server, so the session GET for `session-today-id` will fail with a network error, likely causing the session card not to render and `patchCalled` to never be set.
+
+Additionally the `sessions/[^/]+$` general handler (line 213) calls `route.fallback()` for non-PATCH requests. `route.fallback()` means "let another matching route handle this". Because the more specific `/sessions/today` and `/sessions/upcoming` are registered *before* (and therefore *lower* in the LIFO stack than) `/sessions/[^/]+$`, they will never receive the fallback — the fallback direction in LIFO is toward earlier-registered (lower-priority) handlers. The fallback comment on line 217 is misleading and the routing will never reach the specific handlers via fallback.
+
+**Fix:** Register the general `sessions/[^/]+$` PATCH-only handler *before* the specific `/sessions/today` and `/sessions/upcoming` handlers so that it sits lower in the LIFO stack and the specific handlers win. Remove `route.fallback()` for the GET branch — add explicit `route.continue()` only if a real server is running, otherwise simply do nothing (the more specific routes already handle GET /sessions/today and GET /sessions/upcoming):
+```typescript
+// Register general (lower priority) first, then specific (higher priority last)
+await page.route(/\/sessions\/[^/]+$/, (route) => {
+  if (route.request().method() === 'PATCH') {
+    route.fulfill(respond({ status: 'completed' }))
+  }
+  // GET requests: do nothing here — let the more specific handlers (registered after)
+  // win via LIFO. Do not call route.fallback() as it goes toward lower-priority handlers.
+})
+await page.route(/\/sessions\/today/, ...)     // registered after → higher priority
+await page.route(/\/sessions\/upcoming/, ...)  // registered after → higher priority
+```
+
+---
+
+### CR-02: T09 uses `waitForTimeout(500)` to assert `patchCalled` — race condition that cannot be fixed by increasing the timeout
+
+**File:** `frontend/tests/e2e/phase4.spec.ts:434-435`
+**Issue:** The test for "Mark done triggers PATCH" sets `patchCalled = true` inside the route handler, then calls `await page.waitForTimeout(500)` and asserts `expect(patchCalled).toBe(true)`. This is a race condition: 500 ms is a fixed wall-clock delay that has no relationship to when the button click's async mutation resolves. On a slow CI machine the mutation may not have fired within 500 ms. On a fast machine the timeout is wasted. More critically, because the route-ordering bug in CR-01 means the session GET may fail, `patchCalled` may never be set even with an arbitrarily long timeout.
+
+**Fix:** Replace the fixed timeout with `waitForRequest` or a DOM assertion that only resolves after the server interaction completes:
+```typescript
+const patchRequest = page.waitForRequest(
+  (req) => /\/sessions\/session-today-id/.test(req.url()) && req.method() === 'PATCH',
+  { timeout: 5000 },
 )
+await page.getByRole('button', { name: /Mark done/i }).click()
+await patchRequest  // resolves as soon as the request is intercepted
+expect(patchCalled).toBe(true)
 ```
 
 ---
 
-### CR-002 — JWT access token exposed in browser redirect URL and server logs [CRITICAL]
+## Warnings
 
-**File:** `frontend/src/components/settings/CalendarStatus.tsx:30`
-**Issue:** `handleConnect` constructs `window.location.href = \`${API_URL}/calendar/auth?token=${encodeURIComponent(token)}\`` which embeds the Supabase access token as a query parameter in a browser navigation. This causes the full JWT to appear in: (1) browser history, (2) server access logs on the API server, (3) any CDN or reverse-proxy request logs, and (4) the `Referer` header on subsequent requests. Access tokens are long-lived (typically 1 hour) and are full bearer credentials. The `/calendar/auth` backend endpoint already accepts `?token=` as an SSE fallback for `get_current_user`, so this technically authenticates, but the exposure is a security defect.
-**Fix:** Replace the direct redirect with a fetch that passes the token in the Authorization header, then redirects to the returned URL:
+### WR-01: Hardcoded absolute URL breaks test portability
+
+**File:** `frontend/tests/e2e/phase4.spec.ts:640`
+**Issue:** `await expect(page).toHaveURL('http://localhost:5174/')` asserts on the full absolute URL including host and port. The playwright.config.ts `baseURL` is `http://localhost:5174`, so if the port is ever changed in the config (or the test is run in a CI environment that randomises ports), this assertion will fail while the navigation itself succeeded. Every other URL assertion in the file correctly uses a relative regex `/\/login/` or `/\/onboarding/`.
+
+**Fix:**
 ```typescript
-async function handleConnect() {
-  const res = await apiFetch('/calendar/auth-redirect-url')
-  if (res.ok) {
-    const { url } = await res.json() as { url: string }
-    window.location.href = url
+await expect(page).toHaveURL(/\/$/)
+// or use the baseURL-relative form:
+await expect(page).toHaveURL('/')
+```
+
+---
+
+### WR-02: T13 catch block silently passes the test on upload-zone failure
+
+**File:** `frontend/tests/e2e/phase4.spec.ts:537-542`
+**Issue:** The outer `try/catch` around the file chooser interaction catches all errors and logs a message with `console.log` instead of failing the test or calling `test.skip()`. If the `data-testid="fit-upload-zone"` element is present (it is, after the fix in FitUploadZone.tsx), the click should open a file chooser. If it does not — for any reason including a broken component, wrong testid, or an unhandled exception — the catch block swallows the failure and the test reports green with `uploadCalled === false`. The `expect(uploadCalled).toBe(true)` on line 536 is inside the `try` block and is never reached if the file chooser throws.
+
+**Fix:** Use `test.skip()` for the known-unsupported case, and let unexpected errors propagate:
+```typescript
+try {
+  const fileChooser = await fileChooserPromise
+  await fileChooser.setFiles({ name: 'test.fit', mimeType: 'application/octet-stream', buffer: Buffer.from('FIT') })
+  await page.waitForRequest((req) => /\/rides\/upload/.test(req.url()), { timeout: 3000 })
+  expect(uploadCalled).toBe(true)
+} catch (err) {
+  if (err instanceof Error && err.message.includes('file chooser')) {
+    test.skip(true, 'Upload zone does not open file chooser via click; drag-drop only')
   }
-}
-```
-On the backend, add a `GET /calendar/auth-redirect-url` endpoint that builds and returns the Google OAuth URL (authenticated via `Depends(get_current_user)`) without performing a redirect, keeping the token out of the URL.
-
----
-
-### CR-003 — `asyncio.ensure_future` in request handler: calendar push dropped under multi-worker deployments [CRITICAL]
-
-**File:** `api/routes/onboarding.py:230`
-**Issue:** `_asyncio.ensure_future(push_all_sessions_to_calendar(user_id))` schedules a coroutine on the current event loop without registering it with FastAPI's `BackgroundTasks` mechanism. Under Gunicorn with multiple Uvicorn workers, or when the worker process is recycled before the coroutine completes, the future is silently dropped. Additionally, `ensure_future` does not attach error handling; any exception inside `push_all_sessions_to_calendar` will produce an "unhandled exception in asyncio Future" warning and the caller will never know.
-**Fix:**
-```python
-@router.post("/plan-calendar-sync")
-async def onboarding_plan_calendar_sync(
-    background_tasks: BackgroundTasks,
-    current_user: dict = Depends(get_current_user),
-) -> dict:
-    user_id = current_user["user_id"]
-    background_tasks.add_task(push_all_sessions_to_calendar, user_id)
-    return {"status": "scheduled"}
-```
-
----
-
-### CR-004 — `BackgroundTasks()` as default parameter: calendar sync silently never executes [CRITICAL]
-
-**File:** `api/routes/adaptations.py:679`
-**Issue:** `mark_session_missed` declares `background_tasks: BackgroundTasks = BackgroundTasks()`. FastAPI injects a `BackgroundTasks` instance at request time and executes its registered tasks after the response is sent. A `BackgroundTasks()` created as a Python default parameter value is a stale empty instance that is never connected to FastAPI's response lifecycle. Calls to `background_tasks.add_task(update_calendar_event, ...)` on lines 729-730 register tasks on this disconnected object, which FastAPI will never execute. Every calendar sync triggered by `mark_session_missed` is silently dropped.
-**Fix:**
-```python
-@router.post("/sessions/{session_id}/missed")
-async def mark_session_missed(
-    session_id: str = Path(...),
-    background_tasks: BackgroundTasks,          # no default
-    current_user: dict = Depends(get_current_user),
-) -> dict:
-```
-
----
-
-### CR-005 — Unchecked DB insert result in `log_adaptation`: `IndexError` on empty response [CRITICAL]
-
-**File:** `api/routes/adaptations.py:340`
-**Issue:** `log_adaptation` returns `result.data[0]["id"]` without verifying that `result.data` is non-empty. If the Supabase insert fails silently (RLS rejection, constraint violation, transient network error), `result.data` is `[]` and `result.data[0]` raises `IndexError`. Unlike the `create_conversation` call in `onboarding.py` (which is wrapped in a best-effort try/except), `log_adaptation` is called from `apply_micro_adjustment` (line 424) and `apply_macro_replan` (line 578) with no surrounding exception handler — an `IndexError` here will propagate as a 500 response to the caller after sessions have already been mutated, leaving the system in a partially-applied state with no adaptation log entry.
-**Fix:**
-```python
-if not result.data:
-    raise RuntimeError("adaptations INSERT returned no rows — check RLS and schema")
-return result.data[0]["id"]
-```
-
----
-
-### CR-006 — `getUpcomingSessions` returns wrong shape: `Session[]` vs `{sessions: Session[]}` [CRITICAL]
-
-**File:** `frontend/src/lib/api.ts:121-125`
-**Issue:** `getUpcomingSessions` does `return res.json() as Promise<Session[]>` but the backend `GET /sessions/upcoming` returns `{"sessions": [...]}` (a dict with a `sessions` key, not a bare array). Every caller receives the wrapper object typed as `Session[]`. `TodayScreen.tsx` line 90 calls `upcoming?.find(...)` which returns `undefined` (arrays have `find`; plain objects do not). `AgendaScreen.tsx` line 110 checks `sessions.length === 0` which is `undefined` (the `sessions` property of the deserialized wrapper is the actual array), causing the empty-state branch to never fire, and line 135 calls `sessions as unknown as SessionRow[]` then iterates with `for (const s of rows)` — this will iterate over the keys of `{"sessions": [...]}` rather than the session rows.
-**Fix:**
-```typescript
-export async function getUpcomingSessions(): Promise<Session[]> {
-  const res = await apiFetch('/sessions/upcoming')
-  if (!res.ok) throw new Error(`getUpcomingSessions failed: ${res.status}`)
-  const data = await res.json() as { sessions: Session[] }
-  return data.sessions ?? []
+  throw err  // re-throw unexpected errors so the test fails
 }
 ```
 
 ---
 
-### CR-007 — OAuth callback endpoint is unauthenticated: state token alone authorizes token storage [CRITICAL]
+### WR-03: T15 onboarding render assertion is vacuously true
 
-**File:** `api/routes/calendar.py:208-266`
-**Issue:** `GET /calendar/callback` has no `Depends(get_current_user)`. The user whose `google_tokens` are updated is determined solely by a DB lookup on the `state` parameter (line 238: `user_id = rows[0]["user_id"]`). While the state is a 32-byte random value stored server-side (CSRF protection is present), the callback is completely unauthenticated. An attacker who observes the `state` value from an access log or referrer leak can call the callback endpoint with a valid OAuth `code` obtained from their own Google authorization and link Google tokens of their choosing to any victim user's account. The `/auth` endpoint correctly authenticates the user before generating the state; the callback must verify that the same user is completing the flow.
-**Fix:** Embed the user_id in the state as an HMAC-signed binding, or require a short-lived session cookie set at `/auth` that the callback verifies:
-```python
-# At /auth: sign state with user_id
-import hmac, hashlib
-state_nonce = secrets.token_urlsafe(32)
-state_sig = hmac.new(
-    os.environ["SUPABASE_JWT_SECRET"].encode(),
-    f"{state_nonce}:{user_id}".encode(),
-    hashlib.sha256
-).hexdigest()
-state = f"{state_nonce}.{user_id}.{state_sig}"
-
-# At /callback: verify signature before trusting user_id
-parts = state.split(".")
-if len(parts) != 3:
-    raise HTTPException(status_code=400, ...)
-nonce, claimed_user_id, sig = parts
-expected = hmac.new(secret.encode(), f"{nonce}:{claimed_user_id}".encode(), hashlib.sha256).hexdigest()
-if not hmac.compare_digest(sig, expected):
-    raise HTTPException(status_code=400, detail={"error": "invalid_state"})
+**File:** `frontend/tests/e2e/phase4.spec.ts:585-588`
+**Issue:** The assertion is:
+```typescript
+await expect(
+  page.locator('progress, [role="progressbar"], .progress').or(page.locator('main, [data-testid="onboarding"]')).first(),
+).toBeTruthy()
 ```
+`locator.toBeTruthy()` is not a valid Playwright assertion — `locator` objects are always truthy JavaScript objects regardless of whether the element exists on the page. The correct assertion would be `.toBeVisible()` or `.toBeAttached()`. As written, this test always passes and verifies nothing about the onboarding screen's actual rendered content.
 
----
-
-### WR-001 — `handleConfirm` stale closure: `queryClient` and `navigate` not in dependency array [WARNING]
-
-**File:** `frontend/src/screens/OnboardingScreen.tsx:344`
-**Issue:** `handleConfirm` is wrapped in `useCallback(async () => { ... }, [])` with an empty dependency array, but the inner function `pollForProfile` captures `queryClient` and `navigate` from the enclosing component scope. If React re-renders create new identities for these (possible in test environments or with React concurrent mode), the stale closure references the wrong values. Additionally, ESLint's exhaustive-deps rule will flag this, and future developers may be misled about what state the function captures.
 **Fix:**
 ```typescript
-const handleConfirm = useCallback(async () => {
-  // ...
-}, [queryClient, navigate])
+await expect(
+  page.locator('progress, [role="progressbar"], .progress').or(page.locator('main, [data-testid="onboarding"]')).first(),
+).toBeVisible()
 ```
 
 ---
 
-### WR-002 — SSE error handler fires on normal stream close: shows "Stream error" after successful completion [WARNING]
+### WR-04: `handleFileChange` resets `inputRef.current.value` before the upload completes
 
-**File:** `frontend/src/hooks/useSSEStream.ts:68-80`
-**Issue:** When the backend closes the SSE connection after emitting the `done` event, `EventSource` fires its `error` event handler automatically (this is how EventSource signals connection closure). The `done` handler closes the EventSource (line 63: `es.close()`), but there is a microtask-scheduling race: the `done` event and the subsequent network close may both be queued before the `close()` call takes effect. If the `error` handler fires after `done`, it calls `setError('Stream error')` even though the stream completed successfully. This will show a red "Connection lost" banner to the user after every coaching turn that ends normally.
-**Fix:** Track whether the stream has completed and ignore error events that follow a done:
+**File:** `frontend/src/components/history/FitUploadZone.tsx:60-67`
+**Issue:** `handleFileChange` calls `void handleUpload(file)` (fire-and-forget) and immediately resets `inputRef.current.value = ''` on the next line. The reset is intended to allow re-uploading the same file. However, because `handleUpload` is async and `void` suppresses the await, the reset runs synchronously while the upload is in flight. On some browsers the `File` object obtained from `inputRef.current.files[0]` on line 61 is a live reference that may be invalidated when the input value is cleared, potentially causing the upload to fail mid-stream or send an empty file.
+
+**Fix:** Reset the value after the upload settles, inside `handleUpload`'s `finally` block, so the file reference is never cleared while the upload is in progress:
 ```typescript
-let streamCompleted = false
-
-es.addEventListener('done', () => {
-  streamCompleted = true
-  setIsDone(true)
-  setIsThinking(false)
-  es.close()
-})
-
-es.addEventListener('error', (e: Event) => {
-  if (streamCompleted) return   // ignore post-done connection close
-  try {
-    const data = JSON.parse((e as MessageEvent).data ?? '{}') as {
-      code?: string; message?: string
-    }
-    setError(data.message ?? 'Stream error')
-  } catch {
-    setError('Stream error')
-  }
-  setIsThinking(false)
-  es.close()
-})
-```
-
----
-
-### WR-003 — Five independent Supabase client singletons: duplicated code, multiple connection pools [WARNING]
-
-**File:** `api/routes/adaptations.py:53`, `api/routes/calendar.py:47`, `api/routes/onboarding.py:89`, `api/routes/rides.py:54`, `api/routes/sessions.py:34`, `api/calendar_sync.py:33`
-**Issue:** Identical copy-paste `_supabase_client` singleton + `_get_async_supabase` function exists in six modules. Each creates its own httpx connection pool to Supabase. Any change to initialization logic (e.g., adding connection pool limits, lifespan management, or service role key rotation) requires changes in six places. Test monkeypatching must be applied per-module rather than centrally.
-**Fix:** Extract to a single `api/db.py` module and import `get_async_supabase` everywhere.
-
----
-
-### WR-004 — Macro replan shifts all sessions by exactly 1 day: 30% shift guard is unreachable dead code [WARNING]
-
-**File:** `api/routes/adaptations.py:527`
-**Issue:** `apply_macro_replan` shifts every upcoming session forward by exactly 1 day. `check_shift_limit` counts shifts only where `abs(delta_days) > 1` (strictly greater than). A shift of exactly 1 day does not count as "shifted." Therefore, the macro replan as implemented will always produce a `shifted_count` of 0, `shift_pct` of 0.0, and `requires_user_confirmation` of `False` — the 30% guard at D-19 is structurally unreachable with the current replan logic. This makes the ADAPT-03 requirement a no-op in practice.
-**Fix:** Either change `check_shift_limit` to count shifts `>= 1` day, or change the macro replan to apply variable-day shifts so that some sessions exceed the 1-day boundary and the guard can meaningfully fire.
-
----
-
-### WR-005 — `onboarding_start` creates a new conversation on every request: multi-turn context is lost [WARNING]
-
-**File:** `api/routes/onboarding.py:262`
-**Issue:** Every `POST /onboarding/start` call creates a new `conversations` row via `create_conversation`. Since the frontend calls this endpoint for every user message turn, each turn sees a fresh empty conversation and `load_conversation` returns `[]`, causing the agent to restart the interview from the beginning on every message. The onboarding cannot progress beyond the first exchange.
-**Fix:** The backend should accept an optional `conversation_id` in the request body and only create a new conversation when it is absent. The frontend should create one conversation on mount and pass the same ID on every subsequent turn.
-
----
-
-### WR-006 — JWT in SSE query param written to server access logs [WARNING]
-
-**File:** `frontend/src/lib/api.ts:26-30`, `api/auth.py:41`
-**Issue:** The SSE URL includes the full Supabase JWT as `?token=<jwt>`. Any access log from Uvicorn, Nginx, Railway, or a CDN will record the full token. Access tokens are valid bearer credentials for ~1 hour. This is a known constraint of `EventSource` (which cannot send custom headers), but it is currently unmitigated. A compromise of server logs yields all active user sessions.
-**Fix:** Implement a short-lived exchange endpoint: the frontend POSTs (with Authorization header) to `POST /chat/token` and receives a one-time opaque token valid for 30-60 seconds. The SSE URL includes only this ephemeral token, which the backend maps to a user_id. This is the standard mitigation for the EventSource header limitation.
-
----
-
-### WR-007 — `handleMarkDone` and `handleMarkMissed` swallow errors silently [WARNING]
-
-**File:** `frontend/src/components/session/SessionCard.tsx:72-93`
-**Issue:** Both action handlers use `try { ... } finally { setIsLoading(false) }` with no `catch`. API errors are discarded with no user feedback. For `handleMarkMissed`, `setMissedOpen(false)` is in `finally`, so the dialog closes on both success and failure — a network error appears identical to success from the user's perspective.
-**Fix:**
-```typescript
-async function handleMarkDone() {
-  setIsDoneLoading(true)
-  try {
-    await markSessionDone(session.id)
-    queryClient.invalidateQueries({ queryKey: ['session', 'today'] })
-    queryClient.invalidateQueries({ queryKey: ['sessions', 'upcoming'] })
-  } catch {
-    toast.error('Could not mark session as done. Please try again.')
-  } finally {
-    setIsDoneLoading(false)
-  }
-}
-
-async function handleMarkMissed() {
-  setIsMissedLoading(true)
-  try {
-    await markSessionMissed(session.id)
-    queryClient.invalidateQueries({ queryKey: ['session', 'today'] })
-    queryClient.invalidateQueries({ queryKey: ['sessions', 'upcoming'] })
-    setMissedOpen(false)
-  } catch {
-    toast.error('Could not mark session as missed. Please try again.')
-  } finally {
-    setIsMissedLoading(false)
+function handleFileChange() {
+  const file = inputRef.current?.files?.[0]
+  if (file) {
+    handleUpload(file).finally(() => {
+      if (inputRef.current) inputRef.current.value = ''
+    })
   }
 }
 ```
+Remove the `void` keyword and the explicit `value = ''` reset from `handleFileChange`.
 
 ---
 
-### WR-008 — `ChatScreen` invalidates `active-conversation` after each turn: triggers new conversation creation [WARNING]
+## Info
 
-**File:** `frontend/src/screens/ChatScreen.tsx:101-103`
-**Issue:** When a stream completes, `ChatScreen` calls `queryClient.invalidateQueries({ queryKey: ['active-conversation'] })`. The `queryFn` for `active-conversation` calls `createConversation(...)`, so invalidation triggers a new DB insert. On the next invalidation cycle, `conversation.id` changes and the subsequent message sends to a fresh conversation context with no history. The user appears to get a new coaching conversation after every turn.
-**Fix:** Remove the `invalidateQueries` call for `active-conversation` from the stream completion handler. Only invalidate if a "New conversation" action is explicitly requested.
+### IN-01: T13 uses `waitForTimeout(500)` as the upload-success synchronisation point
 
----
-
-### WR-009 — `ride_date` uses upload timestamp instead of FIT file ride date [WARNING]
-
-**File:** `api/routes/rides.py:506`
-**Issue:** The ride stub insert sets `ride_date = datetime.now(timezone.utc).date().isoformat()`. This is the upload date, not the date the ride was performed. Users who upload rides retroactively (e.g., uploading last Tuesday's Zwift session on Friday) will have the ride recorded as today. The `detect_signals` function in `adaptations.py` matches rides to planned sessions by date within +/-1 day; rides recorded as "today" will never match a past-due planned session, breaking missed-session detection and underperformance detection for retroactive uploads.
-**Fix:** Extract the session start timestamp from the FIT file during parsing and use it as `ride_date`. The FIT `session` message type contains a `start_time` field; alternatively, the minimum `timestamp` across all `record` frames gives the ride start. Fall back to `date.today()` only when no timestamp is present in the file.
+**File:** `frontend/tests/e2e/phase4.spec.ts:535`
+**Issue:** After setting files on the file chooser, the test calls `await page.waitForTimeout(500)` before asserting `uploadCalled`. This is an arbitrary delay that contributes to CI flakiness and should be replaced with `page.waitForRequest` or `page.waitForResponse` as shown in the WR-02 fix suggestion.
 
 ---
 
-### IN-001 — `_load_credentials` duplicated in `calendar.py` and `calendar_sync.py` [INFO]
+### IN-02: `console.log` debug artifact in T13
 
-**File:** `api/routes/calendar.py:131`, `api/calendar_sync.py:54`
-**Issue:** Two nearly identical `_load_credentials` functions exist. Any change to credential loading (e.g., adding token refresh on expiry) must be applied in both places.
-**Fix:** Extract to a shared `api/google_auth.py` module.
+**File:** `frontend/tests/e2e/phase4.spec.ts:540`
+**Issue:** `console.log('File chooser not triggered via click; upload zone may require drag-drop')` is debug output in the test suite. In CI it will appear in test output and confuse readers when the test actually passes.
+
+**Fix:** Replace with `test.skip(...)` (see WR-02) or remove entirely.
 
 ---
 
-### IN-002 — `_parse_date` format-string length slice produces wrong index for all three strptime branches [INFO]
+### IN-03: TSB classification boundary creates unintuitive dead-zone around zero
 
-**File:** `api/routes/adaptations.py:95-98`
-**Issue:** The loop tries `val[:len(fmt)]` where `fmt` is the format string literal (e.g., `"%Y-%m-%d"` has `len == 8`). The formatted output of a date like `"2026-06-20"` is 10 characters, so `val[:8] == "2026-06-"` will never parse. All three `strptime` branches in the loop are dead code; only the `fromisoformat` fallback at line 102 actually works. This is harmless in practice but the dead code is misleading.
-**Fix:** Remove the `strptime` loop and use only `fromisoformat`:
-```python
-def _parse_date(val) -> Optional[date]:
-    if val is None:
-        return None
-    if isinstance(val, date) and not isinstance(val, datetime):
-        return val
-    if isinstance(val, datetime):
-        return val.date()
-    if isinstance(val, str):
-        try:
-            return datetime.fromisoformat(val.replace("Z", "+00:00")).date()
-        except ValueError:
-            pass
-    return None
+**File:** `frontend/src/components/session/TsbChip.tsx:16-19`
+**Issue:** `classifyTsb` returns `'balanced'` for TSB in the range `(-10, 5]` inclusive. A TSB of 0 (perfectly neutral) and a TSB of 4.9 (approaching fresh) both show "Balanced". The thresholds are documented as intentional per the spec comment, but the boundary of `tsb > 5` (strictly greater than) means a TSB of exactly 5 shows "Balanced" rather than "Fresh". If the spec intends 5 to be the "fresh" threshold, the condition should be `tsb >= 5`.
+
+**Fix:** Clarify with the spec owner whether the boundary is exclusive or inclusive. If 5 should show "Fresh":
+```typescript
+if (tsb >= 5) return 'fresh'
+if (tsb <= -10) return 'fatigued'
 ```
-
----
-
-### IN-003 — `SettingsScreen` imports `React` at the bottom of the file after its usage [INFO]
-
-**File:** `frontend/src/screens/SettingsScreen.tsx:121`
-**Issue:** `import React from 'react'` appears at line 121, after `React.useState` and `React.useEffect` are used in `SettingsScreenInner`. This works due to module hoisting but violates standard TypeScript/React conventions and will be flagged by import-ordering linters.
-**Fix:** Move the import to the top of the file, or switch to named imports: `import { useState, useEffect } from 'react'`.
-
----
-
-### IN-004 — SSE parser resets `currentEvent` inside `data:` branch instead of on blank line only [INFO]
-
-**File:** `frontend/src/screens/OnboardingScreen.tsx:208`, `OnboardingScreen.tsx:320`
-**Issue:** In the SSE line loop, `currentEvent = ''` is reset after processing a `data:` line (line 208 and line 320). Per the SSE spec, the event name should persist until a blank-line event dispatch separator. If two events arrive in the same TCP chunk without intervening blank lines (possible under high-throughput streaming), the second event's `data:` line will be processed with `currentEvent = ''` and `parseSSELine('', ...)` returns `null`, silently dropping the event.
-**Fix:** Remove `currentEvent = ''` from inside the `data:` handler and only reset it in the blank-line branch (which already exists at line 209/334).
 
 ---
 
