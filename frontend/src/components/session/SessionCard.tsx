@@ -14,8 +14,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { ZoneChip, ZoneType } from './ZoneChip'
-import { TsbChip, PmcRow } from './TsbChip'
+import { ZoneChip } from './ZoneChip'
+import type { ZoneType } from './ZoneChip'
+import { TsbChip } from './TsbChip'
+import type { PmcRow } from './TsbChip'
 import { markSessionDone, markSessionMissed } from '@/lib/api'
 
 export interface SessionData {

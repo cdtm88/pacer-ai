@@ -71,7 +71,7 @@ export function ChatScreen() {
 
   const [messages, setMessages] = useState<Message[]>([])
   const [activeStreamUrl, setActiveStreamUrl] = useState<string | null>(null)
-  const [pendingUserMessage, setPendingUserMessage] = useState<string | null>(null)
+  const [_pendingUserMessage, setPendingUserMessage] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const { content, isDone, error } = useSSEStream(activeStreamUrl)

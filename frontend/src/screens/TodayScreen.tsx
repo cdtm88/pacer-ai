@@ -120,8 +120,8 @@ export function TodayScreen() {
       {/* Left column: card + next-few-days */}
       <div>
         <SessionCard
-          session={session as Parameters<typeof SessionCard>[0]['session']}
-          pmc={pmc as Parameters<typeof SessionCard>[0]['pmc']}
+          session={session as unknown as Parameters<typeof SessionCard>[0]['session']}
+          pmc={pmc as unknown as Parameters<typeof SessionCard>[0]['pmc']}
         />
 
         {/* Next-few-days strip */}

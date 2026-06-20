@@ -67,6 +67,7 @@ export interface Ride {
   np_watts: number | null
   tss: number | null
   avg_power_watts: number | null
+  compliance_pct?: number | null
   created_at: string
 }
 
