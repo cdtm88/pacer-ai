@@ -1,99 +1,70 @@
 ---
 phase: 04-ui-and-calendar
-verified: 2026-06-20T17:15:00Z
+verified: 2026-06-20T22:15:00Z
 status: gaps_found
-score: 2/5
-behavior_unverified: 1
+score: 3/5
+behavior_unverified: 0
 overrides_applied: 0
+re_verification:
+  previous_status: gaps_found
+  previous_score: 2/5
+  gaps_closed:
+    - "router.tsx now imports all four real screens (OnboardingScreen, HistoryScreen, ChatScreen, SettingsScreen) — stubs removed"
+    - "PATCH /sessions/{session_id} endpoint added to sessions.py with JWT ownership guard"
+    - "compliance lookup table fixed from training_sessions to sessions with correct column names"
+    - "onboarding.py now captures conversation_id and loads prior turns via load_conversation"
+  gaps_remaining:
+    - "CAL-03: Railway not deployed; Google OAuth consent screen verification not submitted; production OAuth flow untestable"
+    - "4 Vitest unit tests in today.test.tsx fail: assertions expect lowercase TSB labels (fresh/balanced/fatigued) but TsbChip now renders sentence-case (Fresh/Balanced/Fatigued) after 04-10 E2E fix"
+  regressions:
+    - "today.test.tsx: 4 tests fail due to sentence-case label mismatch introduced by commit 8666c20 (TsbChip.tsx label fix for E2E compatibility)"
 gaps:
-  - truth: "All six screens (Onboarding, Today/Home, Agenda, History, During-Session, Chat) are implemented and navigable; mobile bottom tab bar and desktop left sidebar both work"
-    status: partial
-    reason: "Real screen files exist (OnboardingScreen.tsx, HistoryScreen.tsx, ChatScreen.tsx, SettingsScreen.tsx) but router.tsx imports NONE of them. Lines 113-131 in router.tsx define stub replacements that return <div>Text</div>. Only TodayScreen, AgendaScreen, DuringSessionScreen, and LoginScreen are actually wired. UI-01 (Onboarding), UI-04 (History), UI-06 (Chat), and UI-07 (Settings nav destination) are therefore non-functional in the running app."
+  - truth: "Google Calendar events are created/updated/deleted in sync; OAuth uses production credentials, not Testing mode"
+    status: failed
+    reason: "CAL-03 explicitly requires production credentials before real user testing. Railway backend is not deployed (no live callback URL). Google OAuth verification has not been submitted to the Verification Centre — required for calendar.events sensitive scope. No later milestone phase covers these items: Phase 5 owns ZWO/iOS only. The ROADMAP.md success criterion #3 for Phase 4 states this must be TRUE. calendar.py implementation is complete; the gap is infrastructure and Google review, not code."
     artifacts:
-      - path: "frontend/src/router.tsx"
-        issue: "Lines 114-131: OnboardingScreen, HistoryScreen, ChatScreen, SettingsScreen are inline stubs returning <div>Text</div>; real screen files at frontend/src/screens/ are never imported"
-      - path: "frontend/src/screens/OnboardingScreen.tsx"
-        issue: "File exists with full implementation but is unreachable — router.tsx defines its own OnboardingScreen stub"
-      - path: "frontend/src/screens/HistoryScreen.tsx"
-        issue: "File exists with FIT upload, CTL sparkline, ride list but is unreachable"
-      - path: "frontend/src/screens/ChatScreen.tsx"
-        issue: "File exists with SSE chat implementation but is unreachable"
-      - path: "frontend/src/screens/SettingsScreen.tsx"
-        issue: "File exists with calendar connect/disconnect but is unreachable"
+      - path: "api/routes/calendar.py"
+        issue: "Implementation is complete and correct; blocked on external infrastructure only"
     missing:
-      - "Import OnboardingScreen from './screens/OnboardingScreen' in router.tsx and replace the inline stub"
-      - "Import HistoryScreen from './screens/HistoryScreen' in router.tsx and replace the inline stub"
-      - "Import ChatScreen from './screens/ChatScreen' in router.tsx and replace the inline stub"
-      - "Import SettingsScreen from './screens/SettingsScreen' in router.tsx and replace the inline stub"
+      - "Railway deployment (FastAPI + DB) to provide a live OAuth callback URL"
+      - "App logo, privacy policy URL, Terms of Service URL (required by Google for verification)"
+      - "Submit to Google Verification Centre for calendar.events sensitive scope"
+      - "Once verified: run production OAuth flow end-to-end with real Google account"
 
-  - truth: "The Today screen shows today's session card with Start Session, Export to Zwift, Mark Done, and Mark Missed actions; the TSB form chip appears only after 28+ days of data"
+  - truth: "All six screens are implemented and navigable; mobile bottom tab bar and desktop left sidebar both work"
     status: partial
-    reason: "SessionCard renders all four buttons correctly. Mark Done calls markSessionDone which calls PATCH /sessions/{id} -- this endpoint does NOT exist in the backend (sessions.py has only GET endpoints: /sessions/today, /sessions/upcoming, /pmc_history/latest, /profiles/me, /pmc_history/). The button silently fails on every click with a thrown error. CR-03 from code review is confirmed."
+    reason: "Screen routing is now fully wired (gap 1 closed). However, 4 Vitest unit tests in today.test.tsx now fail because TsbChip.tsx was updated to sentence-case labels (Fresh/Balanced/Fatigued) by commit 8666c20 but the unit tests still assert lowercase (fresh/balanced/fatigued). This is a test-code regression introduced by the E2E compatibility fix. The app renders correctly; the tests are inconsistent with the implementation."
     artifacts:
-      - path: "frontend/src/components/session/SessionCard.tsx"
-        issue: "markSessionDone (line 75) calls PATCH /sessions/{id} which does not exist"
-      - path: "api/routes/sessions.py"
-        issue: "No PATCH or PUT endpoint defined; only GET endpoints present"
-      - path: "frontend/src/lib/api.ts"
-        issue: "Lines 179-187: markSessionDone sends PATCH /sessions/{sessionId} but backend has no such route"
+      - path: "frontend/src/tests/today.test.tsx"
+        issue: "Lines 100, 105, 110, 137: getByText('fresh'), getByText('fatigued'), getByText('balanced') -- all fail because TsbChip now renders 'Fresh', 'Fatigued', 'Balanced' (sentence case)"
+      - path: "frontend/src/components/session/TsbChip.tsx"
+        issue: "STATE_STYLE.label values changed to sentence case in commit 8666c20; unit test assertions not updated to match"
     missing:
-      - "Add PATCH /sessions/{id} endpoint to api/routes/sessions.py that sets status='completed'"
-
-  - truth: "Google Calendar events are created for planned sessions with full detail in the event body; when the plan changes, corresponding events update, move, or delete; Calendar OAuth uses production credentials, not Testing mode"
-    status: partial
-    reason: "calendar_sync.py and calendar.py are both substantive and wired. CAL-01 initial push wiring uses a separate POST /onboarding/plan-calendar-sync endpoint -- the frontend must call this after onboarding completes, but the OnboardingScreen stub in router.tsx (gap 1) cannot call it. CAL-03 (production credentials, not Testing mode) cannot be verified programmatically and requires human confirmation. Additionally, onboarding_start discards the conversation_id (WR-05): line 261 awaits create_conversation but does not capture the return value, and sse_generator is called without it -- each SSE reply starts a fresh context, so multi-turn interviews lose prior turns."
-    artifacts:
-      - path: "api/routes/onboarding.py"
-        issue: "Line 261: create_conversation return value discarded; sse_generator called without conversation_id; each POST /onboarding/start starts a fresh agent context"
-      - path: "frontend/src/screens/OnboardingScreen.tsx"
-        issue: "Exists with plan-calendar-sync call logic but is not reachable (see gap 1)"
-    missing:
-      - "Capture conversation_id from create_conversation and pass it to sse_generator so multi-turn interview state is preserved (WR-05 fix)"
-      - "Human must confirm Google Cloud OAuth consent screen is set to Production (not Testing) -- see user_setup block in 04-07-PLAN.md"
-
-  - truth: "Calendar sync failures surface gracefully to the user without disrupting the plan or chat"
-    status: partial
-    reason: "CAL-04 fire-and-forget isolation is correctly implemented in adaptations.py (BackgroundTasks) and calendar_sync.py (exception swallowing). However, compliance_pct is always null because process_ride_background in rides.py queries 'training_sessions' (line 309) but the actual Supabase table is named 'sessions' -- CR-04 is confirmed. The exception is swallowed (line 322) so the endpoint does not fail, but compliance data is silently lost. This breaks UI-04 compliance chips in HistoryScreen."
-    artifacts:
-      - path: "api/routes/rides.py"
-        issue: "Line 309: supabase.table('training_sessions') -- table does not exist; actual table is 'sessions'. Exception is caught and swallowed at line 322, causing compliance_pct to always be null."
-    missing:
-      - "Change 'training_sessions' to 'sessions' on line 309 of api/routes/rides.py"
-
-behavior_unverified_items:
-  - truth: "Calendar OAuth uses production credentials, not Testing mode (CAL-03)"
-    test: "In Google Cloud Console, navigate to APIs & Services -> OAuth consent screen and verify the app status is 'In production' (not 'Testing'). Verify the calendar.events scope is listed."
-    expected: "OAuth consent screen shows 'In production'; calendar.events scope is approved; real users outside the test user list can authorize."
-    why_human: "No code-level assertion can prove the Google Cloud project's consent-screen publication status. This is a dashboard configuration that must be visually confirmed."
+      - "Update today.test.tsx assertions to use sentence-case: 'Fresh', 'Balanced', 'Fatigued' (3 label checks + 1 in SessionCard block)"
+      - "Update today.test.tsx line 126-128: queryByText assertions for cold-start gate also need sentence-case"
 
 human_verification:
-  - test: "Navigate to /onboarding in a fresh browser session after magic-link login"
-    expected: "The full conversational interview UI (ChatBubble, ChatInput, progress bar) appears, not a plain '<div>Onboarding</div>'"
-    why_human: "router.tsx stub currently prevents the real OnboardingScreen from rendering. This gap must be fixed (gap 1) before this test makes sense."
-  - test: "Navigate to /history"
-    expected: "FIT upload drop zone appears at top, ride list below (or 'No rides yet' empty state)"
-    why_human: "Same stub gap as onboarding -- blocked on gap 1 fix."
-  - test: "Navigate to /chat"
-    expected: "Coaching chat interface with 'Ask your coach anything' empty state appears"
-    why_human: "Same stub gap."
-  - test: "Navigate to /settings"
-    expected: "Settings page with Profile, Google Calendar (Connect/Disconnect), and Account (Sign out) sections"
-    why_human: "Same stub gap."
-  - test: "Click 'Mark done' on today's session card"
-    expected: "Session status updates to completed; no error thrown; the card refreshes"
-    why_human: "PATCH /sessions/{id} endpoint is missing. This test will fail until gap 2 is fixed."
-  - test: "Confirm Google Cloud OAuth consent screen is set to Production"
-    expected: "Google Cloud Console shows 'In production' for the PacerAI app; calendar.events scope approved"
-    why_human: "CAL-03 requirement; cannot be verified from code"
+  - test: "Complete the Google OAuth flow with a real Google account on the production deployment"
+    expected: "User is redirected to Google, grants calendar.events scope, is redirected back to /settings?calendar=connected, calendar status shows connected"
+    why_human: "Requires Railway backend deployed with live BACKEND_BASE_URL; requires Google OAuth verification approved; cannot be simulated by mock tests"
+  - test: "After connecting calendar, trigger a plan adaptation and verify Google Calendar events update"
+    expected: "Calendar events for moved/removed sessions are updated or deleted; new session events are created"
+    why_human: "Requires live Railway backend, real Supabase DB, and Google Calendar API access"
 ---
 
-# Phase 04: UI and Calendar Verification Report
+# Phase 04: UI and Calendar Verification Report (Re-verification)
 
 **Phase Goal:** The app is usable and clean on both phone and desktop; all screens are functional; Google Calendar events are created, updated, and deleted in sync with plan changes
 
-**Verified:** 2026-06-20T17:15:00Z
+**Verified:** 2026-06-20T22:15:00Z
 **Status:** gaps_found
-**Re-verification:** No -- initial verification
+**Re-verification:** Yes -- after gap closure (plans 04-09, 04-10, 04-11)
+
+## Previous Verification Summary
+
+Previous score: 2/5. Four gaps blocked: screen stubs in router.tsx, missing PATCH endpoint, wrong compliance table name, CAL-03 production OAuth.
+
+Plans 04-09 and 04-10 closed three of the four code gaps. Plan 04-11 documented CAL-03 as deferred (external blockers: Railway not deployed, Google verification required). One code regression was introduced by 04-10 (unit test label mismatch).
 
 ## Goal Achievement
 
@@ -101,135 +72,128 @@ human_verification:
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | All six screens are implemented and navigable; mobile bottom tab bar and desktop left sidebar both work | FAILED | router.tsx lines 114-131: OnboardingScreen, HistoryScreen, ChatScreen, SettingsScreen are inline stubs (<div>Text</div>); real files exist at frontend/src/screens/ but are never imported |
-| 2 | Today screen shows session card with Start Session, Export to Zwift, Mark Done, Mark Missed; TSB chip gated on 28+ days | FAILED | TSB gate, 3 of 4 buttons work; Mark Done calls PATCH /sessions/{id} which does not exist in backend (sessions.py has no PATCH endpoint) -- CR-03 confirmed |
-| 3 | Google Calendar events created/updated/deleted in sync; OAuth uses production credentials (not Testing mode) | PRESENT_BEHAVIOR_UNVERIFIED | calendar.py and calendar_sync.py are substantive and wired correctly; CAL-01/CAL-02/CAL-04 code exists; CAL-03 production-mode status cannot be verified without human checking Google Cloud Console |
-| 4 | Calendar sync failures surface gracefully without disrupting plan or chat | FAILED | CAL-04 isolation correctly implemented; however rides.py line 309 queries 'training_sessions' (table does not exist) instead of 'sessions' -- compliance_pct silently always null (CR-04) |
-| 5 | App installable as PWA on iOS/Android; offline during-session; iOS install banner; light mode only, no pure blacks, no em dashes | VERIFIED | IOSInstallBanner.tsx gates on iOS UA + ontouchstart + not standalone + not dismissed; three valid PNG icons present; vite-plugin-pwa configured with navigateFallback; no #000000 in index.css; no em dashes in UI copy; 31/31 frontend tests pass |
+| 1 | All six screens (Onboarding, Today, Agenda, History, During-Session, Chat, Settings) are implemented and navigable; mobile bottom tab bar and desktop left sidebar both work | PARTIAL | router.tsx lines 13-16: all four previously-stub screens now imported from ./screens/. 34/34 Playwright E2E tests pass (frontend/test-results/.last-run.json status=passed, timestamped 2026-06-20 21:42). However 4 Vitest unit tests in today.test.tsx fail due to sentence-case label mismatch (TsbChip 'Fresh' vs test assert 'fresh') |
+| 2 | Today screen shows session card with Start Session, Export to Zwift, Mark Done, Mark Missed; TSB chip gated on 28+ days | VERIFIED | PATCH /sessions/{session_id} added at line 221 of sessions.py (commit 6064c66); markSessionDone in api.ts calls PATCH /sessions/{sessionId}; SessionCard line 76 calls it. Playwright T09 passes confirming no crash. TSB gate and sentence-case labels verified via E2E T07 |
+| 3 | Google Calendar events created/updated/deleted in sync; Calendar OAuth uses production credentials, not Testing mode | FAILED | CAL-01/CAL-02/CAL-04 code is complete and E2E-mocked; CAL-03 requires production deployment and Google review. Railway backend not deployed. Google verification not submitted. Phase 5 ROADMAP does not cover this. No later milestone phase addresses CAL-03 |
+| 4 | Calendar sync failures surface gracefully without disrupting plan or chat | VERIFIED | compliance lookup now queries sessions table (rides.py line 300, commit bdae60c); exception swallowed at line 313 (best-effort). calendar_sync.py exception swallowing unchanged. BackgroundTasks isolation in adaptations.py unchanged |
+| 5 | App installable as PWA on iOS/Android; offline during-session; iOS install banner; light mode only, no pure blacks, no em dashes | VERIFIED | Unchanged from initial verification: IOSInstallBanner.tsx, vite-plugin-pwa, no #000000 in index.css, no em dashes in UI copy |
 
-**Score:** 2/5 truths verified (1 present, behavior-unverified)
+**Score:** 3/5 truths verified (0 present, behavior-unverified)
+
+## Gap Closure Verification
+
+| Gap (prior) | Fix | Commit | Code Evidence | Status |
+|-------------|-----|--------|---------------|--------|
+| router.tsx stub screens | Import from ./screens/ | 1c7ee6b | Lines 13-16: `import { OnboardingScreen } from './screens/OnboardingScreen'` etc.; no inline stubs remain | CLOSED |
+| Missing PATCH /sessions/{id} | Add endpoint | 6064c66 | sessions.py line 221: `@router.patch("/sessions/{session_id}")` with JWT guard and user-scoped filter | CLOSED |
+| compliance_pct always null | Fix table name | bdae60c | rides.py line 300: `supabase.table("sessions").select("tss_target, type")` | CLOSED |
+| Onboarding conversation_id discarded | Capture and load | 8e5715e | onboarding.py lines 243-267: conversation_id captured, load_conversation called, metadata event sent to client | CLOSED |
+| CAL-03 production OAuth | Not closeable by code | — | Railway not deployed; Google verification not submitted; no code gap but infrastructure blockers remain | OPEN |
+
+## New Regression: Unit Test Label Mismatch (Introduced by 04-10)
+
+Commit 8666c20 changed `TsbChip.tsx` STATE_STYLE labels to sentence case (`Fresh`, `Balanced`, `Fatigued`) for Playwright E2E compatibility. The Vitest unit tests in `today.test.tsx` were not updated and still assert lowercase.
+
+**Result:** 27/31 Vitest unit tests pass; 4 fail.
+
+Failing assertions:
+- `src/tests/today.test.tsx:100` — `getByText('fresh')` (should be `'Fresh'`)
+- `src/tests/today.test.tsx:105` — `getByText('fatigued')` (should be `'Fatigued'`)
+- `src/tests/today.test.tsx:110` — `getByText('balanced')` (should be `'Balanced'`)
+- `src/tests/today.test.tsx:137` — `getByText('fresh')` (should be `'Fresh'`)
+- `src/tests/today.test.tsx:126-128` — `queryByText` cold-start assertions also need updating
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `frontend/src/router.tsx` | Route skeleton for all screens | STUB | Imports only 4 real screens; OnboardingScreen/HistoryScreen/ChatScreen/SettingsScreen are stubs |
-| `frontend/src/screens/OnboardingScreen.tsx` | Full onboarding interview | ORPHANED | Exists with real implementation; not imported in router.tsx |
-| `frontend/src/screens/HistoryScreen.tsx` | History with FIT upload | ORPHANED | Exists with real implementation; not imported in router.tsx |
-| `frontend/src/screens/ChatScreen.tsx` | SSE chat screen | ORPHANED | Exists with real implementation; not imported in router.tsx |
-| `frontend/src/screens/SettingsScreen.tsx` | Settings with calendar | ORPHANED | Exists with real implementation; not imported in router.tsx |
-| `frontend/src/screens/TodayScreen.tsx` | Today screen | VERIFIED | Imports SessionCard, fetches via TanStack Query |
-| `frontend/src/screens/AgendaScreen.tsx` | Agenda grouped by week | VERIFIED | Week grouping, zone dots, accordion expand |
-| `frontend/src/screens/DuringSessionScreen.tsx` | Static stepper | VERIFIED | Timer placeholder, SessionStepList, End session button |
-| `frontend/src/components/session/SessionCard.tsx` | 4-button action row | PARTIAL | 3/4 actions wired; Mark Done calls nonexistent PATCH endpoint |
-| `api/routes/sessions.py` | Session/PMC/profile endpoints | VERIFIED | 4 GET endpoints, JWT-protected, 13 tests pass |
-| `api/routes/calendar.py` | OAuth routes | VERIFIED | auth/callback/settings/disconnect; Fernet encryption; CSRF state |
-| `api/calendar_sync.py` | push/update/delete helpers | VERIFIED | asyncio.to_thread; exception swallowing; no-op when no tokens |
-| `api/routes/adaptations.py` | Background calendar sync | VERIFIED | BackgroundTasks wired for update/delete on replan |
-| `api/routes/rides.py` | compliance_pct computation | FAILED | Line 309 queries 'training_sessions' instead of 'sessions'; compliance always null |
-| `frontend/src/components/pwa/IOSInstallBanner.tsx` | iOS banner | VERIFIED | ontouchstart gate; localStorage dismiss; 3 tests pass |
+| `frontend/src/router.tsx` | All screens imported and routed | VERIFIED | Lines 13-16: OnboardingScreen, HistoryScreen, ChatScreen, SettingsScreen all imported; routes at lines 142, 167, 171, 179 |
+| `frontend/src/screens/OnboardingScreen.tsx` | Full onboarding interview | VERIFIED | Imported and routed at /onboarding; reachable |
+| `frontend/src/screens/HistoryScreen.tsx` | History with FIT upload | VERIFIED | Imported and routed at /history; reachable |
+| `frontend/src/screens/ChatScreen.tsx` | SSE chat screen | VERIFIED | Imported and routed at /chat; reachable |
+| `frontend/src/screens/SettingsScreen.tsx` | Settings with calendar | VERIFIED | Imported and routed at /settings; reachable |
+| `api/routes/sessions.py` | PATCH endpoint added | VERIFIED | Line 221: @router.patch with validate_uuid, dual ownership filter, 404 on miss |
+| `api/routes/rides.py` | compliance_pct fix | VERIFIED | Line 300: sessions table, tss_target + type columns |
+| `api/routes/onboarding.py` | conversation_id preserved | VERIFIED | Lines 243-267: create_conversation captured, load_conversation called |
+| `api/routes/calendar.py` | OAuth routes | VERIFIED | auth-redirect-url, auth, callback, settings, disconnect all present; HMAC state; Fernet encryption |
+| `frontend/src/tests/today.test.tsx` | Unit tests pass | FAILED | 4/31 fail — sentence-case label mismatch after TsbChip.tsx update |
 
 ### Key Link Verification
 
 | From | To | Via | Status | Details |
 |------|----|-----|--------|---------|
-| `router.tsx` | `OnboardingScreen.tsx` | import | NOT WIRED | Inline stub defined; real file not imported |
-| `router.tsx` | `HistoryScreen.tsx` | import | NOT WIRED | Inline stub defined; real file not imported |
-| `router.tsx` | `ChatScreen.tsx` | import | NOT WIRED | Inline stub defined; real file not imported |
-| `router.tsx` | `SettingsScreen.tsx` | import | NOT WIRED | Inline stub defined; real file not imported |
-| `SessionCard.tsx` | `PATCH /sessions/{id}` | markSessionDone | NOT WIRED | Endpoint missing in backend |
-| `api/main.py` | `api/routes/calendar.py` | include_router(calendar_router, prefix='/calendar') | WIRED | Confirmed in main.py line 62 |
-| `api/routes/adaptations.py` | `api/calendar_sync.py` | BackgroundTasks update_calendar_event | WIRED | Lines 667, 730 |
-| `api/routes/onboarding.py` | `api/calendar_sync.py` | push_all_sessions_to_calendar | WIRED | Line 230 (via asyncio.ensure_future, separate endpoint) |
-| `frontend/src/lib/api.ts` | `api/routes/sessions.py` | apiFetch('/sessions/today') | WIRED | getSessionToday, getUpcomingSessions, getLatestPmc all defined |
-| `CalendarStatus.tsx` | `GET /calendar/auth` | window.location.href redirect | WIRED | Line 30 in CalendarStatus.tsx |
-| `api/routes/rides.py` | `sessions` table | supabase.table('sessions') for compliance | NOT WIRED | Line 309 queries 'training_sessions' instead |
-
-### Data-Flow Trace (Level 4)
-
-| Artifact | Data Variable | Source | Produces Real Data | Status |
-|----------|--------------|--------|-------------------|--------|
-| `TodayScreen.tsx` | session | GET /sessions/today | Yes -- queries sessions table via Supabase | FLOWING |
-| `AgendaScreen.tsx` | sessions | GET /sessions/upcoming | Yes -- queries sessions table | FLOWING |
-| `ChatScreen.tsx` | messages | GET /chat/stream SSE | N/A -- file not routed | DISCONNECTED (orphan) |
-| `HistoryScreen.tsx` | rides | GET /rides/ | N/A -- file not routed | DISCONNECTED (orphan) |
-| `CalendarStatus.tsx` | connected | GET /calendar/settings | Yes -- decrypts Fernet tokens | FLOWING |
-| `RideRow.tsx (in HistoryScreen)` | compliance_pct | rides.compliance_pct | No -- always null (training_sessions bug) | STATIC |
+| `router.tsx` | `OnboardingScreen.tsx` | import | WIRED | Line 13; rendered at /onboarding route (line 142) |
+| `router.tsx` | `HistoryScreen.tsx` | import | WIRED | Line 14; rendered at /history route (line 167) |
+| `router.tsx` | `ChatScreen.tsx` | import | WIRED | Line 15; rendered at /chat route (line 171) |
+| `router.tsx` | `SettingsScreen.tsx` | import | WIRED | Line 16; rendered at /settings route (line 179) |
+| `SessionCard.tsx` | `PATCH /sessions/{id}` | markSessionDone | WIRED | api.ts line 189: PATCH /sessions/${sessionId}; backend endpoint confirmed at sessions.py line 221 |
+| `api/routes/adaptations.py` | `api/calendar_sync.py` | BackgroundTasks | WIRED | Unchanged from initial; lines 667, 730 |
+| `api/main.py` | `api/routes/calendar.py` | include_router | WIRED | Unchanged from initial |
+| `api/routes/rides.py` | `sessions` table | supabase.table('sessions') | WIRED | Line 300 fixed; was 'training_sessions' |
 
 ### Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
-| Frontend 31 tests pass | `cd frontend && npm test -- --run` | 31/31 PASS | PASS |
-| Backend sessions/auth/calendar tests pass | `.venv/bin/pytest tests/api/test_sessions.py tests/api/test_auth.py tests/api/test_calendar.py -x -q` | 24/24 PASS | PASS |
+| router.tsx imports all 6 real screens | `grep "import.*screens" frontend/src/router.tsx` | 7 lines: DuringSessionScreen, TodayScreen, AgendaScreen, OnboardingScreen, HistoryScreen, ChatScreen, SettingsScreen | PASS |
+| PATCH /sessions/{id} exists in backend | `grep -n "router.patch" api/routes/sessions.py` | Line 221: `@router.patch("/sessions/{session_id}")` | PASS |
+| compliance table name fixed | `grep -n "sessions\|training_sessions" api/routes/rides.py` | Line 300: `supabase.table("sessions")` — no training_sessions references | PASS |
+| conversation_id captured in onboarding | `grep -n "conversation_id" api/routes/onboarding.py` | Lines 243, 251, 265-267: captured, loaded, emitted | PASS |
+| Vitest unit tests | `cd frontend && npm test -- --run` | 27/31 pass; 4 fail in today.test.tsx (TSB label case mismatch) | FAIL |
+| Playwright E2E 34/34 | last-run artifact | frontend/test-results/.last-run.json: status=passed, failedTests=[] (timestamped 2026-06-20 21:42) | PASS |
+| No inline screen stubs in router.tsx | `grep -n "return <div>.*</div>" frontend/src/router.tsx` | No match | PASS |
 | No pure black in CSS | `grep "#000000" frontend/src/index.css` | No match | PASS |
-| router.tsx imports real screens | `grep "import.*screens" frontend/src/router.tsx` | Only 4 screens imported (DuringSession, Login, Today, Agenda) | FAIL |
-| PATCH /sessions/{id} exists | `grep -n "PATCH\|patch" api/routes/sessions.py` | No match | FAIL |
-| training_sessions in rides.py | `grep -n "training_sessions" api/routes/rides.py` | Line 309: confirmed | FAIL |
 
 ### Requirements Coverage
 
 | Requirement | Source Plan | Description | Status | Evidence |
 |-------------|------------|-------------|--------|---------|
-| CAL-01 | 04-07 | Sessions pushed to Google Calendar with full detail | PARTIAL | push_all_sessions_to_calendar exists; initial push wired via separate endpoint; onboarding conversation_id discarded (WR-05) |
-| CAL-02 | 04-07 | Plan changes update/delete calendar events | VERIFIED | BackgroundTasks wired in adaptations.py lines 667, 730 |
-| CAL-03 | 04-07 | Production OAuth credentials; tokens encrypted, never in browser storage | UNVERIFIED | Code: Fernet encryption confirmed; production vs Testing mode status requires human confirmation |
-| CAL-04 | 04-07 | Sync failures graceful, non-blocking | VERIFIED | Exception swallowing in calendar_sync.py; BackgroundTasks isolation in adaptations.py |
-| UI-01 | 04-06 | Onboarding conversational flow | FAILED | OnboardingScreen.tsx exists but router.tsx does not import it -- serves <div>Onboarding</div> |
-| UI-02 | 04-05 | Today screen with 4 actions; TSB chip gated | PARTIAL | 3/4 actions work; Mark Done calls nonexistent PATCH endpoint |
-| UI-03 | 04-05 | Agenda grouped by week with zone colors | VERIFIED | AgendaScreen.tsx wired; week grouping with zone dot tokens |
-| UI-04 | 04-06 | History with FIT upload and compliance | FAILED | HistoryScreen.tsx exists but not imported in router.tsx; also compliance_pct always null (training_sessions bug) |
-| UI-05 | 04-08 | During-Session static stepper | VERIFIED | DuringSessionScreen.tsx wired; SessionStepList renders 3-tier hierarchy; static timer note present |
-| UI-06 | 04-06 | Chat with SSE streaming | FAILED | ChatScreen.tsx exists but not imported in router.tsx |
-| UI-07 | 04-05 | Mobile bottom tab bar; desktop left sidebar | VERIFIED | BottomTabBar and DesktopSidebar implemented; AppLayout responsive at 768px breakpoint |
-| UI-08 | 04-03 | Design system: Inter, blue-6, no pure black, no em dashes | VERIFIED | index.css has all tokens; no #000000; no em dashes in UI copy |
-| UI-09 | 04-08 | PWA installable; offline during-session; iOS banner | VERIFIED | vite-plugin-pwa with navigateFallback; IOSInstallBanner gated correctly; 3 PWA icons present |
-| UI-10 | 04-03 | Light mode only | VERIFIED | No dark: variant classes; no #000000 |
+| CAL-01 | 04-07 | Sessions pushed to Google Calendar with full detail | VERIFIED | push_all_sessions_to_calendar wired; conversation_id fix (gap 4 closed) unblocks onboarding flow to reach calendar sync |
+| CAL-02 | 04-07 | Plan changes update/delete calendar events | VERIFIED | BackgroundTasks wired in adaptations.py unchanged; E2E mocked tests pass |
+| CAL-03 | 04-07 | Production OAuth credentials; tokens encrypted; never in browser storage | FAILED | Code: Fernet encryption confirmed; HMAC state confirmed. Infrastructure: Railway not deployed; Google verification not submitted. REQUIREMENTS.md marks CAL-03 complete but Phase 4 roadmap SC #3 requires production credentials |
+| CAL-04 | 04-07 | Sync failures graceful, non-blocking | VERIFIED | Exception swallowing + BackgroundTasks unchanged; compliance_pct now populated correctly |
+| UI-01 | 04-06 | Onboarding conversational flow | VERIFIED | OnboardingScreen.tsx imported and routed; Playwright T15 passes |
+| UI-02 | 04-05 | Today screen with 4 actions; TSB chip gated | VERIFIED | PATCH endpoint added; all 4 actions wired; Playwright T06, T07, T09 pass |
+| UI-03 | 04-05 | Agenda grouped by week with zone colors | VERIFIED | AgendaScreen.tsx wired; Playwright T10 passes |
+| UI-04 | 04-06 | History with FIT upload and compliance | VERIFIED | HistoryScreen.tsx routed; compliance_pct fix applied; Playwright T12, T13 pass |
+| UI-05 | 04-08 | During-Session static stepper | VERIFIED | DuringSessionScreen wired; Playwright T18 passes |
+| UI-06 | 04-06 | Chat with SSE streaming | VERIFIED | ChatScreen.tsx routed; Playwright T14 passes |
+| UI-07 | 04-05 | Mobile bottom tab bar; desktop left sidebar | VERIFIED | BottomTabBar, DesktopSidebar, AppLayout unchanged; Playwright T05 passes |
+| UI-08 | 04-03 | Design system tokens | VERIFIED | index.css unchanged; no #000000; no em dashes |
+| UI-09 | 04-08 | PWA installable; offline during-session; iOS banner | VERIFIED | vite-plugin-pwa; IOSInstallBanner unchanged |
+| UI-10 | 04-03 | Light mode only | VERIFIED | No dark: variant classes; no pure black |
 
 ### Anti-Patterns Found
 
 | File | Line | Pattern | Severity | Impact |
 |------|------|---------|----------|--------|
-| `frontend/src/router.tsx` | 113-131 | Stub screen components returning `<div>Text</div>` -- real screen files exist but are not imported | BLOCKER | Onboarding, History, Chat, Settings screens are non-functional in the app |
-| `api/routes/rides.py` | 309 | `supabase.table("training_sessions")` -- table does not exist (correct name is "sessions") | BLOCKER | compliance_pct silently always null; UI-04 compliance chips broken |
-| `api/routes/onboarding.py` | 261 | `create_conversation` return value discarded; sse_generator called without conversation_id | WARNING | Multi-turn onboarding interview loses context on every reply (WR-05) |
-| `frontend/src/lib/api.ts` | 181-187 | `markSessionDone` calls PATCH /sessions/{id} which has no backend route | BLOCKER | Mark Done silently fails on every tap |
+| `frontend/src/tests/today.test.tsx` | 100, 105, 110, 126-128, 137 | Unit test assertions use lowercase TSB labels ('fresh', 'balanced', 'fatigued') but TsbChip renders sentence-case since commit 8666c20 | BLOCKER | 4 Vitest unit tests fail; test suite reports 27/31 pass |
 
 ### Human Verification Required
 
-#### 1. Screen routing fix required first
+#### 1. Google Calendar OAuth production flow (CAL-03)
 
-**Test:** Before running any screen navigation tests, apply the four import fixes to router.tsx (gap 1) and rerun `npm run build`.
-**Expected:** Build succeeds; navigating to /onboarding shows the interview UI; /history shows the upload zone; /chat shows the conversation UI; /settings shows the calendar connect panel.
-**Why human:** Code change required; verify visually.
+**Test:** With Railway backend deployed and Google OAuth verification approved, complete the OAuth flow with a real Google account, trigger onboarding and plan generation, then open Google Calendar.
+**Expected:** Sessions appear as events with full detail (objective, structure, targets, duration) in the event body; when a plan adaptation fires, the events update or delete correspondingly.
+**Why human:** Requires Railway deployment (not yet done), live BACKEND_BASE_URL, and Google approval of the calendar.events scope verification submission.
 
-#### 2. Google Calendar OAuth -- Production mode (CAL-03)
+#### 2. Onboarding multi-turn interview context (smoke test after Railway deploy)
 
-**Test:** Log in to Google Cloud Console. Navigate to APIs & Services -> OAuth consent screen. Verify the app status is "In production" (not "Testing"). Verify calendar.events scope is approved.
-**Expected:** Status shows "In production"; no per-user test-whitelist required for real users to authorize.
-**Why human:** Dashboard configuration -- no code-level assertion can see the Google Cloud project's consent-screen publication status.
-
-#### 3. Mark Done action (after gap 2 fix)
-
-**Test:** After adding PATCH /sessions/{id} endpoint, click "Mark done" on today's session card.
-**Expected:** Session status updates to completed; card refreshes without error toast.
-**Why human:** Requires a live session in the DB and a running backend.
+**Test:** After Railway deploy, complete at least 3 turns of the onboarding interview and then disconnect / reconnect (resume with same conversation_id).
+**Expected:** Prior turns are preserved; the agent does not re-ask questions already answered.
+**Why human:** Multi-turn SSE context fix (gap 4) is in code but cannot be verified without a live SSE backend.
 
 ### Gaps Summary
 
-Four gaps block the phase goal:
+Two gaps remain blocking the phase goal:
 
-1. **CRITICAL: Four screen stubs not replaced** (IN-02). `router.tsx` still contains inline stub components for OnboardingScreen, HistoryScreen, ChatScreen, and SettingsScreen. The real implementations at `frontend/src/screens/` are never imported. This means UI-01, UI-04, and UI-06 are completely non-functional. Fix: replace each stub with the corresponding import from `./screens/`.
+1. **BLOCKER: CAL-03 -- Production OAuth not verifiable** (infrastructure gap). The Phase 4 ROADMAP success criterion #3 explicitly requires "Calendar OAuth uses production credentials, not Testing mode." Railway backend is not deployed (no live callback URL). Google verification has not been submitted to the Verification Centre (required for the `calendar.events` sensitive scope). The `calendar.py` implementation is complete; only the external infrastructure and Google review are missing. No later ROADMAP phase covers this — Phase 5 is scoped to ZWO/iOS only. This gap cannot be deferred; it belongs to Phase 4's goal.
 
-2. **Mark Done silently broken** (CR-03). `SessionCard` calls `markSessionDone` which sends `PATCH /sessions/{id}` -- a route that does not exist in `api/routes/sessions.py`. Every click throws an error internally. Fix: add a `PATCH /sessions/{session_id}` endpoint to sessions.py that updates `status='completed'`.
+2. **BLOCKER: 4 unit tests regressed by 04-10 TsbChip label fix**. `today.test.tsx` asserts lowercase TSB labels (`fresh`, `balanced`, `fatigued`). `TsbChip.tsx` commit 8666c20 changed labels to sentence case (`Fresh`, `Balanced`, `Fatigued`) for Playwright compatibility. The unit tests were not updated. Fix: change 5 `getByText`/`queryByText` assertions in `today.test.tsx` to sentence case. This is a one-line-per-assertion fix.
 
-3. **compliance_pct always null** (CR-04). `api/routes/rides.py` line 309 queries `training_sessions` instead of `sessions`. The exception is swallowed, so the compliance lookup always silently returns no rows. Fix: change `"training_sessions"` to `"sessions"` on line 309.
-
-4. **CAL-03 human confirmation pending**. Whether the Google Cloud OAuth consent screen is set to Production (not Testing) cannot be verified from code. This was a blocking human-verify task in the plan (Task 0 of 04-07). Must be confirmed before any real user testing.
-
-The navigation shell (AppLayout, BottomTabBar, DesktopSidebar), TodayScreen, AgendaScreen, DuringSessionScreen, PWA infrastructure, backend auth (JWT), backend sessions endpoints, and Google Calendar sync helpers are all substantive and correctly implemented. Gaps 1-3 are all in wiring, not in the underlying implementations.
+**What closed (summary):** All four previously-blocked code gaps are now closed. Screen routing is fully wired. PATCH endpoint exists. Compliance table name is correct. Onboarding multi-turn context is preserved. 34/34 Playwright E2E tests pass. The core UI is functional end-to-end in the browser.
 
 ---
 
-_Verified: 2026-06-20T17:15:00Z_
+_Verified: 2026-06-20T22:15:00Z_
 _Verifier: Claude (gsd-verifier)_
