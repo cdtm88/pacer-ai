@@ -95,19 +95,19 @@ describe('TsbChip gate (D-14)', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('renders "fresh" when tss_display_ready is true and tsb > 5', () => {
+  it('renders "Fresh" when tss_display_ready is true and tsb > 5', () => {
     render(<TsbChip pmc={PMC_READY_FRESH} />)
-    expect(screen.getByText('fresh')).toBeInTheDocument()
+    expect(screen.getByText('Fresh')).toBeInTheDocument()
   })
 
-  it('renders "fatigued" when tss_display_ready is true and tsb < -10', () => {
+  it('renders "Fatigued" when tss_display_ready is true and tsb < -10', () => {
     render(<TsbChip pmc={PMC_READY_FATIGUED} />)
-    expect(screen.getByText('fatigued')).toBeInTheDocument()
+    expect(screen.getByText('Fatigued')).toBeInTheDocument()
   })
 
-  it('renders "balanced" when tss_display_ready is true and tsb is between -10 and 5', () => {
+  it('renders "Balanced" when tss_display_ready is true and tsb is between -10 and 5', () => {
     render(<TsbChip pmc={PMC_READY_BALANCED} />)
-    expect(screen.getByText('balanced')).toBeInTheDocument()
+    expect(screen.getByText('Balanced')).toBeInTheDocument()
   })
 })
 
@@ -123,9 +123,9 @@ describe('SessionCard', () => {
       </Wrapper>
     )
     // None of the three TSB states should appear
-    expect(screen.queryByText('fresh')).toBeNull()
-    expect(screen.queryByText('balanced')).toBeNull()
-    expect(screen.queryByText('fatigued')).toBeNull()
+    expect(screen.queryByText('Fresh')).toBeNull()
+    expect(screen.queryByText('Balanced')).toBeNull()
+    expect(screen.queryByText('Fatigued')).toBeNull()
   })
 
   it('renders TSB chip when tss_display_ready is true', () => {
@@ -134,7 +134,7 @@ describe('SessionCard', () => {
         <SessionCard session={MOCK_SESSION} pmc={PMC_READY_FRESH} />
       </Wrapper>
     )
-    expect(screen.getByText('fresh')).toBeInTheDocument()
+    expect(screen.getByText('Fresh')).toBeInTheDocument()
   })
 
   it('Export to Zwift button is disabled', () => {
