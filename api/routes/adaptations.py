@@ -337,6 +337,8 @@ async def log_adaptation(
         "after_snapshot": after_snapshot,
         "explanation_text": explanation_text,
     }).execute()
+    if not result.data:
+        raise RuntimeError("adaptations INSERT returned no rows -- check RLS and schema")
     return result.data[0]["id"]
 
 
