@@ -50,9 +50,12 @@ from fastapi.responses import StreamingResponse
 from agent.loop import run_turn  # noqa: F401 (passed to sse_generator for test compat)
 from api.auth import get_current_user
 from api.routes._sse import sse_generator
-from api.routes.onboarding import load_conversation
+from api.routes.onboarding import create_conversation, load_conversation
 
 router = APIRouter()
+
+# Separate router for /conversations/ prefix (mounted at "" in main.py)
+conversations_router = APIRouter()
 
 # Default model per CLAUDE.md (AI/LLM Layer section); configurable via env var.
 _DEFAULT_MODEL = "claude-sonnet-4-5"
@@ -102,3 +105,23 @@ async def chat_stream(
             "X-Accel-Buffering": "no",  # Nginx: disables proxy response buffering (Pitfall 2)
         },
     )
+
+
+@conversations_router.post("/conversations/")
+async def create_chat_conversation(
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """
+    POST /conversations/
+
+    Creates a new coaching conversation for the authenticated user and returns
+    its UUID. Calls the create_conversation helper from onboarding.py with
+    context_type='coaching' so the conversation is tagged for the coaching flow.
+
+    user_id is sourced from the verified JWT sub claim (T-04-01).
+
+    Returns: {"conversation_id": str}
+    """
+    user_id = current_user["user_id"]
+    conversation_id = await create_conversation(user_id, context_type="coaching")
+    return {"conversation_id": conversation_id}
