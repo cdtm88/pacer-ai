@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { useAuth } from './hooks/useAuth'
 import { useAuthStore } from './stores/authStore'
-import { getProfileMe } from './lib/api'
+import { getProfileMe, AuthError } from './lib/api'
 import { supabase } from './lib/supabase'
 import { LoginScreen } from './screens/LoginScreen'
 import { AuthCallbackScreen } from './screens/AuthCallbackScreen'
@@ -76,11 +76,9 @@ export function FirstRunGate() {
   const { user } = useAuthStore()
   const userId = user?.id
 
-  const { data: profile, isLoading, isError } = useQuery({
+  const { data: profile, isLoading, isError, error } = useQuery({
     queryKey: ['profile', userId],
     queryFn: getProfileMe,
-    // Don't fetch if there's no authenticated user — gate should not be reached
-    // without a session, but guard defensively.
     enabled: !!userId,
   })
 
@@ -99,9 +97,15 @@ export function FirstRunGate() {
     )
   }
 
-  // 401 / network error: treat as session-invalid and redirect to login.
+  // Only redirect to /login on auth errors (401/403). Network errors or 500s
+  // show an error state so the user isn't silently bounced to /login in a loop.
   if (isError) {
-    return <Navigate to="/login" replace />
+    if (error instanceof AuthError) return <Navigate to="/login" replace />
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: 'var(--color-bg)' }}>
+        <p style={{ color: 'var(--color-ink-2)' }}>Could not reach the server. Is the backend running?</p>
+      </div>
+    )
   }
 
   // Null profile means onboarding hasn't been completed.

@@ -106,9 +106,14 @@ export interface CalendarSettings {
 }
 
 // GET /profiles/me — returns null on 404 (no profile yet, triggers first-run gate)
+// Throws an auth error (status 401/403) so callers can redirect to /login.
+// Throws a non-auth error for 500/network so callers can show an error state
+// instead of silently bouncing the user to /login.
+export class AuthError extends Error { status: number; constructor(s: number) { super(`auth error ${s}`); this.status = s } }
 export async function getProfileMe(): Promise<Profile | null> {
   const res = await apiFetch('/profiles/me')
   if (res.status === 404) return null
+  if (res.status === 401 || res.status === 403) throw new AuthError(res.status)
   if (!res.ok) throw new Error(`getProfileMe failed: ${res.status}`)
   return res.json() as Promise<Profile>
 }
