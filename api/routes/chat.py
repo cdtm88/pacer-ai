@@ -33,10 +33,11 @@ Anti-pattern notes:
     trust_scanner argument to run_turn, wiring the real TRUST-03 enforcement.
   - X-Accel-Buffering: no disables Nginx/proxy buffering (Pitfall 2).
 
-Phase 2 note:
-  - conversation_id query param is accepted and validated (T-02-09 input validation)
-    but NOT used for DB lookup -- conversations are in-memory for Phase 2.
-  - Phase 3 will load the conversation from the Supabase DB here.
+Phase 3 note:
+  - conversation_id is now used to load messages from Supabase DB via load_conversation.
+  - New messages are NOT persisted here (Phase 4: streaming makes it non-trivial to
+    capture new assistant content outside run_turn without refactor). The onboarding
+    route handles persistence for onboarding turns; coaching persistence is Phase 4.
 """
 
 import os
@@ -45,15 +46,21 @@ from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
 # run_turn is imported at module scope so tests can monkeypatch chat_module.run_turn.
-# The monkeypatch reaches _sse.py via the shared import; keeping it here ensures
-# the existing test_sse.py monkeypatch target (chat_module.run_turn) still resolves.
-from agent.loop import run_turn  # noqa: F401 (re-exported for test monkeypatching)
+# Passing run_turn to sse_generator as _run_turn keeps the monkeypatch effective.
+from agent.loop import run_turn  # noqa: F401 (passed to sse_generator for test compat)
 from api.routes._sse import sse_generator
+from api.routes.onboarding import load_conversation
 
 router = APIRouter()
 
 # Default model per CLAUDE.md (AI/LLM Layer section); configurable via env var.
 _DEFAULT_MODEL = "claude-sonnet-4-5"
+
+# Fallback opening message when a conversation has no prior history.
+_OPENING_MESSAGE = (
+    "Hello! I'm ready to start my cycling training. "
+    "What information do you need from me?"
+)
 
 
 @router.get("/stream")
@@ -63,23 +70,22 @@ async def chat_stream(conversation_id: str = Query(...)):
 
     Returns a server-sent events stream for a conversation turn.
 
-    Phase 2: conversation_id is validated (FastAPI Query type check) but the
-    messages history is in-memory only. Phase 3 loads messages from the
-    Supabase DB using conversation_id.
+    Phase 3: loads the last 20 messages from the Supabase DB using
+    conversation_id. Falls back to an opening message if the conversation
+    has no history (new session not started via /onboarding/start).
     """
     model = os.environ.get("ANTHROPIC_MODEL", _DEFAULT_MODEL)
 
-    # Phase 2: in-memory placeholder messages.
-    # Phase 3 will replace this with: messages = await load_conversation(conversation_id)
-    messages: list[dict] = [
-        {
-            "role": "user",
-            "content": (
-                "Hello! I'm ready to start my cycling training. "
-                "What information do you need from me?"
-            ),
-        }
-    ]
+    # Load last 20 messages from DB (Phase 3 DB-backed upgrade).
+    # Falls back to empty list; guard below provides the fallback message.
+    try:
+        messages = await load_conversation(conversation_id, limit=20)
+    except Exception:
+        messages = []
+
+    # If no prior messages, seed with the fallback opening message.
+    if not messages:
+        messages = [{"role": "user", "content": _OPENING_MESSAGE}]
 
     return StreamingResponse(
         sse_generator(messages, model, _run_turn=run_turn),
