@@ -36,6 +36,7 @@ import os
 import anthropic
 from fastapi import APIRouter, BackgroundTasks, Depends
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel as _PydanticBaseModel
 
 from agent.loop import run_turn  # noqa: F401 -- module-scope import for test monkeypatching
 from agent.trust import scan_buffer
@@ -201,15 +202,27 @@ async def onboarding_plan_calendar_sync(
     return {"status": "scheduled"}
 
 
+class OnboardingStartBody(_PydanticBaseModel):
+    """Request body for POST /onboarding/start (WR-005)."""
+    message: str | None = None
+    conversation_id: str | None = None
+
+
 @router.post("/start")
-async def onboarding_start(current_user: dict = Depends(get_current_user)):
+async def onboarding_start(
+    body: OnboardingStartBody = OnboardingStartBody(),
+    current_user: dict = Depends(get_current_user),
+):
     """
     POST /onboarding/start
 
-    Starts an onboarding interview for a new user. Creates a conversation row
-    with context_type='onboarding', seeds it with the opening user message,
-    and returns a text/event-stream SSE response driving run_turn with the
-    ONBOARDING_SYSTEM_PROMPT.
+    Starts or continues an onboarding interview. Accepts an optional
+    `conversation_id` to resume a prior session -- when absent, a new
+    conversation is created (WR-005: multi-turn context preservation).
+
+    The response begins with a `metadata` SSE event carrying the
+    `conversation_id` so the frontend can store it and send it back on
+    subsequent turns.
 
     Phase 4: JWT is accepted via Authorization: Bearer header or ?token= query
     param for SSE clients. user_id is sourced exclusively from the verified JWT sub claim.
@@ -226,12 +239,13 @@ async def onboarding_start(current_user: dict = Depends(get_current_user)):
         {"role": "user", "content": "I'd like to start my training interview."}
     ]
 
-    # Best-effort conversation creation -- don't block the stream if DB is unavailable.
-    conversation_id: str | None = None
-    try:
-        conversation_id = await create_conversation(user_id, context_type="onboarding")
-    except Exception:
-        pass  # best-effort; Phase 4 will add proper error surfacing
+    # WR-005: reuse the supplied conversation_id when provided; create a new one otherwise.
+    conversation_id: str | None = body.conversation_id
+    if conversation_id is None:
+        try:
+            conversation_id = await create_conversation(user_id, context_type="onboarding")
+        except Exception:
+            pass  # best-effort; stream will proceed without persistence
 
     # Load prior turns when conversation_id is available; fall back to seed on new conversations.
     if conversation_id is not None:
@@ -239,12 +253,23 @@ async def onboarding_start(current_user: dict = Depends(get_current_user)):
             prior_turns = await load_conversation(conversation_id, user_id)
         except Exception:
             prior_turns = []
+        # Append the incoming user message to prior context if provided.
+        if body.message:
+            prior_turns.append({"role": "user", "content": body.message})
         messages: list[dict] = prior_turns if prior_turns else seed_messages
     else:
         messages = seed_messages
 
+    async def _stream_with_metadata():
+        """Yield a metadata event first, then the full SSE generator output."""
+        # Send conversation_id to the client so it can pass it back on subsequent turns.
+        if conversation_id:
+            yield f"event: metadata\ndata: {json.dumps({'conversation_id': conversation_id})}\n\n"
+        async for chunk in sse_generator(messages, model, system_prompt=ONBOARDING_SYSTEM_PROMPT, _run_turn=run_turn):
+            yield chunk
+
     return StreamingResponse(
-        sse_generator(messages, model, system_prompt=ONBOARDING_SYSTEM_PROMPT, _run_turn=run_turn),
+        _stream_with_metadata(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

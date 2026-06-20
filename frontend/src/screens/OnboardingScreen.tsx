@@ -44,7 +44,7 @@ interface Message {
 // ---------------------------------------------------------------------------
 
 interface ParsedSSEEvent {
-  type: 'token' | 'tool_start' | 'tool_result' | 'done' | 'error'
+  type: 'metadata' | 'token' | 'tool_start' | 'tool_result' | 'done' | 'error'
   data: Record<string, unknown>
 }
 
@@ -101,6 +101,8 @@ export function OnboardingScreen() {
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
+  // WR-005: persist conversation_id across turns so the backend can load prior context.
+  const conversationIdRef = useRef<string | null>(null)
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -131,7 +133,12 @@ export function OnboardingScreen() {
 
       try {
         const url = await sseUrl('/onboarding/start')
-        // sseUrl appends ?token=<jwt>; for POST we pass it as a query param
+        // sseUrl appends ?token=<jwt>; for POST we pass it as a query param.
+        // WR-005: include conversation_id on subsequent turns so the backend
+        // can load prior context instead of creating a new conversation.
+        const bodyPayload: Record<string, string> = {}
+        if (userMessage) bodyPayload.message = userMessage
+        if (conversationIdRef.current) bodyPayload.conversation_id = conversationIdRef.current
         const res = await fetch(url, {
           method: 'POST',
           signal: controller.signal,
@@ -139,7 +146,7 @@ export function OnboardingScreen() {
             Accept: 'text/event-stream',
             'Content-Type': 'application/json',
           },
-          body: userMessage ? JSON.stringify({ message: userMessage }) : undefined,
+          body: JSON.stringify(bodyPayload),
         })
 
         if (!res.ok || !res.body) {
@@ -172,7 +179,13 @@ export function OnboardingScreen() {
               const event = parseSSELine(currentEvent, dataStr)
               if (!event) continue
 
-              if (event.type === 'token') {
+              if (event.type === 'metadata') {
+                // WR-005: capture conversation_id from first response and reuse it.
+                const cid = event.data.conversation_id as string | undefined
+                if (cid && !conversationIdRef.current) {
+                  conversationIdRef.current = cid
+                }
+              } else if (event.type === 'token') {
                 const text = (event.data.text as string) ?? ''
                 accumulatedContent += text
                 setStreamContent(accumulatedContent)
@@ -282,6 +295,11 @@ export function OnboardingScreen() {
 
     try {
       const url = await sseUrl('/onboarding/start')
+      // WR-005: pass conversation_id so the backend loads prior context.
+      const confirmBody: Record<string, string> = {
+        message: 'This looks right. Please save my profile and generate my plan.',
+      }
+      if (conversationIdRef.current) confirmBody.conversation_id = conversationIdRef.current
       const res = await fetch(url, {
         method: 'POST',
         signal: controller.signal,
@@ -289,7 +307,7 @@ export function OnboardingScreen() {
           Accept: 'text/event-stream',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ message: 'This looks right. Please save my profile and generate my plan.' }),
+        body: JSON.stringify(confirmBody),
       })
 
       if (!res.ok || !res.body) {
