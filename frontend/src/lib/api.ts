@@ -23,6 +23,12 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
 // SSE URL helper: appends ?token= because EventSource cannot send headers
 // ---------------------------------------------------------------------------
 
+// WR-006 KNOWN LIMITATION: The JWT is embedded as a query parameter because
+// the browser's EventSource API does not support custom request headers. This
+// causes the full access token to appear in Uvicorn/Nginx/CDN access logs.
+// TODO: Mitigate by implementing a short-lived token exchange endpoint:
+//   POST /chat/token (with Authorization header) -> returns an opaque 60s token.
+//   The SSE URL uses only the ephemeral token, limiting the log-exposure window.
 export async function sseUrl(path: string): Promise<string> {
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token ?? ''

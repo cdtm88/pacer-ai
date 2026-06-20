@@ -38,6 +38,12 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 async def get_current_user(
     cred: HTTPAuthorizationCredentials = Depends(HTTPBearer(auto_error=False)),
+    # WR-006 KNOWN LIMITATION: The ?token= query param fallback is required for
+    # SSE clients (EventSource cannot send Authorization headers). This causes the
+    # full JWT to appear in server access logs for SSE endpoints.
+    # TODO: Replace with a short-lived exchange endpoint (POST /chat/token) that
+    # issues an opaque 60-second token. The SSE URL would carry only the ephemeral
+    # token, limiting the exposure window in logs.
     token: str | None = Query(None),  # SSE fallback: ?token= query param (Pitfall 1)
 ) -> dict:
     """
