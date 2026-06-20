@@ -306,8 +306,8 @@ async def process_ride_background(
         try:
             # Look for a planned session for today matching this user
             session_result = await (
-                supabase.table("training_sessions")
-                .select("tss, session_type")
+                supabase.table("sessions")
+                .select("tss_target, type")
                 .eq("user_id", user_id)
                 .eq("scheduled_date", date.today().isoformat())
                 .execute()
@@ -315,7 +315,7 @@ async def process_ride_background(
             if session_result.data:
                 planned_session = session_result.data[0]
                 compliance_result = validate_session_vs_actual(
-                    planned={"tss": planned_session.get("tss", 0)},
+                    planned={"tss": planned_session.get("tss_target", 0)},
                     actual={"tss": tss if tss is not None else 0.0},
                 )
         except Exception as exc:
