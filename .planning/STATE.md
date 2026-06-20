@@ -5,16 +5,16 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: ui-and-calendar
 status: executing
-stopped_at: context exhaustion at 75% (2026-06-20)
-last_updated: "2026-06-20T13:17:04.941Z"
+stopped_at: Completed 04-09-PLAN.md
+last_updated: "2026-06-20T13:36:50.220Z"
 last_activity: 2026-06-20
 last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 25
-  completed_plans: 24
-  percent: 60
+  completed_plans: 25
+  percent: 80
 ---
 
 # Project State
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 ## Current Position
 
 Phase: 04 (ui-and-calendar) — EXECUTING
-Plan: 1 of 8
+Plan: 2 of 8
 Status: Ready to execute
 Last activity: 2026-06-20 — Phase 04 execution started
 
@@ -69,6 +69,7 @@ Progress: [████████████████████] 11/11 p
 | Phase 03 P03 | 6min | 3 tasks | 6 files |
 | Phase 03 P04 | 8min | 2 tasks | 3 files |
 | Phase 03 P05 | 5min | 2 tasks | 4 files |
+| Phase 04 P09 | 15min | 5 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -102,6 +103,9 @@ Recent decisions affecting current work:
 - [Phase ?]: Pydantic model for JSON body
 - [Phase ?]: Use Pydantic body model instead of raw Body(str) for JSON object bodies
 - [Phase ?]: detect_signals underperformance threshold comes from tool compliance_pct not a hardcoded literal
+- [Phase ?]: CAL-03 partial: consent screen In production; Google verification submission is operational task
+- [Phase ?]: compliance_pct reads tss_target/type matching _SESSION_COLUMNS; training_sessions table ref removed
+- [Phase ?]: onboarding SSE multi-turn: capture create_conversation return, load prior turns via load_conversation, no new sse_generator param
 
 ### Pending Todos
 
@@ -120,8 +124,8 @@ None yet.
 
 ## Session Continuity
 
-**Stopped at:** context exhaustion at 75% (2026-06-20)
-**Resume file:** .planning/phases/04-ui-and-calendar/04-CONTEXT.md
+**Stopped at:** Completed 04-09-PLAN.md
+**Resume file:** None
 
-Last session: 2026-06-20T13:17:04.937Z
+Last session: 2026-06-20T13:36:50.215Z
 Next action: `/gsd-discuss-phase 3` to gather Phase 3 context before planning
