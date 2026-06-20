@@ -1,3 +1,4 @@
+import React from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { CalendarStatus } from '@/components/settings/CalendarStatus'
@@ -117,5 +118,3 @@ function SettingsScreenInner({ onSignOut, onResendMagicLink }: SettingsInnerProp
   )
 }
 
-// React import needed for hooks in the inner component.
-import React from 'react'
