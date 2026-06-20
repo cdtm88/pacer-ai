@@ -82,6 +82,13 @@ MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25 MB (T-03-11: DoS guard)
 MIN_RIDE_DURATION_SECS = 600          # 10 minutes (NP_MIN_DURATION_SECS)
 COLD_START_FTP = 150.0                # Placeholder FTP for new riders (D-15)
 
+# UUID regex for user_id validation (defence-in-depth: prevents path traversal and
+# trivial IDOR via malformed IDs before any DB/storage access).
+# Phase 4 auth middleware will make this redundant by deriving user_id from a verified JWT.
+_UUID_RE = re.compile(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+)
+
 # ---------------------------------------------------------------------------
 # FIT parser (sync, runs under asyncio.to_thread)
 # ---------------------------------------------------------------------------
@@ -444,11 +451,27 @@ async def upload_fit(
     Returns: {"ride_id": str, "status": "processing"}
 
     Errors:
+        400 if user_id is not a valid UUID
         422 if file > 25 MB (T-03-11: DoS size cap)
         422 if file is corrupt or < 600 seconds of data (D-14, T-03-12)
+
+    SECURITY TODO (Phase 4 — MUST fix before public exposure):
+      user_id is accepted from form data with no authentication. Phase 4 will
+      replace this with a verified JWT principal extracted by auth middleware.
+      Until then this endpoint MUST NOT be reachable from an untrusted network.
     """
-    # --- Size cap (T-03-11: reject large files before parsing) ---
-    file_bytes = await file.read()
+    # TODO(phase-4-auth): replace with `user_id = current_user.id` from JWT dependency.
+
+    # --- UUID validation (defence-in-depth: blocks path traversal + malformed IDs) ---
+    if not _UUID_RE.match(user_id):
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "invalid_user_id", "detail": "user_id must be a valid UUID"},
+        )
+
+    # --- Size cap (T-03-11): read at most MAX_UPLOAD_BYTES+1 so we never load
+    #     the full body of an oversized file into memory before rejecting it. ---
+    file_bytes = await file.read(MAX_UPLOAD_BYTES + 1)
     if len(file_bytes) > MAX_UPLOAD_BYTES:
         raise HTTPException(
             status_code=422,
