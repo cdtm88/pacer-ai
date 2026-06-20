@@ -42,6 +42,7 @@ from supabase import AsyncClient, acreate_client
 from agent.loop import run_turn  # noqa: F401 -- module-scope import for test monkeypatching
 from agent.trust import scan_buffer
 from api.auth import get_current_user
+from api.calendar_sync import push_all_sessions_to_calendar
 from api.routes._sse import sse_generator
 
 router = APIRouter()
@@ -204,6 +205,30 @@ async def save_messages(
 # ---------------------------------------------------------------------------
 # Endpoint
 # ---------------------------------------------------------------------------
+
+
+@router.post("/plan-calendar-sync")
+async def onboarding_plan_calendar_sync(
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """
+    POST /onboarding/plan-calendar-sync
+
+    Called by the frontend after the onboarding agent finishes generating the
+    initial plan and sessions are persisted to the database (CAL-01).
+
+    Fire-and-forget: pushes all planned sessions for this user to Google Calendar
+    as background work. A calendar failure never blocks this endpoint (CAL-04).
+    The helper is a no-op when the user has not connected Google Calendar.
+
+    Returns immediately with {"status": "scheduled"}.
+    """
+    user_id = current_user["user_id"]
+    # Fire-and-forget: schedule the push without awaiting it so a calendar failure
+    # cannot block the frontend or cause a 500 (CAL-04, T-04-23).
+    import asyncio as _asyncio
+    _asyncio.ensure_future(push_all_sessions_to_calendar(user_id))
+    return {"status": "scheduled"}
 
 
 @router.post("/start")
