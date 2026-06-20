@@ -35,9 +35,10 @@ from typing import Optional
 
 import fitdecode
 import numpy as np
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from supabase import AsyncClient, acreate_client
 
+from api.auth import get_current_user
 from api.utils import validate_uuid
 from sports_science.compliance import validate_session_vs_actual
 from sports_science.ftp import estimate_ftp_from_rides
@@ -435,30 +436,25 @@ def _sanitize_filename(raw_filename: str) -> str:
 async def upload_fit(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    user_id: str = Form(...),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     POST /rides/upload
 
-    Accepts a multipart/form-data .FIT file upload and a user_id form field.
-    Parses the file synchronously in a thread pool, then enqueues the
-    TSS/PMC pipeline as a background task so the response is returned quickly.
+    Accepts a multipart/form-data .FIT file upload. user_id is sourced from the
+    verified JWT (Authorization: Bearer header). Do NOT include user_id in the form
+    data -- the frontend sends only the file field.
 
     Returns: {"ride_id": str, "status": "processing"}
 
     Errors:
-        400 if user_id is not a valid UUID
+        401 if JWT is missing or invalid
         422 if file > 25 MB (T-03-11: DoS size cap)
         422 if file is corrupt or < 600 seconds of data (D-14, T-03-12)
-
-    SECURITY TODO (Phase 4 — MUST fix before public exposure):
-      user_id is accepted from form data with no authentication. Phase 4 will
-      replace this with a verified JWT principal extracted by auth middleware.
-      Until then this endpoint MUST NOT be reachable from an untrusted network.
     """
-    # TODO(phase-4-auth): replace with `user_id = current_user.id` from JWT dependency.
-
-    # --- UUID validation (defence-in-depth: blocks path traversal + malformed IDs) ---
+    user_id = current_user["user_id"]
+    # JWT sub is a valid Supabase UUID; validate_uuid kept as defence-in-depth
+    # against malformed tokens that somehow bypass jwt.decode's sub claim check.
     validate_uuid(user_id, "user_id")
 
     # --- Size cap (T-03-11): read at most MAX_UPLOAD_BYTES+1 so we never load
