@@ -159,6 +159,50 @@ async def _load_credentials(user_id: str):
 # ---------------------------------------------------------------------------
 
 
+@router.get("/auth-redirect-url")
+async def calendar_auth_redirect_url(
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """
+    Return the Google OAuth2 authorization URL as JSON without performing a redirect.
+
+    The frontend calls this endpoint with the JWT in the Authorization header (safe),
+    then redirects the browser to the returned URL. This keeps the access token out of
+    the browser URL bar, server access logs, CDN logs, and Referer headers (CR-002).
+
+    Returns:
+        {"url": <google_oauth_url>}
+    """
+    user_id = current_user["user_id"]
+    backend_base = os.environ.get("BACKEND_BASE_URL", "http://localhost:8000")
+    redirect_uri = f"{backend_base}/calendar/callback"
+
+    flow = _build_flow(redirect_uri)
+    if flow is None:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "not_configured",
+                "detail": "Google OAuth credentials are not configured on this server",
+            },
+        )
+
+    # Generate and persist the CSRF state token (T-04-21).
+    state = secrets.token_urlsafe(32)
+    supabase = await _get_async_supabase()
+    await supabase.table("oauth_states").upsert(
+        {"user_id": user_id, "state": state}
+    ).execute()
+
+    auth_url, _returned_state = flow.authorization_url(
+        access_type="offline",
+        prompt="consent",
+        include_granted_scopes="true",
+        state=state,
+    )
+    return {"url": auth_url}
+
+
 @router.get("/auth")
 async def calendar_auth(
     current_user: dict = Depends(get_current_user),

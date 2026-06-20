@@ -14,10 +14,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { useCalendarStatus } from '@/hooks/useCalendarStatus'
-import { disconnectCalendar } from '@/lib/api'
-import { supabase } from '@/lib/supabase'
-
-const API_URL = import.meta.env.VITE_API_URL as string
+import { disconnectCalendar, apiFetch } from '@/lib/api'
 
 export function CalendarStatus() {
   const { data, isLoading } = useCalendarStatus()
@@ -25,9 +22,15 @@ export function CalendarStatus() {
   const [disconnecting, setDisconnecting] = useState(false)
 
   async function handleConnect() {
-    const { data: sessionData } = await supabase.auth.getSession()
-    const token = sessionData.session?.access_token ?? ''
-    window.location.href = `${API_URL}/calendar/auth?token=${encodeURIComponent(token)}`
+    // Fetch the OAuth redirect URL with the JWT in the Authorization header
+    // (safe) rather than embedding the token in a browser URL (CR-002).
+    const res = await apiFetch('/calendar/auth-redirect-url')
+    if (res.ok) {
+      const { url } = await res.json() as { url: string }
+      window.location.href = url
+    } else {
+      toast.error('Could not initiate Google Calendar connection. Please try again.')
+    }
   }
 
   async function handleDisconnect() {
