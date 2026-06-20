@@ -892,7 +892,7 @@ ALTER TABLE public.conversations
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **EventSource + JWT authentication strategy**
    - What we know: EventSource cannot send Authorization headers. SSE endpoints currently accept `user_id` as a query param (insecure).

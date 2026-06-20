@@ -123,12 +123,12 @@ Plans:
 Plans:
 **Wave 1** *(foundation, parallel)*
 
-- [ ] 04-01-PLAN.md — DB migration 0003 + [BLOCKING] supabase db push, new backend read/create endpoints, api/auth.py
+- [ ] 04-02-PLAN.md — api/auth.py JWT dependency + JWT middleware across all existing routes + auth tests
 - [ ] 04-03-PLAN.md — Frontend scaffold (Vite/React 19/Tailwind v4/shadcn), design tokens, PWA config, router skeleton
 
-**Wave 2** *(JWT auth gate)*
+**Wave 2** *(data layer)*
 
-- [ ] 04-02-PLAN.md — JWT middleware across all existing routes + auth tests
+- [ ] 04-01-PLAN.md — DB migration 0003 + [BLOCKING] supabase db push, new backend read/create endpoints (consume api/auth.py)
 
 **Wave 3** *(auth shell)*
 
@@ -141,7 +141,7 @@ Plans:
 
 **Wave 5** *(calendar + during-session/PWA, parallel)*
 
-- [ ] 04-07-PLAN.md — Google Calendar OAuth2 + sync hooks + Settings screen
+- [ ] 04-07-PLAN.md — Google Calendar OAuth2 + sync hooks (initial + replan push) + Settings screen
 - [ ] 04-08-PLAN.md — During-Session static screen + iOS install banner + PWA icons + Vercel deploy
 
 **UI hint**: yes
