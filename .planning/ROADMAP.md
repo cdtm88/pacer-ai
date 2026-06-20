@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Sports-Science Foundation** - Tool library, DB schema, and Supabase setup — the trust anchor everything else depends on (completed 2026-06-19)
 - [x] **Phase 2: Agent Core** - Agent loop, tool registry, SSE streaming, and trust-model enforcement proven end-to-end (completed 2026-06-20)
-- [ ] **Phase 3: Coaching Loop** - FIT ingestion, plan generation, onboarding interview, and adaptive re-planning
+- [x] **Phase 3: Coaching Loop** - FIT ingestion, plan generation, onboarding interview, and adaptive re-planning (completed 2026-06-20)
 - [ ] **Phase 4: UI and Calendar** - React PWA, all screens, Google Calendar integration, Vercel deployment
 - [ ] **Phase 5: During-Session and ZWO Export** - iOS-safe session stepper with wake lock, ZWO file generator with Zwift acceptance test
 
@@ -83,7 +83,7 @@ Plans:
   4. A missed session causes the agent to re-plan; micro-adjustments (1-3 sessions) are distinguished from macro replanning (2+ signals required); no macro replan shifts more than 30% of upcoming sessions without surfacing a change summary
   5. Every plan change is explained in chat with specific TSS/CTL/ATL/TSB values cited from tool calls and a named sports-science principle; every change is persisted to the adaptation log
 
-**Plans**: 4/5 plans executed
+**Plans**: 5/5 plans complete
 
 Plans:
 **Wave 1**
@@ -101,7 +101,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 03-05-PLAN.md — Wave 4: adaptive re-planning, micro/macro + 30% guard, adaptation log, transparency (ADAPT-01..05, TRANSP-01..03)
+- [x] 03-05-PLAN.md — Wave 4: adaptive re-planning, micro/macro + 30% guard, adaptation log, transparency (ADAPT-01..05, TRANSP-01..03)
 
 **UI hint**: yes
 
@@ -142,6 +142,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Sports-Science Foundation | 5/5 | Complete   | 2026-06-19 |
 | 2. Agent Core | 6/6 | Complete    | 2026-06-20 |
-| 3. Coaching Loop | 4/5 | In Progress|  |
+| 3. Coaching Loop | 5/5 | Complete   | 2026-06-20 |
 | 4. UI and Calendar | 0/0 | Not started | - |
 | 5. During-Session and ZWO Export | 0/0 | Not started | - |

@@ -62,17 +62,17 @@
 
 ### Adaptive Re-Planning
 
-- [ ] **ADAPT-01**: The plan adapts based on missed sessions, holidays/travel, actual performance, and accumulated training load
-- [ ] **ADAPT-02**: Micro-adjustments (next 1-3 sessions) are distinguished from macro-replanning (structural changes to the week or block); macro replanning requires 2+ data signals, not a single event
-- [ ] **ADAPT-03**: No macro replan shifts more than 30% of upcoming session positions without surfacing a change summary to the user
-- [ ] **ADAPT-04**: A weekly automated check runs independently of upload events to catch accumulating fatigue that no single session triggers
-- [ ] **ADAPT-05**: Intensity and session type are decided dynamically by the agent using tool-library results (for example: swap threshold for recovery when TSB indicates high fatigue)
+- [x] **ADAPT-01**: The plan adapts based on missed sessions, holidays/travel, actual performance, and accumulated training load
+- [x] **ADAPT-02**: Micro-adjustments (next 1-3 sessions) are distinguished from macro-replanning (structural changes to the week or block); macro replanning requires 2+ data signals, not a single event
+- [x] **ADAPT-03**: No macro replan shifts more than 30% of upcoming session positions without surfacing a change summary to the user
+- [x] **ADAPT-04**: A weekly automated check runs independently of upload events to catch accumulating fatigue that no single session triggers
+- [x] **ADAPT-05**: Intensity and session type are decided dynamically by the agent using tool-library results (for example: swap threshold for recovery when TSB indicates high fatigue)
 
 ### Adaptation Transparency
 
 - [x] **TRANSP-01**: Whenever the plan changes, the agent explains its reasoning in chat by default, citing the data (specific TSS/CTL/TSB/ATL values from tool calls) and the sports-science principle behind the change
 - [x] **TRANSP-02**: Every plan change is persisted to an adaptation log with: trigger event, reasoning shown to user, and timestamp
-- [ ] **TRANSP-03**: The adaptation log is readable (not just a raw database table); the user can review past adaptation decisions
+- [x] **TRANSP-03**: The adaptation log is readable (not just a raw database table); the user can review past adaptation decisions
 
 ### Google Calendar Integration
 
@@ -187,14 +187,14 @@
 | FIT-04 | Phase 3 | Complete |
 | FIT-05 | Phase 3 | Complete |
 | FIT-06 | Phase 3 | Complete |
-| ADAPT-01 | Phase 3 | Pending |
-| ADAPT-02 | Phase 3 | Pending |
-| ADAPT-03 | Phase 3 | Pending |
-| ADAPT-04 | Phase 3 | Pending |
-| ADAPT-05 | Phase 3 | Pending |
+| ADAPT-01 | Phase 3 | Complete |
+| ADAPT-02 | Phase 3 | Complete |
+| ADAPT-03 | Phase 3 | Complete |
+| ADAPT-04 | Phase 3 | Complete |
+| ADAPT-05 | Phase 3 | Complete |
 | TRANSP-01 | Phase 3 | Complete |
 | TRANSP-02 | Phase 3 | Complete |
-| TRANSP-03 | Phase 3 | Pending |
+| TRANSP-03 | Phase 3 | Complete |
 | GAP-01 | Phase 1 | Complete |
 | GAP-02 | Phase 1 | Complete |
 | GAP-03 | Phase 1 | Complete |
