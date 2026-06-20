@@ -19,6 +19,7 @@ from fastapi import FastAPI
 
 from api.routes.chat import router as chat_router
 from api.routes.onboarding import router as onboarding_router
+from api.routes.rides import router as rides_router
 
 app = FastAPI(
     title="PacerAI",
@@ -36,6 +37,10 @@ app.include_router(chat_router, prefix="/chat", tags=["chat"])
 # Mount the onboarding router.
 # Onboarding endpoints live at /onboarding/... (e.g. POST /onboarding/start).
 app.include_router(onboarding_router, prefix="/onboarding", tags=["onboarding"])
+
+# Mount the rides router.
+# Ride upload endpoints live at /rides/... (e.g. POST /rides/upload).
+app.include_router(rides_router, prefix="/rides", tags=["rides"])
 
 
 @app.get("/health", tags=["health"])
