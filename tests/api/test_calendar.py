@@ -50,10 +50,6 @@ async def client(monkeypatch):
     fernet_key = Fernet.generate_key().decode()
     monkeypatch.setenv("CALENDAR_FERNET_KEY", fernet_key)
 
-    # Reset calendar route module singleton so env patches take effect.
-    import api.routes.calendar as cal_mod
-    cal_mod._supabase_client = None
-
     from api.main import app
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac, fernet_key
@@ -118,9 +114,6 @@ async def test_auth_uses_prompt_consent(monkeypatch):
     monkeypatch.setenv("FRONTEND_URL", "http://localhost:5173")
     from cryptography.fernet import Fernet
     monkeypatch.setenv("CALENDAR_FERNET_KEY", Fernet.generate_key().decode())
-
-    import api.routes.calendar as cal_mod
-    cal_mod._supabase_client = None
 
     # Track authorization_url kwargs.
     auth_url_kwargs = {}
