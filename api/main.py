@@ -18,6 +18,7 @@ Deferred (per CONTEXT.md):
 from fastapi import FastAPI
 
 from api.routes.adaptations import router as adaptations_router
+from api.routes.calendar import router as calendar_router
 from api.routes.chat import conversations_router, router as chat_router
 from api.routes.onboarding import router as onboarding_router
 from api.routes.rides import router as rides_router
@@ -55,6 +56,10 @@ app.include_router(sessions_router, tags=["sessions"])
 # Mount the conversations router with no prefix -- handler path is /conversations/
 #   POST /conversations/
 app.include_router(conversations_router, tags=["conversations"])
+
+# Mount the calendar router.
+# Calendar endpoints live at /calendar/... (e.g. GET /calendar/auth, GET /calendar/settings).
+app.include_router(calendar_router, prefix="/calendar", tags=["calendar"])
 
 
 @app.get("/health", tags=["health"])
