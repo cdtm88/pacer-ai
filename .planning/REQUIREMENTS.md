@@ -37,10 +37,10 @@
 
 ### Onboarding Interview
 
-- [ ] **ONBD-01**: A new user with zero prior data completes a conversational LLM-led interview that establishes: self-reported baseline fitness, injury and medical status (including back issues), equipment available, weekly time availability and schedule, and short- and long-term goals
+- [x] **ONBD-01**: A new user with zero prior data completes a conversational LLM-led interview that establishes: self-reported baseline fitness, injury and medical status (including back issues), equipment available, weekly time availability and schedule, and short- and long-term goals
 - [x] **ONBD-02**: Injury and back status established through the interview is persisted to the user profile and applied as back-protective plan constraints; it is never assumed or defaulted
 - [x] **ONBD-03**: The interview output is a persisted structured user profile stored in the database
-- [ ] **ONBD-04**: The user sees a confirmation summary of their profile at the end of the interview before the plan is generated
+- [x] **ONBD-04**: The user sees a confirmation summary of their profile at the end of the interview before the plan is generated
 
 ### Plan Generation
 
@@ -70,7 +70,7 @@
 
 ### Adaptation Transparency
 
-- [ ] **TRANSP-01**: Whenever the plan changes, the agent explains its reasoning in chat by default, citing the data (specific TSS/CTL/TSB/ATL values from tool calls) and the sports-science principle behind the change
+- [x] **TRANSP-01**: Whenever the plan changes, the agent explains its reasoning in chat by default, citing the data (specific TSS/CTL/TSB/ATL values from tool calls) and the sports-science principle behind the change
 - [x] **TRANSP-02**: Every plan change is persisted to an adaptation log with: trigger event, reasoning shown to user, and timestamp
 - [ ] **TRANSP-03**: The adaptation log is readable (not just a raw database table); the user can review past adaptation decisions
 
@@ -171,10 +171,10 @@
 | AGENT-04 | Phase 2 | Complete |
 | AGENT-05 | Phase 2 | Complete |
 | AGENT-06 | Phase 2 | Complete |
-| ONBD-01 | Phase 3 | Pending |
+| ONBD-01 | Phase 3 | Complete |
 | ONBD-02 | Phase 3 | Complete |
 | ONBD-03 | Phase 3 | Complete |
-| ONBD-04 | Phase 3 | Pending |
+| ONBD-04 | Phase 3 | Complete |
 | PLAN-01 | Phase 3 | Complete |
 | PLAN-02 | Phase 3 | Complete |
 | PLAN-03 | Phase 3 | Complete |
@@ -192,7 +192,7 @@
 | ADAPT-03 | Phase 3 | Pending |
 | ADAPT-04 | Phase 3 | Pending |
 | ADAPT-05 | Phase 3 | Pending |
-| TRANSP-01 | Phase 3 | Pending |
+| TRANSP-01 | Phase 3 | Complete |
 | TRANSP-02 | Phase 3 | Complete |
 | TRANSP-03 | Phase 3 | Pending |
 | GAP-01 | Phase 1 | Complete |
