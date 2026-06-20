@@ -86,11 +86,21 @@ Plans:
 **Plans**: 5 plans
 
 Plans:
+**Wave 1**
 
 - [ ] 03-01-PLAN.md — Wave 1: DB migration (plans/adaptations + column additions) and [BLOCKING] supabase db push
 - [ ] 03-02-PLAN.md — Wave 1: fitdecode dep, save_profile + generate_plan tools (atomic TRUST-02), Wave 0 test stubs + Zwift fixture
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 03-03-PLAN.md — Wave 2: onboarding interview endpoint, dynamic system prompt, DB-backed conversations (ONBD-01..04)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 03-04-PLAN.md — Wave 3: FIT ingestion pipeline, TSS/PMC background task, real Zwift acceptance test (FIT-01..06)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 03-05-PLAN.md — Wave 4: adaptive re-planning, micro/macro + 30% guard, adaptation log, transparency (ADAPT-01..05, TRANSP-01..03)
 
 **UI hint**: yes
