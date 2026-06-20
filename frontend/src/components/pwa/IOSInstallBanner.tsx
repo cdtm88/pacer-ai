@@ -16,7 +16,9 @@ function isStandalone(): boolean {
 }
 
 function isBannerDismissed(): boolean {
-  return localStorage.getItem(BANNER_KEY) !== null
+  // Store writes String(true) = 'true'; also accept '1' for forward-compat
+  const val = localStorage.getItem(BANNER_KEY)
+  return val === 'true' || val === '1'
 }
 
 export function IOSInstallBanner() {
@@ -34,7 +36,7 @@ export function IOSInstallBanner() {
   if (!visible) return null
 
   function handleDismiss() {
-    localStorage.setItem(BANNER_KEY, '1')
+    // setIOSBannerDismissed persists to localStorage via the store
     setIOSBannerDismissed(true)
     setVisible(false)
   }
