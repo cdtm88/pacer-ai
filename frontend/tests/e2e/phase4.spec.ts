@@ -639,6 +639,6 @@ test.describe('T18 — During-Session Screen', () => {
     await page.goto('/session')
 
     await page.getByRole('button', { name: /End session/i }).click()
-    await expect(page).toHaveURL('http://localhost:5174/')
+    await expect(page).toHaveURL('/')
   })
 })
