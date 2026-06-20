@@ -22,7 +22,7 @@
 
 - [x] **TRUST-01**: The `sports_science/` module has zero Anthropic SDK imports; no path exists for the LLM to call physiological logic except through the tool registry
 - [x] **TRUST-02**: The agent tool registry maps only registered sports_science functions to Anthropic tool schemas; ad-hoc tool definitions are not permitted
-- [ ] **TRUST-03**: Every assistant response is parsed before display; any response containing an unsourced physiological number (watts, zones, TSS, FTP, CTL/ATL/TSB values) triggers a retry and capability-gap log entry
+- [x] **TRUST-03**: Every assistant response is parsed before display; any response containing an unsourced physiological number (watts, zones, TSS, FTP, CTL/ATL/TSB values) triggers a retry and capability-gap log entry
 - [x] **TRUST-04**: Every physiological number in any plan or chat message is traceable to a tool-library call verifiable in application logs
 - [x] **TRUST-05**: When the agent needs a quantitative method the tool library lacks, it calls `log_capability_gap`, surfaces a brief chat note, and falls back to qualitative reasoning; it never improvises a number
 
@@ -32,8 +32,8 @@
 - [x] **AGENT-02**: The agent loop supports multi-turn conversations with `asyncio.gather` for parallel tool dispatch when Claude returns multiple tool_use blocks in one response
 - [x] **AGENT-03**: The agent loop enforces a maximum of 3 retries per tool call per turn; all tools return `{status, value, reason}`; failed tool calls are surfaced in chat, not silently swallowed
 - [x] **AGENT-04**: Tool calls are deduplicated by `(name, args_hash)` per turn to prevent zombie loops
-- [ ] **AGENT-05**: Chat responses stream via SSE (Server-Sent Events); the frontend uses EventSource; WebSocket is not used
-- [ ] **AGENT-06**: A compliance test suite verifies the trust model is maintained end-to-end (agent never emits unsourced physiological numbers across a representative set of scenarios)
+- [x] **AGENT-05**: Chat responses stream via SSE (Server-Sent Events); the frontend uses EventSource; WebSocket is not used
+- [x] **AGENT-06**: A compliance test suite verifies the trust model is maintained end-to-end (agent never emits unsourced physiological numbers across a representative set of scenarios)
 
 ### Onboarding Interview
 
@@ -162,15 +162,15 @@
 | TOOL-10 | Phase 1 | Complete |
 | TRUST-01 | Phase 1 | Complete |
 | TRUST-02 | Phase 1 | Complete |
-| TRUST-03 | Phase 2 | Pending |
+| TRUST-03 | Phase 2 | Complete |
 | TRUST-04 | Phase 2 | Complete |
 | TRUST-05 | Phase 2 | Complete |
 | AGENT-01 | Phase 2 | Complete |
 | AGENT-02 | Phase 2 | Complete |
 | AGENT-03 | Phase 2 | Complete |
 | AGENT-04 | Phase 2 | Complete |
-| AGENT-05 | Phase 2 | Pending |
-| AGENT-06 | Phase 2 | Pending |
+| AGENT-05 | Phase 2 | Complete |
+| AGENT-06 | Phase 2 | Complete |
 | ONBD-01 | Phase 3 | Pending |
 | ONBD-02 | Phase 3 | Pending |
 | ONBD-03 | Phase 3 | Pending |
