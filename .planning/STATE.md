@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 02
 current_phase_name: agent-core
 status: executing
-stopped_at: context exhaustion at 75% (2026-06-19)
-last_updated: "2026-06-20T07:19:55.329Z"
+stopped_at: Completed 02-05-PLAN.md
+last_updated: "2026-06-20T07:25:43.811Z"
 last_activity: 2026-06-20
 last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 11
-  completed_plans: 9
+  completed_plans: 10
   percent: 20
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 ## Current Position
 
 Phase: 02 (agent-core) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 Status: Ready to execute
 Last activity: 2026-06-20 — Phase 02 execution started
 
@@ -61,6 +61,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 02 P01 | 3min | 3 tasks | 8 files |
 | Phase 02 P02 | 4min | 2 tasks | 2 files |
 | Phase 02 P04 | 5 | 2 tasks | 5 files |
+| Phase 02 P05 | 4 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -87,6 +88,8 @@ Recent decisions affecting current work:
 - [Phase ?]: Trust scanner injected; violating assistant message not appended (Pitfall 5)
 - [Phase ?]: _MockStream class for async iteration
 - [Phase ?]: Token emission post-scan
+- [Phase ?]: get_final_message on AsyncMessageStream (entered stream), not AsyncMessageStreamManager; two-stage SDK stream pattern confirmed from installed package
+- [Phase ?]: SDK contract gate installed: RESEARCH.md A1/A2/Open Question 1 converted from LOW/ASSUMED to VERIFIED offline assertions in test_sdk_contract.py
 
 ### Pending Todos
 
@@ -105,8 +108,8 @@ None yet.
 
 ## Session Continuity
 
-**Stopped at:** context exhaustion at 75% (2026-06-19)
-**Resume file:** .planning/phases/02-agent-core/02-CONTEXT.md
+**Stopped at:** Completed 02-05-PLAN.md
+**Resume file:** None
 
-Last session: 2026-06-20T07:19:51.329Z
+Last session: 2026-06-20T07:25:43.807Z
 Next action: Run `/gsd-plan-phase 1` to create the Phase 1 plan
