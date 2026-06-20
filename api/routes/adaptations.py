@@ -675,8 +675,8 @@ async def check_adaptations(
 
 @router.post("/sessions/{session_id}/missed")
 async def mark_session_missed(
+    background_tasks: BackgroundTasks,
     session_id: str = Path(...),
-    background_tasks: BackgroundTasks = BackgroundTasks(),
     current_user: dict = Depends(get_current_user),
 ) -> dict:
     """
