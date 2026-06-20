@@ -42,12 +42,13 @@ Phase 3 note:
 
 import os
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
 # run_turn is imported at module scope so tests can monkeypatch chat_module.run_turn.
 # Passing run_turn to sse_generator as _run_turn keeps the monkeypatch effective.
 from agent.loop import run_turn  # noqa: F401 (passed to sse_generator for test compat)
+from api.auth import get_current_user
 from api.routes._sse import sse_generator
 from api.routes.onboarding import load_conversation
 
@@ -66,22 +67,20 @@ _OPENING_MESSAGE = (
 @router.get("/stream")
 async def chat_stream(
     conversation_id: str = Query(...),
-    user_id: str = Query(...),  # TODO(phase-4-auth): replace with JWT dependency
+    current_user: dict = Depends(get_current_user),
 ):
     """
-    GET /chat/stream?conversation_id=...&user_id=...
+    GET /chat/stream?conversation_id=...&token=<jwt>
 
     Returns a server-sent events stream for a conversation turn.
 
-    Phase 3: loads the last 20 messages from the Supabase DB using
-    conversation_id + user_id (ownership filter). Falls back to an opening
-    message if the conversation has no history.
+    Phase 4: JWT is accepted via header (Authorization: Bearer) or ?token= query
+    param for SSE clients (EventSource cannot send headers; Pitfall 1).
 
-    SECURITY TODO (Phase 4 — MUST fix before public exposure):
-      user_id is currently accepted as a query parameter with no authentication.
-      Phase 4 will extract it from a verified JWT so callers cannot supply
-      an arbitrary user_id to read another user's conversation history.
+    Loads the last 20 messages from the Supabase DB scoped to the authenticated
+    user. Falls back to an opening message if the conversation has no history.
     """
+    user_id = current_user["user_id"]
     model = os.environ.get("ANTHROPIC_MODEL", _DEFAULT_MODEL)
 
     # Load last 20 messages from DB scoped to the owning user (defence-in-depth).
