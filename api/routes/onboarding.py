@@ -35,8 +35,9 @@ import os
 from typing import Optional
 
 import anthropic
-from fastapi import APIRouter, Body
+from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from supabase import AsyncClient, acreate_client
 
 from agent.loop import run_turn  # noqa: F401 -- module-scope import for test monkeypatching
@@ -47,6 +48,11 @@ router = APIRouter()
 
 # Default model per CLAUDE.md (AI/LLM Layer section); configurable via env var.
 _DEFAULT_MODEL = "claude-sonnet-4-5"
+
+
+class OnboardingStartRequest(BaseModel):
+    """Request body for POST /onboarding/start."""
+    user_id: str
 
 # ---------------------------------------------------------------------------
 # Onboarding system prompt (D-22 dynamic prompt injection)
@@ -199,7 +205,7 @@ async def save_messages(
 
 
 @router.post("/start")
-async def onboarding_start(user_id: str = Body(...)):
+async def onboarding_start(request: OnboardingStartRequest):
     """
     POST /onboarding/start
 
@@ -208,12 +214,13 @@ async def onboarding_start(user_id: str = Body(...)):
     and returns a text/event-stream SSE response driving run_turn with the
     ONBOARDING_SYSTEM_PROMPT.
 
-    T-03-07: user_id is accepted as a Body param. Auth middleware is deferred
+    T-03-07: user_id is accepted as a JSON body field. Auth middleware is deferred
     to Phase 4 -- this endpoint is backend/test-only for Phase 3.
 
     Returns:
         StreamingResponse (text/event-stream) of SSE frames.
     """
+    user_id = request.user_id
     model = os.environ.get("ANTHROPIC_MODEL", _DEFAULT_MODEL)
 
     # Seed the conversation with the canonical opening user message.
