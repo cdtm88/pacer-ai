@@ -25,6 +25,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from supabase import AsyncClient, acreate_client
 
 from api.auth import get_current_user
+from api.utils import validate_uuid
 
 # ---------------------------------------------------------------------------
 # Supabase async singleton (WR-04 pattern from adaptations.py / capability_gap.py)
@@ -238,6 +239,53 @@ async def profile_me(
         raise HTTPException(
             status_code=404,
             detail={"error": "profile_not_found", "detail": "No profile for user"},
+        )
+
+    return result.data[0]
+
+
+# ---------------------------------------------------------------------------
+# PATCH /sessions/{session_id}
+# ---------------------------------------------------------------------------
+
+
+@router.patch("/sessions/{session_id}")
+async def update_session(
+    session_id: str,
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """
+    PATCH /sessions/{session_id}
+
+    Sets the session status to 'completed' for the authenticated user.
+
+    user_id is sourced from the verified JWT sub claim (T-04-01) -- never from
+    a path, query, or request body param. The update filters by both id and
+    user_id so a user can never complete another user's session (T-04-03).
+
+    Returns the updated session row on success.
+    Raises HTTP 400 if session_id is not a valid UUID.
+    Raises HTTP 404 when no session matches (non-existent or wrong user).
+    """
+    user_id = current_user["user_id"]
+    validate_uuid(session_id, "session_id")
+    supabase = await _get_async_supabase()
+
+    result = await (
+        supabase.table("sessions")
+        .update({"status": "completed"})
+        .eq("id", session_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+
+    if not result.data:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "session_not_found",
+                "detail": "No session found for this user with the given id",
+            },
         )
 
     return result.data[0]
