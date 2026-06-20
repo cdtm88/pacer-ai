@@ -35,24 +35,19 @@ import os
 from typing import Optional
 
 import anthropic
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
 from supabase import AsyncClient, acreate_client
 
 from agent.loop import run_turn  # noqa: F401 -- module-scope import for test monkeypatching
 from agent.trust import scan_buffer
+from api.auth import get_current_user
 from api.routes._sse import sse_generator
 
 router = APIRouter()
 
 # Default model per CLAUDE.md (AI/LLM Layer section); configurable via env var.
 _DEFAULT_MODEL = "claude-sonnet-4-5"
-
-
-class OnboardingStartRequest(BaseModel):
-    """Request body for POST /onboarding/start."""
-    user_id: str
 
 # ---------------------------------------------------------------------------
 # Onboarding system prompt (D-22 dynamic prompt injection)
@@ -212,7 +207,7 @@ async def save_messages(
 
 
 @router.post("/start")
-async def onboarding_start(request: OnboardingStartRequest):
+async def onboarding_start(current_user: dict = Depends(get_current_user)):
     """
     POST /onboarding/start
 
@@ -221,18 +216,13 @@ async def onboarding_start(request: OnboardingStartRequest):
     and returns a text/event-stream SSE response driving run_turn with the
     ONBOARDING_SYSTEM_PROMPT.
 
-    SECURITY TODO (Phase 4 — MUST fix before public exposure):
-      user_id is currently accepted from the request body with no authentication.
-      This allows any caller to impersonate any user. Phase 4 will replace this
-      with a verified JWT principal extracted by auth middleware. Until then this
-      endpoint MUST NOT be reachable from an untrusted network — gate it at the
-      reverse-proxy or Railway's internal network boundary.
+    Phase 4: JWT is accepted via Authorization: Bearer header or ?token= query
+    param for SSE clients. user_id is sourced exclusively from the verified JWT sub claim.
 
     Returns:
         StreamingResponse (text/event-stream) of SSE frames.
     """
-    # TODO(phase-4-auth): replace with `user_id = current_user.id` from JWT dependency.
-    user_id = request.user_id
+    user_id = current_user["user_id"]
     model = os.environ.get("ANTHROPIC_MODEL", _DEFAULT_MODEL)
 
     # Seed the conversation with the canonical opening user message.

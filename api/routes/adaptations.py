@@ -25,8 +25,9 @@ Adaptation logging (TRANSP-02, D-20):
   - Every adaptation persisted to adaptations table with trigger, scope,
     before/after snapshots, and explanation_text.
 
-Security:
-  - user_id required on all endpoints (SECURITY TODO phase-4-auth: not authenticated until Phase 4)
+Security (Phase 4):
+  - All endpoints require a valid Supabase JWT via Depends(get_current_user)
+  - user_id sourced exclusively from the JWT sub claim (T-04-04)
   - Reads filtered by user_id (defence-in-depth against cross-user disclosure T-03-16)
   - Backend writes use SERVICE_ROLE_KEY (never anon key)
 """
@@ -35,10 +36,11 @@ import os
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Body, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path
 from pydantic import BaseModel
 from supabase import AsyncClient, acreate_client
 
+from api.auth import get_current_user
 from api.utils import validate_uuid
 from sports_science.compliance import validate_session_vs_actual
 from sports_science.load import progress_load
@@ -602,33 +604,20 @@ async def apply_macro_replan(user_id: str, signals: list[dict]) -> dict:
 # ---------------------------------------------------------------------------
 
 
-class UserIdBody(BaseModel):
-    """JSON body with user_id field (Pydantic model for proper JSON parsing)."""
-    user_id: str
-
-
-class MissedSessionBody(BaseModel):
-    """JSON body for marking a session missed."""
-    user_id: str
-
-
 router = APIRouter()
 
 
 @router.get("/")
 async def list_adaptations(
-    user_id: str = Query(...),  # TODO(phase-4-auth): replace with JWT dependency
+    current_user: dict = Depends(get_current_user),
 ) -> list:
     """
-    TRANSP-03: GET /adaptations/?user_id=...
+    TRANSP-03: GET /adaptations/
 
-    Returns the readable adaptation log for the given user, newest first.
-
-    SECURITY TODO (Phase 4): user_id is accepted as a query param without auth.
-    Phase 4 will extract it from a verified JWT. Until then, this endpoint is
-    filtered by user_id as defence-in-depth but is not authenticated (T-03-16).
+    Returns the readable adaptation log for the authenticated user, newest first.
+    user_id is sourced from the verified JWT (Authorization: Bearer header).
     """
-    # TODO(phase-4-auth): replace with `user_id = current_user.id` from JWT dependency.
+    user_id = current_user["user_id"]
     validate_uuid(user_id, "user_id")
     supabase = await _get_async_supabase()
     rows = await (
@@ -643,18 +632,16 @@ async def list_adaptations(
 
 @router.post("/check")
 async def check_adaptations(
-    body: UserIdBody,  # TODO(phase-4-auth): replace with JWT dependency
+    current_user: dict = Depends(get_current_user),
 ) -> dict:
     """
     ADAPT-04: POST /adaptations/check
 
     Runs signal detection independently of upload events (weekly check).
     Dispatches to micro or macro adaptation when signals are present.
-
-    SECURITY TODO (Phase 4): user_id accepted from request body without auth.
+    user_id is sourced from the verified JWT.
     """
-    # TODO(phase-4-auth): replace with `user_id = current_user.id` from JWT dependency.
-    user_id = body.user_id
+    user_id = current_user["user_id"]
     validate_uuid(user_id, "user_id")
     signals = await detect_signals(user_id)
     scope = decide_scope(signals)
@@ -675,18 +662,16 @@ async def check_adaptations(
 @router.post("/sessions/{session_id}/missed")
 async def mark_session_missed(
     session_id: str = Path(...),
-    body: MissedSessionBody = Body(...),  # TODO(phase-4-auth): replace with JWT dependency
+    current_user: dict = Depends(get_current_user),
 ) -> dict:
     """
     D-16: POST /adaptations/sessions/{session_id}/missed
 
     Marks a specific session as missed and re-runs signal detection for the user.
     Returns the full check result so the caller can see what was triggered.
-
-    SECURITY TODO (Phase 4): user_id accepted from request body without auth.
+    user_id is sourced from the verified JWT.
     """
-    # TODO(phase-4-auth): replace with `user_id = current_user.id` from JWT dependency.
-    user_id = body.user_id
+    user_id = current_user["user_id"]
     validate_uuid(user_id, "user_id")
     validate_uuid(session_id, "session_id")
     supabase = await _get_async_supabase()

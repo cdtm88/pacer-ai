@@ -23,7 +23,7 @@ import httpx
 import pytest
 from httpx import ASGITransport
 
-from tests.api.conftest import TEST_USER_ID, mock_supabase_factory
+from tests.api.conftest import TEST_USER_ID, mock_supabase_factory, TEST_JWT_SECRET, auth_headers
 
 # ---------------------------------------------------------------------------
 # Pure function helpers
@@ -176,9 +176,12 @@ async def test_weekly_check(monkeypatch):
     """
     ADAPT-04: POST /adaptations/check returns signals and scope independently of uploads.
     When no signals are detected, response is {"signals": [], "scope": None, "result": None}.
+    Phase 4: request requires a valid JWT in the Authorization: Bearer header.
     """
     from api.main import app
     import api.routes.adaptations as adapt_module
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
     # detect_signals returns empty list -- no sessions in DB.
     execute_result = MagicMock()
@@ -205,7 +208,7 @@ async def test_weekly_check(monkeypatch):
     ) as client:
         response = await client.post(
             "/adaptations/check",
-            json={"user_id": TEST_USER_ID},
+            headers=auth_headers(),
         )
 
     assert response.status_code == 200
@@ -342,10 +345,13 @@ async def test_log_persisted(monkeypatch):
 
 async def test_get_adaptations(monkeypatch):
     """
-    TRANSP-03: GET /adaptations/?user_id=... returns a list of adaptation records.
+    TRANSP-03: GET /adaptations/ returns a list of adaptation records for the authenticated user.
+    Phase 4: user_id comes from the JWT; no user_id query param needed.
     """
     from api.main import app
     import api.routes.adaptations as adapt_module
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
     mock_rows = [
         {
@@ -368,7 +374,7 @@ async def test_get_adaptations(monkeypatch):
     ) as client:
         response = await client.get(
             "/adaptations/",
-            params={"user_id": TEST_USER_ID},
+            headers=auth_headers(),
         )
 
     assert response.status_code == 200
@@ -379,9 +385,10 @@ async def test_get_adaptations(monkeypatch):
     assert data[0]["trigger"] == "missed"
 
 
-async def test_get_adaptations_requires_user_id():
+async def test_get_adaptations_requires_auth():
     """
-    TRANSP-03: GET /adaptations/ without user_id returns 422 (missing required query param).
+    TRANSP-03 (Phase 4): GET /adaptations/ without a JWT returns 401.
+    Previously tested for 422 (missing user_id query param); now tests for 401 (no auth).
     """
     from api.main import app
 
@@ -391,4 +398,4 @@ async def test_get_adaptations_requires_user_id():
     ) as client:
         response = await client.get("/adaptations/")
 
-    assert response.status_code == 422
+    assert response.status_code == 401
