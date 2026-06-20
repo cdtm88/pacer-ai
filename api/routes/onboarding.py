@@ -35,7 +35,7 @@ import os
 from typing import Optional
 
 import anthropic
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 from fastapi.responses import StreamingResponse
 from supabase import AsyncClient, acreate_client
 
@@ -209,6 +209,7 @@ async def save_messages(
 
 @router.post("/plan-calendar-sync")
 async def onboarding_plan_calendar_sync(
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
 ) -> dict:
     """
@@ -224,10 +225,9 @@ async def onboarding_plan_calendar_sync(
     Returns immediately with {"status": "scheduled"}.
     """
     user_id = current_user["user_id"]
-    # Fire-and-forget: schedule the push without awaiting it so a calendar failure
-    # cannot block the frontend or cause a 500 (CAL-04, T-04-23).
-    import asyncio as _asyncio
-    _asyncio.ensure_future(push_all_sessions_to_calendar(user_id))
+    # Register the push with FastAPI's BackgroundTasks so it runs after the
+    # response is sent and is tied to the worker's event loop lifecycle (CR-003).
+    background_tasks.add_task(push_all_sessions_to_calendar, user_id)
     return {"status": "scheduled"}
 
 
