@@ -22,6 +22,8 @@ Architecture (stub mode):
 """
 
 import asyncio
+import hashlib
+import hmac
 import logging
 import os
 import secrets
@@ -159,6 +161,26 @@ async def _load_credentials(user_id: str):
 # ---------------------------------------------------------------------------
 
 
+def _build_oauth_state(user_id: str) -> str:
+    """
+    Build a HMAC-signed OAuth state parameter embedding the user_id (CR-007).
+
+    Format: "{nonce}.{user_id}.{hmac_hex}"
+
+    The HMAC binds the nonce to the user_id using SUPABASE_JWT_SECRET so that
+    an attacker who observes the state value cannot substitute a different user_id
+    at the callback. The callback verifies the HMAC before trusting the user_id.
+    """
+    secret = os.environ.get("SUPABASE_JWT_SECRET", "")
+    nonce = secrets.token_urlsafe(32)
+    sig = hmac.new(
+        secret.encode(),
+        f"{nonce}:{user_id}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    return f"{nonce}.{user_id}.{sig}"
+
+
 @router.get("/auth-redirect-url")
 async def calendar_auth_redirect_url(
     current_user: dict = Depends(get_current_user),
@@ -187,11 +209,13 @@ async def calendar_auth_redirect_url(
             },
         )
 
-    # Generate and persist the CSRF state token (T-04-21).
-    state = secrets.token_urlsafe(32)
+    # Generate HMAC-signed state embedding user_id (CR-007, T-04-21).
+    state = _build_oauth_state(user_id)
     supabase = await _get_async_supabase()
+    # Store only the nonce (first segment) keyed to user_id for CSRF tracking.
+    nonce = state.split(".")[0]
     await supabase.table("oauth_states").upsert(
-        {"user_id": user_id, "state": state}
+        {"user_id": user_id, "state": nonce}
     ).execute()
 
     auth_url, _returned_state = flow.authorization_url(
@@ -233,11 +257,13 @@ async def calendar_auth(
             },
         )
 
-    # Generate and persist the CSRF state token (T-04-21).
-    state = secrets.token_urlsafe(32)
+    # Generate HMAC-signed state embedding user_id (CR-007, T-04-21).
+    state = _build_oauth_state(user_id)
     supabase = await _get_async_supabase()
+    # Store only the nonce (first segment) keyed to user_id for CSRF tracking.
+    nonce = state.split(".")[0]
     await supabase.table("oauth_states").upsert(
-        {"user_id": user_id, "state": state}
+        {"user_id": user_id, "state": nonce}
     ).execute()
 
     auth_url, _returned_state = flow.authorization_url(
@@ -265,12 +291,36 @@ async def calendar_callback(
     backend_base = os.environ.get("BACKEND_BASE_URL", "http://localhost:8000")
     redirect_uri = f"{backend_base}/calendar/callback"
 
-    # --- CSRF state verification (T-04-21) ---
+    # --- CSRF state verification with HMAC binding (CR-007, T-04-21) ---
+    # State format: "{nonce}.{user_id}.{hmac_hex}"
+    parts = state.split(".")
+    if len(parts) != 3:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "invalid_state", "detail": "Malformed OAuth state parameter"},
+        )
+    nonce, claimed_user_id, received_sig = parts
+
+    # Verify HMAC to ensure state was issued by this server for this user_id.
+    secret = os.environ.get("SUPABASE_JWT_SECRET", "")
+    expected_sig = hmac.new(
+        secret.encode(),
+        f"{nonce}:{claimed_user_id}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(received_sig, expected_sig):
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "invalid_state", "detail": "OAuth state HMAC verification failed"},
+        )
+
+    # Verify the nonce was issued by this server (anti-replay, T-04-21).
     supabase = await _get_async_supabase()
     state_result = await (
         supabase.table("oauth_states")
         .select("user_id")
-        .eq("state", state)
+        .eq("state", nonce)
+        .eq("user_id", claimed_user_id)
         .execute()
     )
     rows = state_result.data or []
@@ -279,7 +329,7 @@ async def calendar_callback(
             status_code=400,
             detail={"error": "invalid_state", "detail": "OAuth state mismatch; possible CSRF"},
         )
-    user_id = rows[0]["user_id"]
+    user_id = claimed_user_id
 
     # --- Token exchange (synchronous google-auth wrapped in asyncio.to_thread, Pitfall 4) ---
     flow = _build_flow(redirect_uri)
@@ -304,8 +354,8 @@ async def calendar_callback(
         {"id": user_id, "google_tokens": ciphertext_str}
     ).execute()
 
-    # Clear the consumed state (T-04-21 cleanup).
-    await supabase.table("oauth_states").delete().eq("state", state).execute()
+    # Clear the consumed nonce (T-04-21 cleanup).
+    await supabase.table("oauth_states").delete().eq("state", nonce).execute()
 
     return RedirectResponse(url=f"{frontend_url}/settings?calendar=connected")
 
