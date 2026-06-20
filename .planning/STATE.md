@@ -6,15 +6,15 @@ current_phase: 04
 current_phase_name: ui-and-calendar
 status: executing
 stopped_at: context exhaustion at 83% (2026-06-20)
-last_updated: "2026-06-20T17:08:11.701Z"
+last_updated: "2026-06-20T17:43:43.261Z"
 last_activity: 2026-06-20
 last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 5
-  completed_phases: 4
-  total_plans: 25
-  completed_plans: 25
-  percent: 80
+  completed_phases: 3
+  total_plans: 27
+  completed_plans: 26
+  percent: 60
 ---
 
 # Project State
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-06-20)
 ## Current Position
 
 Phase: 04 (ui-and-calendar) — EXECUTING
-Plan: 2 of 8
+Plan: 3 of 8
 Status: Ready to execute
 Last activity: 2026-06-20 — Phase 04 execution started
 
@@ -70,6 +70,7 @@ Progress: [████████████████████] 11/11 p
 | Phase 03 P04 | 8min | 2 tasks | 3 files |
 | Phase 03 P05 | 5min | 2 tasks | 4 files |
 | Phase 04 P09 | 15min | 5 tasks | 4 files |
+| Phase 04 P10 | 3min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -106,6 +107,7 @@ Recent decisions affecting current work:
 - [Phase ?]: CAL-03 partial: consent screen In production; Google verification submission is operational task
 - [Phase ?]: compliance_pct reads tss_target/type matching _SESSION_COLUMNS; training_sessions table ref removed
 - [Phase ?]: onboarding SSE multi-turn: capture create_conversation return, load prior turns via load_conversation, no new sse_generator param
+- [Phase ?]: Playwright LIFO: specific route handlers registered after general ones to win the match
 
 ### Pending Todos
 
@@ -127,5 +129,5 @@ None yet.
 **Stopped at:** context exhaustion at 83% (2026-06-20)
 **Resume file:** None
 
-Last session: 2026-06-20T17:08:11.696Z
+Last session: 2026-06-20T17:43:32.476Z
 Next action: `/gsd-discuss-phase 3` to gather Phase 3 context before planning
