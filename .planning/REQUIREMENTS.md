@@ -77,7 +77,7 @@
 ### Google Calendar Integration
 
 - [x] **CAL-01**: Planned sessions are pushed to the user's Google Calendar as events with the session detail in the event body (objective, structure, targets, duration)
-- [ ] **CAL-02**: When the plan changes (sessions moved, added, or removed), the corresponding calendar events are updated, moved, or deleted to stay in sync
+- [x] **CAL-02**: When the plan changes (sessions moved, added, or removed), the corresponding calendar events are updated, moved, or deleted to stay in sync
 - [x] **CAL-03**: Google Calendar OAuth uses production credentials (not Testing mode) before any real user testing; refresh token health is checked before every Calendar API call; tokens are stored encrypted in the database, never in browser storage
 - [x] **CAL-04**: Calendar sync failures are surfaced to the user gracefully; a failed sync does not disrupt the plan or chat
 
@@ -93,14 +93,14 @@
 
 - [x] **UI-01**: Onboarding screen: full-screen conversational flow with the interview agent, ending in a profile confirmation summary
 - [x] **UI-02**: Today/Home screen: today's session as a prominent card (objective, structure, targets, duration) with actions: Start Session, Export to Zwift, Mark Done, Mark Missed; compact next-few-days view; a plain-language form chip (fresh/balanced/fatigued derived from TSB, shown only after 28+ days of data)
-- [ ] **UI-03**: Agenda screen: scrollable list grouped by week; rows show date, type, duration, status; tap to expand full session plan; intensity shown via zone colours matching the PRD design system
+- [x] **UI-03**: Agenda screen: scrollable list grouped by week; rows show date, type, duration, status; tap to expand full session plan; intensity shown via zone colours matching the PRD design system
 - [x] **UI-04**: History screen: past sessions with planned-vs-actual compliance; a small fitness-trend sparkline (7-30 day CTL trend, shown only after 28+ days of data); tap-through to parsed ride detail (power/HR data, TSS)
-- [ ] **UI-05**: During-session screen: large-font stepper showing the current step (target + duration), next step queued below, later steps smaller; a timer auto-advances the highlight; no trainer data required; must work on iOS Safari
+- [x] **UI-05**: During-session screen: large-font stepper showing the current step (target + duration), next step queued below, later steps smaller; a timer auto-advances the highlight; no trainer data required; must work on iOS Safari
 - [x] **UI-06**: Chat screen: dedicated tab with persistent conversation with the agent; adaptation reasoning and capability-gap notes appear in chat; user can log subjective feedback and request plan changes
 - [x] **UI-07**: Navigation: mobile bottom tab bar (Today / Agenda / History / Chat); desktop left sidebar with the same destinations and wider multi-column layouts
-- [ ] **UI-08**: Design system: Inter (or equivalent clean contemporary sans) for all UI and headings; primary blue scale anchored at blue-6 #228BE6; neutrals and semantic colours per PRD; no pure black; no em dashes in any copy; warm and professional tone
-- [ ] **UI-09**: PWA: installable on iOS and Android; works offline for the during-session view; iOS install instructional banner on first visit
-- [ ] **UI-10**: Light mode only for MVP; no dark mode
+- [x] **UI-08**: Design system: Inter (or equivalent clean contemporary sans) for all UI and headings; primary blue scale anchored at blue-6 #228BE6; neutrals and semantic colours per PRD; no pure black; no em dashes in any copy; warm and professional tone
+- [x] **UI-09**: PWA: installable on iOS and Android; works offline for the during-session view; iOS install instructional banner on first visit
+- [x] **UI-10**: Light mode only for MVP; no dark mode
 
 ### iOS PWA During-Session
 
@@ -199,19 +199,19 @@
 | GAP-02 | Phase 1 | Complete |
 | GAP-03 | Phase 1 | Complete |
 | CAL-01 | Phase 4 | Complete |
-| CAL-02 | Phase 4 | Pending |
+| CAL-02 | Phase 4 | Complete |
 | CAL-03 | Phase 4 | Complete |
 | CAL-04 | Phase 4 | Complete |
 | UI-01 | Phase 4 | Complete |
 | UI-02 | Phase 4 | Complete |
-| UI-03 | Phase 4 | Pending |
+| UI-03 | Phase 4 | Complete |
 | UI-04 | Phase 4 | Complete |
-| UI-05 | Phase 4 | Pending |
+| UI-05 | Phase 4 | Complete |
 | UI-06 | Phase 4 | Complete |
 | UI-07 | Phase 4 | Complete |
-| UI-08 | Phase 4 | Pending |
-| UI-09 | Phase 4 | Pending |
-| UI-10 | Phase 4 | Pending |
+| UI-08 | Phase 4 | Complete |
+| UI-09 | Phase 4 | Complete |
+| UI-10 | Phase 4 | Complete |
 | ZWO-01 | Phase 5 | Pending |
 | ZWO-02 | Phase 5 | Pending |
 | ZWO-03 | Phase 5 | Pending |
