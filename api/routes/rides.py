@@ -538,3 +538,35 @@ async def upload_fit(
     )
 
     return {"ride_id": ride_id, "status": "processing"}
+
+
+@router.get("/")
+async def list_rides(
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """
+    GET /rides/
+
+    Returns the authenticated user's ride history, newest first, limited to 50.
+    user_id is sourced from the verified JWT sub claim (T-04-01).
+    Rides are scoped to the requesting user (T-04-03 defence-in-depth).
+
+    Returns: {"rides": [...]}
+    """
+    user_id = current_user["user_id"]
+    supabase = await _get_async_supabase()
+
+    result = await (
+        supabase.table("rides")
+        .select(
+            "id, user_id, tss, np_watts, intensity_factor, duration_secs, "
+            "ride_date, avg_power, avg_hr, avg_cadence, ftp_used, "
+            "session_id, compliance_pct"
+        )
+        .eq("user_id", user_id)
+        .order("ride_date", desc=True, nullsfirst=False)
+        .limit(50)
+        .execute()
+    )
+
+    return {"rides": result.data}
