@@ -252,15 +252,26 @@ async def onboarding_start(current_user: dict = Depends(get_current_user)):
 
     # Seed the conversation with the canonical opening user message.
     # The agent's first response will be the interview opener.
-    messages: list[dict] = [
+    seed_messages: list[dict] = [
         {"role": "user", "content": "I'd like to start my training interview."}
     ]
 
     # Best-effort conversation creation -- don't block the stream if DB is unavailable.
+    conversation_id: str | None = None
     try:
-        await create_conversation(user_id, context_type="onboarding")
+        conversation_id = await create_conversation(user_id, context_type="onboarding")
     except Exception:
         pass  # best-effort; Phase 4 will add proper error surfacing
+
+    # Load prior turns when conversation_id is available; fall back to seed on new conversations.
+    if conversation_id is not None:
+        try:
+            prior_turns = await load_conversation(conversation_id, user_id)
+        except Exception:
+            prior_turns = []
+        messages: list[dict] = prior_turns if prior_turns else seed_messages
+    else:
+        messages = seed_messages
 
     return StreamingResponse(
         sse_generator(messages, model, system_prompt=ONBOARDING_SYSTEM_PROMPT, _run_turn=run_turn),
