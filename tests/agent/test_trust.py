@@ -252,3 +252,145 @@ class TestHandleViolation:
         violation = TrustViolation(matched_text="85 TSS", pattern="x")
         # Should not raise, and should not surface method_name
         await handle_violation(violation)  # if it doesn't raise, GAP-03 preserved
+
+
+# ---------------------------------------------------------------------------
+# Plan 04 compliance tests: loop-level trust enforcement (TRUST-03, TRUST-05)
+# ---------------------------------------------------------------------------
+
+
+class TestTrustLoopCompliance:
+    """
+    TRUST-03 / TRUST-05 compliance at the run_turn level (Plan 04, AGENT-06 gate).
+
+    These tests exercise trust enforcement through the full agent loop with
+    mocked Anthropic streams -- no live API call occurs.
+    """
+
+    async def test_trust_violation_triggers_retry(self, monkeypatch):
+        """
+        TRUST-03: when run_turn sees a trust violation it:
+        1. Increments retries (emits a trust_violation error event).
+        2. Appends a correction user message (not the violating assistant message).
+        3. Emits an error event with code "trust_violation".
+        4. Never forwards the violating number in a token or done frame.
+        """
+        from agent.loop import run_turn
+        from agent.trust import scan_buffer
+        from tests.agent.conftest import build_fake_client, _build_stream, _delta_event, _final_msg
+        from unittest.mock import MagicMock
+
+        VIOLATING_TEXT = "Your FTP is 250 watts based on your history."
+
+        # First call: end_turn with text that contains an unsourced physio number
+        delta = _delta_event(VIOLATING_TEXT)
+        msg_violating = _final_msg(
+            stop_reason="end_turn",
+            content=[MagicMock(type="text", text=VIOLATING_TEXT)],
+        )
+        stream_violating = _build_stream(delta_events=[delta], final_msg=msg_violating)
+
+        # Second call (retry): end_turn with qualitative text that passes scan
+        msg_ok = _final_msg(
+            stop_reason="end_turn",
+            content=[MagicMock(type="text", text="Let me describe your fitness qualitatively.")],
+        )
+        stream_ok = _build_stream(delta_events=[], final_msg=msg_ok)
+
+        # Extra streams to avoid IndexError if loop calls more than expected
+        msg_end = _final_msg(stop_reason="end_turn", content=[])
+        stream_extra = _build_stream(delta_events=[], final_msg=msg_end)
+
+        client = build_fake_client(stream_violating, stream_ok, stream_extra)
+        messages = [{"role": "user", "content": "What is my FTP?"}]
+        audit_log = []
+
+        events = [ev async for ev in run_turn(messages, client, "claude-test", scan_buffer, audit_log)]
+
+        event_types = [ev["event"] for ev in events]
+        data_values = [ev["data"] for ev in events]
+
+        # Must have emitted a trust_violation error event
+        assert "error" in event_types
+        error_events = [ev for ev in events if ev["event"] == "error"]
+        trust_violation_events = [
+            ev for ev in error_events if ev["data"].get("code") == "trust_violation"
+        ]
+        assert len(trust_violation_events) >= 1, (
+            "Expected at least one trust_violation error event"
+        )
+
+        # The violating number must NOT appear in any token or done frame
+        forwarded_texts = [
+            ev["data"].get("text", "")
+            for ev in events
+            if ev["event"] in ("token", "done")
+        ]
+        for text in forwarded_texts:
+            assert "250" not in text, (
+                f"Violating number '250' appeared in forwarded frame: {text!r}"
+            )
+            assert VIOLATING_TEXT not in text, (
+                f"Violating text appeared in forwarded frame: {text!r}"
+            )
+
+        # Eventually resolves (done event from second call)
+        assert "done" in event_types
+
+    async def test_attributed_number_passes(self):
+        """
+        TRUST-03: a number present verbatim in a tool_result value this turn
+        does NOT trigger a violation in scan_buffer.
+        """
+        from agent.trust import scan_buffer
+
+        # A number echoed from a tool result is attributed
+        tool_result_str = "250 watts"
+        violation = scan_buffer("Your power zone threshold is 250 watts.", {tool_result_str})
+        assert violation is None, (
+            "Attributed number should not trigger a violation"
+        )
+
+    async def test_capability_gap_fallback(self, monkeypatch):
+        """
+        TRUST-05: when handle_violation is called:
+        1. log_capability_gap is awaited with the matched text in context.
+        2. The user-facing surface never contains the internal method_name
+           "unsourced_physiological_number".
+        """
+        from agent.trust import TrustViolation, handle_violation
+
+        gap_calls = []
+
+        async def mock_log_capability_gap(method_name, context, **kwargs):
+            gap_calls.append({"method_name": method_name, "context": context})
+            from sports_science.types import ToolResult
+            return ToolResult(
+                value={"status": "logged", "message": "I'll describe this qualitatively."},
+                unit="",
+                methodology="capability_gap_log",
+                inputs={},
+            )
+
+        monkeypatch.setattr("agent.trust.log_capability_gap", mock_log_capability_gap)
+
+        violation = TrustViolation(matched_text="250 watts", pattern="test")
+        result = await handle_violation(violation)
+
+        # log_capability_gap was called
+        assert len(gap_calls) == 1
+        call = gap_calls[0]
+        assert call["method_name"] == "unsourced_physiological_number"
+        assert "matched" in call["context"]
+        assert call["context"]["matched"] == "250 watts"
+
+        # The internal method_name must never reach the user surface.
+        # handle_violation returns None (it's a fire-and-forget hook).
+        # The key invariant: the method_name is passed to the gap log,
+        # NOT included in any SSE event data. We verify the hook does not
+        # raise and the method_name is not leaked in the return value.
+        assert result is None or (
+            "unsourced_physiological_number" not in str(result)
+        ), (
+            "Internal method_name leaked in handle_violation return value"
+        )

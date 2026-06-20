@@ -80,11 +80,12 @@ async def run_turn(
         ) as stream:
             async for event in stream:
                 # Collect text deltas into the per-turn buffer.
-                # Do NOT yield token events here — buffer first, trust-scan later.
+                # TRUST-03: Do NOT yield token events yet — buffer first, trust-scan after.
+                # Anti-pattern (RESEARCH.md): yielding tokens before scan lets unsourced
+                # physiological numbers reach the SSE stream before the violation is caught.
                 if hasattr(event, "type") and event.type == "content_block_delta":
                     if hasattr(event, "delta") and hasattr(event.delta, "text"):
                         text_buffer.append(event.delta.text)
-                        yield {"event": "token", "data": {"text": event.delta.text}}
 
             # Pitfall 3: awaited after the async-for exits, not inside it.
             final_msg = await stream.get_final_message()
@@ -102,6 +103,8 @@ async def run_turn(
             retries += 1
             # Pitfall 5: Do NOT append the violating assistant message.
             # Append a correction user message asking for qualitative rephrasing.
+            # TRUST-03: Do NOT yield the buffered tokens — they contain the unsourced
+            # number and must never reach the SSE stream on a violation path.
             messages.append({
                 "role": "user",
                 "content": (
@@ -120,7 +123,16 @@ async def run_turn(
             continue  # retry the turn
 
         # ------------------------------------------------------------------
-        # 3. Route on stop_reason
+        # 3. Trust scan passed — now safe to emit buffered token events.
+        #    Emit all buffered text deltas as individual token events before
+        #    routing on stop_reason. This preserves the streaming-text UX
+        #    while enforcing the trust invariant (numbers only after scan).
+        # ------------------------------------------------------------------
+        for chunk in text_buffer:
+            yield {"event": "token", "data": {"text": chunk}}
+
+        # ------------------------------------------------------------------
+        # 4. Route on stop_reason
         # ------------------------------------------------------------------
         if stop_reason == "tool_use":
             # Append assistant message now that it has passed trust scan
