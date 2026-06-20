@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import { Play, Download, CheckCircle, XCircle, Clock } from 'lucide-react'
@@ -75,6 +76,8 @@ export function SessionCard({ session, pmc }: SessionCardProps) {
       await markSessionDone(session.id)
       queryClient.invalidateQueries({ queryKey: ['session', 'today'] })
       queryClient.invalidateQueries({ queryKey: ['sessions', 'upcoming'] })
+    } catch {
+      toast.error('Could not mark session as done. Please try again.')
     } finally {
       setIsDoneLoading(false)
     }
@@ -86,9 +89,11 @@ export function SessionCard({ session, pmc }: SessionCardProps) {
       await markSessionMissed(session.id)
       queryClient.invalidateQueries({ queryKey: ['session', 'today'] })
       queryClient.invalidateQueries({ queryKey: ['sessions', 'upcoming'] })
+      setMissedOpen(false)
+    } catch {
+      toast.error('Could not mark session as missed. Please try again.')
     } finally {
       setIsMissedLoading(false)
-      setMissedOpen(false)
     }
   }
 
