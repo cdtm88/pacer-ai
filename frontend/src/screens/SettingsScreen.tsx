@@ -2,8 +2,6 @@ import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { CalendarStatus } from '@/components/settings/CalendarStatus'
 import { supabase } from '@/lib/supabase'
-import { apiFetch } from '@/lib/api'
-
 export function SettingsScreen() {
   const navigate = useNavigate()
 
@@ -21,10 +19,6 @@ export function SettingsScreen() {
     navigate('/login')
   }
 
-  // Read display name and email from the current session.
-  // These are loaded synchronously from the in-memory session; no extra fetch needed.
-  const session = supabase.auth.getSession
-  // We use a simple approach: render with a data loader pattern.
   return <SettingsScreenInner onSignOut={handleSignOut} onResendMagicLink={handleResendMagicLink} />
 }
 
