@@ -34,6 +34,8 @@ from sports_science import (
     log_capability_gap,
 )
 from sports_science.types import ToolResult  # noqa: F401 – referenced in type hints below
+from sports_science.profile import save_profile
+from sports_science.plan import generate_plan
 
 # ---------------------------------------------------------------------------
 # Tool Registry
@@ -48,6 +50,8 @@ TOOL_REGISTRY: dict = {
     "progress_load": progress_load,
     "validate_session_vs_actual": validate_session_vs_actual,
     "log_capability_gap": log_capability_gap,
+    "save_profile": save_profile,
+    "generate_plan": generate_plan,
 }
 
 # ---------------------------------------------------------------------------
@@ -251,6 +255,119 @@ TOOL_SCHEMAS: list[dict] = [
                 },
             },
             "required": ["method_name", "context"],
+        },
+    },
+    {
+        "name": "save_profile",
+        "description": (
+            "Persists the user's onboarding interview data to the profiles table. "
+            "Call this ONLY after the user has explicitly approved the summary (D-03 gate). "
+            "Never call before receiving user confirmation."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "user_id": {
+                    "type": "string",
+                    "description": "User UUID.",
+                },
+                "fitness_goals": {
+                    "type": "string",
+                    "description": "User's stated fitness goals (free text).",
+                },
+                "weekly_hours": {
+                    "type": "number",
+                    "description": "Available training hours per week.",
+                },
+                "preferred_days": {
+                    "type": "array",
+                    "description": "Preferred training days (e.g. Tuesday, Thursday, Saturday).",
+                    "items": {"type": "string"},
+                },
+                "back_status": {
+                    "type": "string",
+                    "description": "Back health status: none, mild, or moderate.",
+                    "enum": ["none", "mild", "moderate"],
+                },
+                "equipment": {
+                    "type": "object",
+                    "description": "Training equipment dict (e.g. trainer model, platform).",
+                },
+                "rpe_baseline": {
+                    "type": "string",
+                    "description": "Self-reported RPE experience level (e.g. beginner).",
+                },
+                "lthr_estimate": {
+                    "type": "number",
+                    "description": "Lactate Threshold Heart Rate estimate in bpm (optional).",
+                },
+            },
+            "required": [
+                "user_id",
+                "fitness_goals",
+                "weekly_hours",
+                "preferred_days",
+                "back_status",
+                "equipment",
+                "rpe_baseline",
+            ],
+        },
+    },
+    {
+        "name": "generate_plan",
+        "description": (
+            "Returns a structured 4-week mesocycle training plan. "
+            "Must be called only after progress_load and calculate_hr_zones have been "
+            "called and their results are available (D-08 order). "
+            "Never emit physiological plan numbers from your own reasoning -- call this "
+            "tool and present its output to the user."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "user_id": {
+                    "type": "string",
+                    "description": "User UUID.",
+                },
+                "weekly_hours": {
+                    "type": "number",
+                    "description": "Available training hours per week.",
+                },
+                "back_status": {
+                    "type": "string",
+                    "description": "Back health status: none, mild, or moderate.",
+                },
+                "current_ctl": {
+                    "type": "number",
+                    "description": "Current Chronic Training Load (from update_pmc).",
+                },
+                "load_targets": {
+                    "type": "object",
+                    "description": "Output of progress_load tool (dict with recommended_ctl_target).",
+                },
+                "hr_zones": {
+                    "type": "array",
+                    "description": "Output of calculate_hr_zones (list of zone dicts).",
+                    "items": {"type": "object"},
+                },
+                "ftp_confidence": {
+                    "type": "string",
+                    "description": "FTP confidence level: insufficient_data, low, medium, or high (D-25).",
+                },
+                "ftp_watts": {
+                    "type": "number",
+                    "description": "FTP in watts (omit or null when ftp_confidence is insufficient_data).",
+                },
+            },
+            "required": [
+                "user_id",
+                "weekly_hours",
+                "back_status",
+                "current_ctl",
+                "load_targets",
+                "hr_zones",
+                "ftp_confidence",
+            ],
         },
     },
 ]
