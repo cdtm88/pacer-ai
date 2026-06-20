@@ -138,12 +138,17 @@ async def create_conversation(user_id: str, context_type: str) -> str:
     return result.data[0]["id"]
 
 
-async def load_conversation(conversation_id: str, limit: int = 20) -> list[dict]:
+async def load_conversation(conversation_id: str, user_id: str, limit: int = 20) -> list[dict]:
     """
     Load the last `limit` messages for a conversation from the messages table.
 
     Returns messages in chronological order (oldest first), mapped to
     {role, content} dicts suitable for the Anthropic messages API.
+
+    user_id is required and filters the query — even though the service-role key
+    bypasses RLS, this re-enforces the ownership constraint at the application layer
+    so a conversation_id from a different user returns no rows (defence-in-depth).
+    Phase 4 auth middleware will validate that user_id matches a verified JWT principal.
 
     TODO (Phase 4): Replace the hard limit=20 row cap with a token-count
     truncation strategy so long interviews don't silently drop early context.
@@ -151,17 +156,19 @@ async def load_conversation(conversation_id: str, limit: int = 20) -> list[dict]
 
     Args:
         conversation_id: UUID of the conversation to load.
+        user_id:         UUID of the authenticated user (ownership filter).
         limit:           Maximum number of most-recent messages to return (default 20).
 
     Returns:
         List of {role: str, content: str} dicts in chronological order.
-        Empty list if no messages exist for this conversation.
+        Empty list if no messages exist for this conversation / user pair.
     """
     supabase = await _get_async_supabase()
     result = await (
         supabase.table("messages")
         .select("role, content, created_at")
         .eq("conversation_id", conversation_id)
+        .eq("user_id", user_id)  # re-enforce ownership at app layer (defence-in-depth)
         .order("created_at", desc=True)
         .limit(limit)
         .execute()
@@ -214,12 +221,17 @@ async def onboarding_start(request: OnboardingStartRequest):
     and returns a text/event-stream SSE response driving run_turn with the
     ONBOARDING_SYSTEM_PROMPT.
 
-    T-03-07: user_id is accepted as a JSON body field. Auth middleware is deferred
-    to Phase 4 -- this endpoint is backend/test-only for Phase 3.
+    SECURITY TODO (Phase 4 — MUST fix before public exposure):
+      user_id is currently accepted from the request body with no authentication.
+      This allows any caller to impersonate any user. Phase 4 will replace this
+      with a verified JWT principal extracted by auth middleware. Until then this
+      endpoint MUST NOT be reachable from an untrusted network — gate it at the
+      reverse-proxy or Railway's internal network boundary.
 
     Returns:
         StreamingResponse (text/event-stream) of SSE frames.
     """
+    # TODO(phase-4-auth): replace with `user_id = current_user.id` from JWT dependency.
     user_id = request.user_id
     model = os.environ.get("ANTHROPIC_MODEL", _DEFAULT_MODEL)
 

@@ -120,7 +120,7 @@ class TestSSEEventSequence:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get("/chat/stream", params={"conversation_id": "test-001"})
+            response = await client.get("/chat/stream", params={"conversation_id": "test-001", "user_id": "test-user-001"})
 
         assert response.status_code == 200
         content_type = response.headers.get("content-type", "")
@@ -141,7 +141,7 @@ class TestSSEEventSequence:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get("/chat/stream", params={"conversation_id": "test-001"})
+            response = await client.get("/chat/stream", params={"conversation_id": "test-001", "user_id": "test-user-001"})
 
         body = response.text
         # Each frame must be terminated by a blank line
@@ -171,7 +171,7 @@ class TestSSEEventSequence:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get("/chat/stream", params={"conversation_id": "test-001"})
+            response = await client.get("/chat/stream", params={"conversation_id": "test-001", "user_id": "test-user-001"})
 
         frames = parse_sse_frames(response.text)
         event_types = [f["event"] for f in frames]
@@ -200,7 +200,7 @@ class TestSSEEventSequence:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get("/chat/stream", params={"conversation_id": "test-001"})
+            response = await client.get("/chat/stream", params={"conversation_id": "test-001", "user_id": "test-user-001"})
 
         frames = parse_sse_frames(response.text)
         event_types = [f["event"] for f in frames]
@@ -230,7 +230,7 @@ class TestSSEEventSequence:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get("/chat/stream", params={"conversation_id": "test-001"})
+            response = await client.get("/chat/stream", params={"conversation_id": "test-001", "user_id": "test-user-001"})
 
         frames = parse_sse_frames(response.text)
         token_frames = [f for f in frames if f["event"] == "token"]
@@ -251,7 +251,7 @@ class TestSSEEventSequence:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get("/chat/stream", params={"conversation_id": "test-001"})
+            response = await client.get("/chat/stream", params={"conversation_id": "test-001", "user_id": "test-user-001"})
 
         frames = parse_sse_frames(response.text)
         done_frames = [f for f in frames if f["event"] == "done"]
@@ -277,7 +277,7 @@ class TestSSEEventSequence:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get("/chat/stream", params={"conversation_id": "test-001"})
+            response = await client.get("/chat/stream", params={"conversation_id": "test-001", "user_id": "test-user-001"})
 
         frames = parse_sse_frames(response.text)
         # The mock yields "Hello, " and "let me help you." tokens -- verify that.

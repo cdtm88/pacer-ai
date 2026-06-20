@@ -64,22 +64,29 @@ _OPENING_MESSAGE = (
 
 
 @router.get("/stream")
-async def chat_stream(conversation_id: str = Query(...)):
+async def chat_stream(
+    conversation_id: str = Query(...),
+    user_id: str = Query(...),  # TODO(phase-4-auth): replace with JWT dependency
+):
     """
-    GET /chat/stream?conversation_id=...
+    GET /chat/stream?conversation_id=...&user_id=...
 
     Returns a server-sent events stream for a conversation turn.
 
     Phase 3: loads the last 20 messages from the Supabase DB using
-    conversation_id. Falls back to an opening message if the conversation
-    has no history (new session not started via /onboarding/start).
+    conversation_id + user_id (ownership filter). Falls back to an opening
+    message if the conversation has no history.
+
+    SECURITY TODO (Phase 4 — MUST fix before public exposure):
+      user_id is currently accepted as a query parameter with no authentication.
+      Phase 4 will extract it from a verified JWT so callers cannot supply
+      an arbitrary user_id to read another user's conversation history.
     """
     model = os.environ.get("ANTHROPIC_MODEL", _DEFAULT_MODEL)
 
-    # Load last 20 messages from DB (Phase 3 DB-backed upgrade).
-    # Falls back to empty list; guard below provides the fallback message.
+    # Load last 20 messages from DB scoped to the owning user (defence-in-depth).
     try:
-        messages = await load_conversation(conversation_id, limit=20)
+        messages = await load_conversation(conversation_id, user_id=user_id, limit=20)
     except Exception:
         messages = []
 
