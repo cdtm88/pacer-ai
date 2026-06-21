@@ -4,6 +4,15 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import { Play, Download, CheckCircle, XCircle, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog'
 import { ZoneChip } from './ZoneChip'
 import type { ZoneType } from './ZoneChip'
 import { TsbChip } from './TsbChip'
@@ -178,78 +187,73 @@ export function SessionCard({ session, pmc, ftp = null }: SessionCardProps) {
         </div>
       </div>
 
-      {/* Action row — toggles to inline confirmation when missedOpen */}
+      {/* Action row — always renders all four buttons; Mark missed opens the AlertDialog */}
       <div className="flex flex-col gap-2 mt-4 md:mt-0">
-        {missedOpen ? (
-          <>
-            <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-ink)', textAlign: 'center', marginBottom: 4 }}>
-              Mark this session as missed?
-            </p>
-            <p style={{ fontSize: 13, color: 'var(--color-ink-2)', textAlign: 'center', marginBottom: 4 }}>
+        <Button
+          variant="default"
+          className="w-full"
+          style={{ backgroundColor: 'var(--color-blue-6)', color: '#fff' }}
+          onClick={() => navigate('/session')}
+        >
+          <Play size={16} className="mr-2" />
+          Start session
+        </Button>
+
+        <Button
+          variant="outline"
+          className="w-full"
+          aria-label="Export to Zwift"
+          onClick={() => setZwoOpen(true)}
+        >
+          <Download size={16} className="mr-2" />
+          Export to Zwift
+        </Button>
+
+        <Button
+          variant="outline"
+          className="w-full"
+          style={{ color: 'var(--color-good)', borderColor: 'var(--color-good)' }}
+          onClick={handleMarkDone}
+          disabled={isDoneLoading}
+        >
+          <CheckCircle size={16} className="mr-2" />
+          Mark done
+        </Button>
+
+        <Button
+          variant="ghost"
+          className="w-full"
+          style={{ color: 'var(--color-bad)' }}
+          onClick={() => setMissedOpen(true)}
+        >
+          <XCircle size={16} className="mr-2" />
+          Mark missed
+        </Button>
+      </div>
+
+      {/* Controlled AlertDialog for Mark Missed — open driven by missedOpen state, no Trigger used.
+          Confirm uses a plain Button (not AlertDialogAction) so auto-close is suppressed;
+          closing is owned solely by handleMarkMissed's success path, keeping dialog open on failure for retry. */}
+      <AlertDialog open={missedOpen} onOpenChange={setMissedOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark this session as missed?</AlertDialogTitle>
+            <AlertDialogDescription>
               This will trigger a re-plan. Your coach will adjust upcoming sessions.
-            </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setMissedOpen(false)}>Keep it</AlertDialogCancel>
             <Button
-              variant="default"
-              className="w-full"
               style={{ backgroundColor: 'var(--color-bad)', color: '#fff' }}
               onClick={handleMarkMissed}
               disabled={isMissedLoading}
             >
               Yes, mark missed
             </Button>
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => setMissedOpen(false)}
-            >
-              Keep it
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button
-              variant="default"
-              className="w-full"
-              style={{ backgroundColor: 'var(--color-blue-6)', color: '#fff' }}
-              onClick={() => navigate('/session')}
-            >
-              <Play size={16} className="mr-2" />
-              Start session
-            </Button>
-
-            <Button
-              variant="outline"
-              className="w-full"
-              aria-label="Export to Zwift"
-              onClick={() => setZwoOpen(true)}
-            >
-              <Download size={16} className="mr-2" />
-              Export to Zwift
-            </Button>
-
-            <Button
-              variant="outline"
-              className="w-full"
-              style={{ color: 'var(--color-good)', borderColor: 'var(--color-good)' }}
-              onClick={handleMarkDone}
-              disabled={isDoneLoading}
-            >
-              <CheckCircle size={16} className="mr-2" />
-              Mark done
-            </Button>
-
-            <Button
-              variant="ghost"
-              className="w-full"
-              style={{ color: 'var(--color-bad)' }}
-              onClick={() => setMissedOpen(true)}
-            >
-              <XCircle size={16} className="mr-2" />
-              Mark missed
-            </Button>
-          </>
-        )}
-      </div>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       </div>{/* end card+actions grid */}
 
