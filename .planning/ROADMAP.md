@@ -118,7 +118,7 @@ Plans:
   4. Calendar sync failures surface gracefully to the user without disrupting the plan or chat
   5. The app is installable as a PWA on iOS and Android; it works offline for the during-session view; the iOS install instructional banner appears on first visit; light mode only with no pure blacks and no em dashes in any copy
 
-**Plans**: 14/16 plans executed
+**Plans**: 15/16 plans executed
 
 Plans:
 
@@ -135,7 +135,7 @@ Plans:
 **Wave 7** *(UAT gap closure, depends on Wave 6)*
 
 - [ ] 04-13-PLAN.md — Chat no-response fix: read message param + persist turns (UAT GAP 5)
-- [ ] 04-15-PLAN.md — Session actions fix: Mark Done / Mark Missed diagnosis + visible failures (UAT GAPs 2, 3)
+- [x] 04-15-PLAN.md — Session actions fix: Mark Done / Mark Missed diagnosis + visible failures (UAT GAPs 2, 3)
 
 **Wave 1** *(foundation, parallel)*
 
@@ -200,5 +200,5 @@ Plans:
 | 1. Sports-Science Foundation | 5/5 | Complete   | 2026-06-19 |
 | 2. Agent Core | 6/6 | Complete    | 2026-06-20 |
 | 3. Coaching Loop | 5/5 | Complete    | 2026-06-20 |
-| 4. UI and Calendar | 14/16 | In Progress|  |
+| 4. UI and Calendar | 15/16 | In Progress|  |
 | 5. During-Session and ZWO Export | 5/5 | Complete    | 2026-06-21 |
