@@ -163,7 +163,7 @@ Plans:
   3. A planned structured session exports as a valid .zwo file; Power values are FTP fractions between 0.0 and 2.0; pre-FTP sessions use a conservative assumed FTP with RPE text segments; `<sportType>bike</sportType>` is present; Cadence is omitted when not specified
   4. The generated .zwo file imports cleanly in Zwift; the acceptance test against a real Zwift import passes before ZWO export is considered production-ready
 
-**Plans**: 2/5 plans executed
+**Plans**: 3/5 plans executed
 
 Plans:
 **Wave 1** *(backend + hooks, parallel)*
@@ -173,7 +173,7 @@ Plans:
 
 **Wave 2** *(frontend wiring, parallel)*
 
-- [ ] 05-03-PLAN.md — DuringSessionScreen rewrite (timer, auto-advance, wake lock, complete overlay) + DurationPickerModal + Ride-anyway flow
+- [x] 05-03-PLAN.md — DuringSessionScreen rewrite (timer, auto-advance, wake lock, complete overlay) + DurationPickerModal + Ride-anyway flow
 - [ ] 05-04-PLAN.md — exportSessionZwo + ZwoExportModal + enable "Export to Zwift" in SessionCard
 
 **Wave 3** *(manual acceptance, blocking)*
@@ -190,4 +190,4 @@ Plans:
 | 2. Agent Core | 6/6 | Complete    | 2026-06-20 |
 | 3. Coaching Loop | 5/5 | Complete    | 2026-06-20 |
 | 4. UI and Calendar | 11/11 | Complete    | 2026-06-20 |
-| 5. During-Session and ZWO Export | 2/5 | In Progress|  |
+| 5. During-Session and ZWO Export | 3/5 | In Progress|  |
