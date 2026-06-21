@@ -4,7 +4,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import { Play, Download, CheckCircle, XCircle, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,6 +18,7 @@ import { ZoneChip } from './ZoneChip'
 import type { ZoneType } from './ZoneChip'
 import { TsbChip } from './TsbChip'
 import type { PmcRow } from './TsbChip'
+import { ZwoExportModal } from './ZwoExportModal'
 import { markSessionDone, markSessionMissed } from '@/lib/api'
 
 export interface SessionData {
@@ -35,6 +35,7 @@ export interface SessionData {
 interface SessionCardProps {
   session: SessionData
   pmc: PmcRow | null | undefined
+  ftp?: number | null
 }
 
 function formatDate(dateStr: string): { weekday: string; date: string } {
@@ -59,8 +60,9 @@ function isValidZone(type: string | null): type is ZoneType {
   return ['recovery', 'endurance', 'tempo', 'threshold', 'vo2'].includes(type ?? '')
 }
 
-export function SessionCard({ session, pmc }: SessionCardProps) {
+export function SessionCard({ session, pmc, ftp = null }: SessionCardProps) {
   const [missedOpen, setMissedOpen] = useState(false)
+  const [zwoOpen, setZwoOpen] = useState(false)
   const [isDoneLoading, setIsDoneLoading] = useState(false)
   const [isMissedLoading, setIsMissedLoading] = useState(false)
   const queryClient = useQueryClient()
@@ -180,23 +182,16 @@ export function SessionCard({ session, pmc }: SessionCardProps) {
           Start session
         </Button>
 
-        {/* Export to Zwift (disabled, D-10) */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="w-full">
-              <Button
-                variant="outline"
-                className="w-full"
-                disabled
-                aria-label="Export to Zwift"
-              >
-                <Download size={16} className="mr-2" />
-                Export to Zwift
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>Coming in the next update</TooltipContent>
-        </Tooltip>
+        {/* Export to Zwift */}
+        <Button
+          variant="outline"
+          className="w-full"
+          aria-label="Export to Zwift"
+          onClick={() => setZwoOpen(true)}
+        >
+          <Download size={16} className="mr-2" />
+          Export to Zwift
+        </Button>
 
         {/* Mark done */}
         <Button
@@ -221,6 +216,14 @@ export function SessionCard({ session, pmc }: SessionCardProps) {
           Mark missed
         </Button>
       </div>
+
+      {/* ZWO export modal */}
+      <ZwoExportModal
+        session={session}
+        ftp={ftp}
+        open={zwoOpen}
+        onOpenChange={setZwoOpen}
+      />
 
       {/* Mark missed confirmation dialog */}
       <AlertDialog open={missedOpen} onOpenChange={setMissedOpen}>

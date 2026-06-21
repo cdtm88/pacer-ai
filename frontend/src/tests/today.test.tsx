@@ -13,6 +13,14 @@ import { TsbChip, type PmcRow } from '@/components/session/TsbChip'
 vi.mock('@/lib/api', () => ({
   markSessionDone: vi.fn().mockResolvedValue(undefined),
   markSessionMissed: vi.fn().mockResolvedValue(undefined),
+  exportSessionZwo: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock('sonner', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
 }))
 
 // ---------------------------------------------------------------------------
@@ -137,14 +145,20 @@ describe('SessionCard', () => {
     expect(screen.getByText('Fresh')).toBeInTheDocument()
   })
 
-  it('Export to Zwift button is disabled', () => {
+  it('Export to Zwift button is enabled and opens the modal', async () => {
     render(
       <Wrapper>
         <SessionCard session={MOCK_SESSION} pmc={PMC_NOT_READY} />
       </Wrapper>
     )
     const exportBtn = screen.getByRole('button', { name: /export to zwift/i })
-    expect(exportBtn).toBeDisabled()
+    expect(exportBtn).not.toBeDisabled()
+    fireEvent.click(exportBtn)
+    await waitFor(() => {
+      // Modal title "Export to Zwift" appears alongside the button text
+      const matches = screen.getAllByText('Export to Zwift')
+      expect(matches.length).toBeGreaterThan(1)
+    })
   })
 
   it('clicking Mark missed opens the confirmation dialog with the correct title', async () => {
