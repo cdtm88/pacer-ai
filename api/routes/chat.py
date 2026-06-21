@@ -2,7 +2,7 @@
 """
 SSE chat endpoint for PacerAI (AGENT-05, D-07, D-08).
 
-GET /chat/stream?conversation_id=...
+GET /chat/stream?conversation_id=...&message=...
 
 Returns a text/event-stream StreamingResponse that drives run_turn from
 agent/loop.py and emits typed SSE frames to an EventSource client.
@@ -25,7 +25,6 @@ SSE event schema (D-07):
 
 Anti-pattern notes:
   - SSE only (AGENT-05 mandates EventSource; bi-directional transport is out of scope).
-  - No auth middleware (Phase 4 / deferred per D-CONTEXT deferred section).
   - Anthropic client is instantiated per-request (not at module import time) to
     avoid eagerly reading ANTHROPIC_API_KEY and to keep the module importable in
     test environments without the key set (Open Question 3 resolved per-request).
@@ -33,11 +32,11 @@ Anti-pattern notes:
     trust_scanner argument to run_turn, wiring the real TRUST-03 enforcement.
   - X-Accel-Buffering: no disables Nginx/proxy buffering (Pitfall 2).
 
-Phase 3 note:
-  - conversation_id is now used to load messages from Supabase DB via load_conversation.
-  - New messages are NOT persisted here (Phase 4: streaming makes it non-trivial to
-    capture new assistant content outside run_turn without refactor). The onboarding
-    route handles persistence for onboarding turns; coaching persistence is Phase 4.
+Phase 4 note (04-13):
+  - message query param is now read and appended to conversation history so the
+    agent responds to the user's actual typed message (UAT GAP 5 closed).
+  - Both the user message and the assistant reply are persisted via save_messages
+    after the stream completes, using the assistant_sink mechanism from 04-12.
 """
 
 import os
@@ -50,7 +49,7 @@ from fastapi.responses import StreamingResponse
 from api.agent.loop import run_turn  # noqa: F401 (passed to sse_generator for test compat)
 from api.auth import get_current_user
 from api.routes._sse import sse_generator
-from api.routes.onboarding import create_conversation, load_conversation
+from api.routes.onboarding import create_conversation, load_conversation, save_messages
 
 router = APIRouter()
 
@@ -70,10 +69,11 @@ _OPENING_MESSAGE = (
 @router.get("/stream")
 async def chat_stream(
     conversation_id: str = Query(...),
+    message: str | None = Query(None),
     current_user: dict = Depends(get_current_user),
 ):
     """
-    GET /chat/stream?conversation_id=...&token=<jwt>
+    GET /chat/stream?conversation_id=...&message=...&token=<jwt>
 
     Returns a server-sent events stream for a conversation turn.
 
@@ -81,7 +81,12 @@ async def chat_stream(
     param for SSE clients (EventSource cannot send headers; Pitfall 1).
 
     Loads the last 20 messages from the Supabase DB scoped to the authenticated
-    user. Falls back to an opening message if the conversation has no history.
+    user. Appends the incoming user message to the history before streaming so
+    the agent responds to the actual user input (UAT GAP 5). Falls back to an
+    opening message only when there is no prior history and no incoming message.
+
+    After the stream completes, persists the user message and assistant reply via
+    save_messages (best-effort; a persistence failure never breaks the response).
     """
     user_id = current_user["user_id"]
     model = os.environ.get("ANTHROPIC_MODEL", _DEFAULT_MODEL)
@@ -92,12 +97,32 @@ async def chat_stream(
     except Exception:
         messages = []
 
-    # If no prior messages, seed with the fallback opening message.
-    if not messages:
+    # Append the incoming user message to history when present.
+    if message:
+        messages.append({"role": "user", "content": message})
+    elif not messages:
+        # No prior history and no incoming message: seed with the fallback opening.
         messages = [{"role": "user", "content": _OPENING_MESSAGE}]
 
+    async def _stream_and_persist():
+        """Yield SSE chunks and persist the new turns after the stream completes."""
+        assistant_sink: list[str] = []
+        async for chunk in sse_generator(messages, model, _run_turn=run_turn, assistant_sink=assistant_sink):
+            yield chunk
+        # Persist both turns after the stream is done (best-effort).
+        try:
+            new_turns: list[dict] = []
+            if message:
+                new_turns.append({"role": "user", "content": message})
+            if assistant_sink and assistant_sink[0]:
+                new_turns.append({"role": "assistant", "content": assistant_sink[0]})
+            if new_turns:
+                await save_messages(conversation_id, user_id, new_turns)
+        except Exception:
+            pass  # best-effort; persistence failure must not surface on the completed stream
+
     return StreamingResponse(
-        sse_generator(messages, model, _run_turn=run_turn),
+        _stream_and_persist(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
