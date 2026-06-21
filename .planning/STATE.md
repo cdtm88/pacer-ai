@@ -5,8 +5,8 @@ milestone_name: milestone
 current_phase: 5
 current_phase_name: During-Session and ZWO Export
 status: executing
-stopped_at: Phase 5 context gathered
-last_updated: "2026-06-21T07:18:47.069Z"
+stopped_at: Phase 5 UI-SPEC approved
+last_updated: "2026-06-21T07:29:15.003Z"
 last_activity: 2026-06-20
 last_activity_desc: Phase 04 complete, transitioned to Phase 5
 progress:
@@ -127,8 +127,8 @@ None yet.
 
 ## Session Continuity
 
-**Stopped at:** Phase 5 context gathered
-**Resume file:** .planning/phases/05-during-session-and-zwo-export/05-CONTEXT.md
+**Stopped at:** Phase 5 UI-SPEC approved
+**Resume file:** .planning/phases/05-during-session-and-zwo-export/05-UI-SPEC.md
 
-Last session: 2026-06-21T07:18:47.064Z
+Last session: 2026-06-21T07:29:14.998Z
 Next action: `/gsd-discuss-phase 3` to gather Phase 3 context before planning
