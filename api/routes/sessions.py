@@ -247,6 +247,7 @@ async def update_session(
         .update({"status": "completed"})
         .eq("id", session_id)
         .eq("user_id", user_id)
+        .eq("status", "planned")   # only planned -> completed transitions are valid
         .select(_SESSION_COLUMNS)
         .execute()
     )
