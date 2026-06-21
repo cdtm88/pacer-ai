@@ -4,14 +4,14 @@ import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
 
 /**
- * Handles the PKCE magic-link callback.
+ * Handles Supabase auth callbacks for both PKCE and implicit flows.
  *
- * Supabase v2 sends the user back with ?code= (PKCE flow). The code must be
- * explicitly exchanged for a session via exchangeCodeForSession() before
- * onAuthStateChange fires SIGNED_IN. Without this step the app has no session
- * and AuthGate redirects to /login, discarding the code.
+ * PKCE flow (supabase-js v2 default): Supabase redirects with ?code=...
+ * Implicit flow (older projects): Supabase redirects with #access_token=...
  *
- * Supabase docs: https://supabase.com/docs/guides/auth/pkce-flow
+ * GoTrue-JS fires SIGNED_IN via setTimeout(0) — after the .then() callback
+ * runs. We populate authStore directly from the exchange result so AuthGate
+ * sees a valid session when navigate('/') triggers its render.
  */
 export function AuthCallbackScreen() {
   const navigate = useNavigate()
@@ -21,32 +21,65 @@ export function AuthCallbackScreen() {
     if (exchanged.current) return
     exchanged.current = true
 
-    const code = new URLSearchParams(window.location.search).get('code')
+    const search = window.location.search
+    const hash = window.location.hash
 
-    if (!code) {
-      // No code param — nothing to exchange, send to login.
-      navigate('/login', { replace: true })
+    // Debug: log what the callback received so we can see which flow is active
+    console.log('[AuthCallback] search:', search)
+    console.log('[AuthCallback] hash:', hash)
+
+    const code = new URLSearchParams(search).get('code')
+
+    if (code) {
+      // PKCE flow — exchange the authorization code for a session
+      supabase.auth
+        .exchangeCodeForSession(code)
+        .then(({ data, error }) => {
+          if (error) {
+            console.error('[AuthCallback] PKCE exchange failed:', error.message)
+            navigate('/login', { replace: true })
+          } else {
+            // GoTrue fires SIGNED_IN via setTimeout(0) — deferred past this .then().
+            // Populate authStore directly so AuthGate sees the session immediately.
+            useAuthStore.getState().setAuth({
+              session: data.session,
+              user: data.session.user,
+              isLoading: false,
+            })
+            navigate('/', { replace: true })
+          }
+        })
       return
     }
 
-    supabase.auth
-      .exchangeCodeForSession(code)
-      .then(({ data, error }) => {
+    // Implicit flow — Supabase puts tokens in the URL hash (#access_token=...).
+    // supabase-js parses the hash automatically; getSession() returns the result.
+    const hashParams = new URLSearchParams(hash.slice(1))
+    const hasImplicitTokens = hashParams.has('access_token')
+
+    if (hasImplicitTokens) {
+      supabase.auth.getSession().then(({ data: { session }, error }) => {
         if (error) {
-          console.error('[AuthCallback] PKCE exchange failed:', error.message)
+          console.error('[AuthCallback] Implicit session failed:', error.message)
           navigate('/login', { replace: true })
-        } else {
-          // GoTrue-JS v2 fires SIGNED_IN via setTimeout(0) — deferred after this
-          // .then() resolves. Directly populate authStore with the returned session
-          // so AuthGate sees a valid session when navigate('/') triggers its render.
+        } else if (session) {
           useAuthStore.getState().setAuth({
-            session: data.session,
-            user: data.session.user,
+            session,
+            user: session.user,
             isLoading: false,
           })
           navigate('/', { replace: true })
+        } else {
+          console.warn('[AuthCallback] Implicit flow detected but getSession() returned null')
+          navigate('/login', { replace: true })
         }
       })
+      return
+    }
+
+    // No code, no hash tokens — nothing to exchange.
+    console.warn('[AuthCallback] No code or access_token found in callback URL')
+    navigate('/login', { replace: true })
   }, [navigate])
 
   return (
