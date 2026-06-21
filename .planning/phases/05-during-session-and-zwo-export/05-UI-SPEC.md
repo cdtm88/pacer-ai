@@ -58,8 +58,8 @@ All sizes apply to the Inter font family at line-heights specified below. No new
 |------|------|--------|-------------|-------------|-------|
 | Display / Current Step + Timer | 40px | 700 (bold) | 1.1 | `--color-ink` | Current step label AND countdown timer (tabular-nums, letter-spacing 0.05em); "Session complete" heading |
 | Heading / Next Step | 20px | 700 (bold) | 1.3 | `--color-ink-2` | "Next: [step label]" in step list; modal titles |
-| Body / Remaining Steps | 16px | 400 (regular) | 1.5 | `--color-ink-3` | Remaining step labels, modal body text, toast messages, "Session complete" subtext |
-| Label / Secondary | 14px | 400 (regular) | 1.5 | `--color-ink-3` | Step subtext, countdown warning label, modal captions, unit suffixes |
+| Body / Remaining Steps | 16px | 400 (regular) | 1.5 | `--color-ink-2` | Remaining step labels, modal body text, toast messages, "Session complete" subtext |
+| Label / Secondary | 14px | 400 (regular) | 1.5 | `--color-ink-2` | Step subtext, countdown warning label, modal captions, unit suffixes |
 
 Maximum type sizes used: 4 (display+timer / heading / body / label). Only 2 weights: 400 regular + 700 bold. The timer shares the 40px/700 Display slot (differentiated by tabular-nums and letter-spacing, not a separate size).
 
@@ -76,11 +76,11 @@ All tokens defined in `frontend/src/index.css`. No new tokens introduced in Phas
 | Accent (10%) | `--color-blue-6` | #228BE6 | Primary action buttons only: "Download .zwo" in ZWO modal, "Back to today" on complete screen |
 | Accent small text | `--color-blue-7` | #1B73C0 | No small blue text introduced in Phase 5 |
 | Destructive | `--color-bad` | #C0341D | "End session" button text and border (outline variant — existing) |
-| Muted text | `--color-ink-3` | #888C93 | Step subtext, countdown warning label, timer sublabel |
+| Muted text (large only) | `--color-ink-3` | #888C93 | Not used in Phase 5 at body/label sizes — reserved for future large muted elements |
 | Body text | `--color-ink` | #1A2230 | Step labels, timer value, modal headings |
-| Secondary text | `--color-ink-2` | #5F646E | "Next:" step, modal body, FTP attribution line |
+| Secondary text | `--color-ink-2` | #5F646E | "Next:" step, modal body, FTP attribution line, step subtext, countdown warning label, modal captions |
 | Border | `--color-line` | #DFE0E2 | Modal internal dividers, picker borders |
-| Warning / countdown | `--color-amber` | #F0A030 | Countdown warning text during 3-second pre-advance animation |
+| Warning / countdown | `--color-warn` | #9A6700 | Countdown warning text during 3-second pre-advance animation (text-safe amber; contrast-verified for small text) |
 
 Zone accent tokens (existing, reused on step zone strip):
 
@@ -93,6 +93,11 @@ Zone accent tokens (existing, reused on step zone strip):
 | VO2 | `--color-zone-vo2` | #C92A2A |
 
 Accent reserved for: primary action buttons ("Download .zwo", "Back to today", "Start session"). Never applied to: body text, labels, step backgrounds, borders.
+
+**Contrast rules (from PRD — must follow):**
+- `--color-blue-6` (#228BE6) is 3.56:1 on white — fills, buttons, and large text only. Never small body text.
+- Small blue text must use `--color-blue-7` (#1B73C0, 4.95:1 on white).
+- `--color-ink-3` (#888C93) is for large muted text only (not body or label sizes). Use `--color-ink-2` at 16px and below.
 
 ---
 
@@ -108,7 +113,7 @@ Accent reserved for: primary action buttons ("Download .zwo", "Back to today", "
 | Countdown warning — 3s | `Starting [step name] in 3...` |
 | Countdown warning — 2s | `Starting [step name] in 2...` |
 | Countdown warning — 1s | `Starting [step name] in 1...` |
-| Countdown warning color | `--color-amber` (#F0A030) at 14px regular |
+| Countdown warning color | `--color-warn` (#9A6700) at 14px regular |
 | Countdown warning placement | Below the timer display, replaces the static "Timer activates in next phase" sublabel |
 
 "[step name]" substitutes the `label` field of the next step (e.g. "Starting Zone 2, 30 min in 3...").
