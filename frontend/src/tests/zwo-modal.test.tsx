@@ -61,7 +61,7 @@ const MOCK_SESSION: SessionData = {
 // ---------------------------------------------------------------------------
 
 describe('ZwoExportModal', () => {
-  const onOpenChange = vi.fn()
+  const onClose = vi.fn()
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -73,8 +73,7 @@ describe('ZwoExportModal', () => {
         <ZwoExportModal
           session={MOCK_SESSION}
           ftp={200}
-          open={true}
-          onOpenChange={onOpenChange}
+          onClose={onClose}
         />
       </Wrapper>
     )
@@ -100,8 +99,7 @@ describe('ZwoExportModal', () => {
         <ZwoExportModal
           session={MOCK_SESSION}
           ftp={200}
-          open={true}
-          onOpenChange={onOpenChange}
+          onClose={onClose}
         />
       </Wrapper>
     )
@@ -112,7 +110,7 @@ describe('ZwoExportModal', () => {
       expect(api.exportSessionZwo).toHaveBeenCalledWith('session-1')
       expect(toast.success).toHaveBeenCalledWith('Workout file downloaded.')
     })
-    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(onClose).toHaveBeenCalled()
   })
 
   it('stays open and toasts on error', async () => {
@@ -124,8 +122,7 @@ describe('ZwoExportModal', () => {
         <ZwoExportModal
           session={MOCK_SESSION}
           ftp={200}
-          open={true}
-          onOpenChange={onOpenChange}
+          onClose={onClose}
         />
       </Wrapper>
     )
@@ -137,22 +134,21 @@ describe('ZwoExportModal', () => {
         'Export failed. Try again or contact support if the problem continues.'
       )
     })
-    // Modal must stay open (onOpenChange(false) not called in catch)
-    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    // Modal must stay open (onClose not called in catch)
+    expect(onClose).not.toHaveBeenCalled()
   })
 
-  it('shows assumed-100W copy when ftp is null', () => {
+  it('shows no-FTP copy when ftp is null', () => {
     render(
       <Wrapper>
         <ZwoExportModal
           session={MOCK_SESSION}
           ftp={null}
-          open={true}
-          onOpenChange={onOpenChange}
+          onClose={onClose}
         />
       </Wrapper>
     )
 
-    expect(screen.getByText('FTP used: 100W (assumed - no estimate yet)')).toBeInTheDocument()
+    expect(screen.getByText('FTP: not yet estimated — free-ride format')).toBeInTheDocument()
   })
 })

@@ -12,12 +12,14 @@ describe('useSessionTimer (IOS-02)', () => {
   })
 
   it('starts at totalSeconds', () => {
-    const { result } = renderHook(() => useSessionTimer(60))
+    const startEpoch = Date.now()
+    const { result } = renderHook(() => useSessionTimer(60, startEpoch))
     expect(result.current.secondsLeft).toBe(60)
   })
 
   it('counts down from totalSeconds using Date.now deltas', () => {
-    const { result } = renderHook(() => useSessionTimer(60))
+    const startEpoch = Date.now()
+    const { result } = renderHook(() => useSessionTimer(60, startEpoch))
 
     act(() => {
       vi.advanceTimersByTime(10_000)
@@ -27,25 +29,26 @@ describe('useSessionTimer (IOS-02)', () => {
   })
 
   it('resyncs on visibilitychange instead of resetting or freezing', () => {
-    const { result } = renderHook(() => useSessionTimer(60))
+    const startEpoch = Date.now()
+    const { result } = renderHook(() => useSessionTimer(60, startEpoch))
 
     // Advance 5 seconds while visible
     act(() => {
       vi.advanceTimersByTime(5_000)
     })
 
-    // Go hidden — timer should record paused elapsed
+    // Go hidden
     act(() => {
       Object.defineProperty(document, 'hidden', { value: true, configurable: true })
       document.dispatchEvent(new Event('visibilitychange'))
     })
 
-    // Advance 20 seconds while hidden (background — timer should still accumulate in pausedElapsedRef)
+    // Advance 20 seconds while hidden
     act(() => {
       vi.advanceTimersByTime(20_000)
     })
 
-    // Come back visible — startRef resets to now
+    // Come back visible
     act(() => {
       Object.defineProperty(document, 'hidden', { value: false, configurable: true })
       document.dispatchEvent(new Event('visibilitychange'))
@@ -62,28 +65,13 @@ describe('useSessionTimer (IOS-02)', () => {
   })
 
   it('never goes below zero', () => {
-    const { result } = renderHook(() => useSessionTimer(5))
+    const startEpoch = Date.now()
+    const { result } = renderHook(() => useSessionTimer(5, startEpoch))
 
     act(() => {
       vi.advanceTimersByTime(30_000)
     })
 
     expect(result.current.secondsLeft).toBe(0)
-  })
-
-  it('advance() resets to totalSeconds', () => {
-    const { result } = renderHook(() => useSessionTimer(60))
-
-    act(() => {
-      vi.advanceTimersByTime(10_000)
-    })
-
-    expect(result.current.secondsLeft).toBe(50)
-
-    act(() => {
-      result.current.advance()
-    })
-
-    expect(result.current.secondsLeft).toBe(60)
   })
 })

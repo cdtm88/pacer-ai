@@ -31,7 +31,7 @@ function tick() {
 // ---------------------------------------------------------------------------
 
 describe('useWakeLock (IOS-01)', () => {
-  const originalWakeLock = (navigator as Record<string, unknown>).wakeLock
+  const originalWakeLock = (navigator as unknown as Record<string, unknown>).wakeLock
 
   beforeEach(() => {
     vi.clearAllMocks()

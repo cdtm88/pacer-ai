@@ -24,17 +24,16 @@ vi.mock('@/lib/api', () => ({
       cooldown: { duration_minutes: 1, description: 'Cool-down' },
     },
   }),
+  getProfileMe: vi.fn().mockResolvedValue(null),
+  markSessionDone: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@/hooks/useWakeLock', () => ({
   useWakeLock: vi.fn(),
 }))
 
-// Timer mock: each call advances a counter so secondsLeft decrements predictably
+// Timer mock: controls the return value per test by setting this ref
 const mockAdvanceFn = vi.fn()
-// We'll control the return value per test by setting this ref
-let timerCallCount = 0
-let mockTimerSecondsLeft = 60
 
 vi.mock('@/hooks/useSessionTimer', () => ({
   useSessionTimer: vi.fn(),
@@ -83,7 +82,6 @@ describe('DuringSessionScreen', () => {
   beforeEach(() => {
     useUiStore.setState({ freeRideDurationMins: null })
     mockAdvanceFn.mockClear()
-    timerCallCount = 0
   })
 
   afterEach(() => {
@@ -94,7 +92,7 @@ describe('DuringSessionScreen', () => {
   it('renders the first step label and a MM:SS timer', async () => {
     setupFreeRide()
     // Timer is mid-step
-    vi.mocked(useSessionTimer).mockReturnValue({ secondsLeft: 180, advance: mockAdvanceFn })
+    vi.mocked(useSessionTimer).mockReturnValue({ secondsLeft: 180 })
 
     const { DuringSessionScreen } = await import('@/screens/DuringSessionScreen')
     render(
@@ -113,7 +111,7 @@ describe('DuringSessionScreen', () => {
 
   it('Skip step advances immediately without waiting for timer', async () => {
     setupFreeRide()
-    vi.mocked(useSessionTimer).mockReturnValue({ secondsLeft: 180, advance: mockAdvanceFn })
+    vi.mocked(useSessionTimer).mockReturnValue({ secondsLeft: 180 })
 
     const { DuringSessionScreen } = await import('@/screens/DuringSessionScreen')
     render(
@@ -127,7 +125,7 @@ describe('DuringSessionScreen', () => {
     expect(screen.getByText('Warm-up')).toBeInTheDocument()
 
     // Mock next step timer
-    vi.mocked(useSessionTimer).mockReturnValue({ secondsLeft: 1440, advance: mockAdvanceFn })
+    vi.mocked(useSessionTimer).mockReturnValue({ secondsLeft: 1440 })
 
     const skipBtn = screen.getByRole('button', { name: /skip step/i })
     await act(async () => {
@@ -143,15 +141,13 @@ describe('DuringSessionScreen', () => {
     // all subsequent calls return non-zero so the effect doesn't loop.
     // Use a flag rather than callN to be robust against React double-renders.
     let hasAdvanced = false
-    vi.mocked(useSessionTimer).mockImplementation((_totalSeconds) => {
+    vi.mocked(useSessionTimer).mockImplementation((_stepDuration, _stepStartEpoch) => {
       if (!hasAdvanced) {
         // Will return 0 on the first step (Warm-up), causing goNext()
-        return {
-          secondsLeft: 0,
-          advance: () => { hasAdvanced = true },
-        }
+        hasAdvanced = true
+        return { secondsLeft: 0 }
       }
-      return { secondsLeft: 1440, advance: mockAdvanceFn }
+      return { secondsLeft: 1440 }
     })
 
     const { DuringSessionScreen } = await import('@/screens/DuringSessionScreen')
@@ -171,7 +167,7 @@ describe('DuringSessionScreen', () => {
   it('shows Session complete overlay after the last step', async () => {
     setupFreeRide()
     // Skip through all 3 steps manually
-    vi.mocked(useSessionTimer).mockReturnValue({ secondsLeft: 180, advance: mockAdvanceFn })
+    vi.mocked(useSessionTimer).mockReturnValue({ secondsLeft: 180 })
 
     const { DuringSessionScreen } = await import('@/screens/DuringSessionScreen')
     render(
