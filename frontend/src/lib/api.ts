@@ -32,7 +32,8 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
 export async function sseUrl(path: string): Promise<string> {
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token ?? ''
-  return `${BASE}${path}?token=${encodeURIComponent(token)}`
+  const sep = path.includes('?') ? '&' : '?'
+  return `${BASE}${path}${sep}token=${encodeURIComponent(token)}`
 }
 
 // ---------------------------------------------------------------------------
@@ -182,13 +183,16 @@ export async function getAdaptations(): Promise<Adaptation[]> {
 }
 
 // POST /conversations/
+// The backend returns {conversation_id: string}; map it onto the id field so
+// callers reading conversation.id work with the Conversation interface.
 export async function createConversation(title?: string): Promise<Conversation> {
   const res = await apiFetch('/conversations/', {
     method: 'POST',
     body: JSON.stringify({ title: title ?? null }),
   })
   if (!res.ok) throw new Error(`createConversation failed: ${res.status}`)
-  return res.json() as Promise<Conversation>
+  const data = await res.json() as { conversation_id?: string; id?: string } & Record<string, unknown>
+  return { ...data, id: data.conversation_id ?? data.id ?? '' } as unknown as Conversation
 }
 
 // POST /adaptations/sessions/{id}/missed
