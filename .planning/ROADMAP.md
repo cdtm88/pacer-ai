@@ -118,7 +118,7 @@ Plans:
   4. Calendar sync failures surface gracefully to the user without disrupting the plan or chat
   5. The app is installable as a PWA on iOS and Android; it works offline for the during-session view; the iOS install instructional banner appears on first visit; light mode only with no pure blacks and no em dashes in any copy
 
-**Plans**: 12/16 plans executed
+**Plans**: 13/16 plans executed
 
 Plans:
 
@@ -128,7 +128,7 @@ Plans:
 
 **Wave 6** *(UAT gap closure, parallel)*
 
-- [ ] 04-12-PLAN.md — Onboarding loop fix: call save_messages so multi-turn context persists (UAT GAP 6)
+- [x] 04-12-PLAN.md — Onboarding loop fix: call save_messages so multi-turn context persists (UAT GAP 6)
 - [x] 04-14-PLAN.md — Auth redirect loop fix: persist Supabase session, seed from getSession (UAT GAP 1)
 - [ ] 04-16-PLAN.md — FIT upload 422 fix: accurate duration parse + surfaced error reason (UAT GAP 4)
 
@@ -200,5 +200,5 @@ Plans:
 | 1. Sports-Science Foundation | 5/5 | Complete   | 2026-06-19 |
 | 2. Agent Core | 6/6 | Complete    | 2026-06-20 |
 | 3. Coaching Loop | 5/5 | Complete    | 2026-06-20 |
-| 4. UI and Calendar | 12/16 | In Progress|  |
+| 4. UI and Calendar | 13/16 | In Progress|  |
 | 5. During-Session and ZWO Export | 5/5 | Complete    | 2026-06-21 |

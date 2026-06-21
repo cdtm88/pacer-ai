@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: ui-and-calendar
 status: executing
-stopped_at: Milestone v1.0 complete — all 5 phases done
-last_updated: "2026-06-21T13:36:36.272Z"
+stopped_at: Completed 04-12-PLAN.md
+last_updated: "2026-06-21T13:40:23.563Z"
 last_activity: 2026-06-21
 last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 37
-  completed_plans: 33
+  completed_plans: 34
   percent: 80
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-06-21)
 ## Current Position
 
 Phase: 04 (ui-and-calendar) — EXECUTING
-Plan: 2 of 16
+Plan: 3 of 16
 Status: Ready to execute
 Last activity: 2026-06-21 — Phase 04 execution started
 
@@ -79,6 +79,7 @@ Progress: [████████████████████] 32/32 p
 | Phase 05 P04 | 3min | 3 tasks | 5 files |
 | Phase 05 P05 | 1min | 2 tasks | 0 files |
 | Phase 04 P14 | 2min | 3 tasks | 3 files |
+| Phase 04 P12 | 2min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -118,6 +119,8 @@ Recent decisions affecting current work:
 - [Phase ?]: Playwright LIFO: specific route handlers registered after general ones to win the match
 - [Phase ?]: Real-device verification required
 - [Phase ?]: getSession() seeds auth store on mount; onAuthStateChange ignores transient null except SIGNED_OUT (04-14 auth redirect fix)
+- [Phase ?]: 04-12
+- [Phase ?]: 04-12
 
 ### Pending Todos
 
@@ -136,8 +139,8 @@ None yet.
 
 ## Session Continuity
 
-**Stopped at:** Milestone v1.0 complete, ready to archive
+**Stopped at:** Completed 04-12-PLAN.md
 **Resume file:** None
 
-Last session: 2026-06-21T13:36:32.576Z
+Last session: 2026-06-21T13:40:23.559Z
 Next action: `/gsd-complete-milestone v1.0`
