@@ -106,9 +106,9 @@ async def test_sessions_today_returns_row(monkeypatch):
     assert data["scheduled_date"] == today
 
 
-async def test_sessions_today_returns_empty_when_no_session(monkeypatch):
+async def test_sessions_today_returns_404_when_no_session(monkeypatch):
     """
-    GET /sessions/today returns {} when no session is scheduled today.
+    GET /sessions/today returns 404 when no planned session is scheduled today.
     """
     import api.routes.sessions as sessions_module
 
@@ -124,8 +124,7 @@ async def test_sessions_today_returns_empty_when_no_session(monkeypatch):
     ) as client:
         response = await client.get("/sessions/today", headers=auth_headers())
 
-    assert response.status_code == 200
-    assert response.json() == {}
+    assert response.status_code == 404
 
 
 # ---------------------------------------------------------------------------
