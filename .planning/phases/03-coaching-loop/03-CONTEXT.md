@@ -62,15 +62,15 @@ Build the full coaching loop: conversational onboarding interview that persists 
 
 </decisions>
 
-<open_questions>
-## Open Questions — RESOLVED (answered during implementation)
+<answered_questions>
+## Research Questions — All Answered During Implementation
 
-1. **fitdecode async pattern** — RESOLVED: `parse_fit_file` runs synchronously under `asyncio.to_thread`; no chunking needed for typical Zwift ride sizes (03-04-SUMMARY.md).
-2. **Supabase real-time for ride triggers** — RESOLVED: FastAPI `BackgroundTasks` used; supabase-py-async real-time not required (03-04-SUMMARY.md).
-3. **Zwift .FIT power stream field name** — RESOLVED: `get_value('power', fallback=None)` confirmed against real Zwift fixture (sample_zwift.fit, 8228 bytes, 900s); first-record field logging added as debug aid (03-04-SUMMARY.md).
-4. **`generate_plan` tool complexity** — RESOLVED: single `generate_plan` tool sufficient; `progress_load` output feeds TSS targets inline (03-02-SUMMARY.md).
-5. **Conversation history truncation** — DEFERRED: token-count truncation deferred to Phase 4 TODO in `load_conversation` docstring (03-03-SUMMARY.md).
-</open_questions>
+- fitdecode async: `parse_fit_file` sync under `asyncio.to_thread`; no chunking needed (03-04-SUMMARY.md)
+- Supabase real-time: FastAPI BackgroundTasks chosen; supabase-py-async real-time not needed (03-04-SUMMARY.md)
+- Zwift power field: `get_value('power', fallback=None)` confirmed against real fixture (03-04-SUMMARY.md)
+- generate_plan complexity: single tool sufficient; `progress_load` feeds TSS targets inline (03-02-SUMMARY.md)
+- Conversation truncation: deferred to Phase 4 TODO in load_conversation (03-03-SUMMARY.md)
+</answered_questions>
 
 <phase_summary>
 ## What Phase 3 Delivers
