@@ -155,13 +155,18 @@ export const router = createBrowserRouter([
         ],
       },
       {
-        // Root protected branch: AuthGate -> FirstRunGate -> AppLayout -> screen
+        // Root protected branch: AuthGate -> FirstRunGate -> (AppLayout | session)
         path: '/',
         element: <AuthGate />,
         children: [
           {
             element: <FirstRunGate />,
             children: [
+              {
+                // Session screen renders full-screen without AppLayout chrome
+                path: 'session',
+                element: <DuringSessionScreen />,
+              },
               {
                 element: <AppLayout />,
                 children: [
@@ -180,10 +185,6 @@ export const router = createBrowserRouter([
                   {
                     path: 'chat',
                     element: <ChatScreen />,
-                  },
-                  {
-                    path: 'session',
-                    element: <DuringSessionScreen />,
                   },
                   {
                     path: 'settings',

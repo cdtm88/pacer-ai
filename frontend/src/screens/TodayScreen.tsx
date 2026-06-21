@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SessionCard } from '@/components/session/SessionCard'
 import { DurationPickerModal } from '@/components/session/DurationPickerModal'
 import { getSessionToday, getUpcomingSessions, getLatestPmc } from '@/lib/api'
+import { hasActiveSession } from '@/lib/sessionPersistence'
 
 function formatNextRideDay(dateStr: string): string {
   const d = new Date(dateStr + 'T12:00:00')
@@ -31,6 +32,15 @@ function isValidZone(type: string | null): type is ZoneType {
 export function TodayScreen() {
   const navigate = useNavigate()
   const [pickerOpen, setPickerOpen] = useState(false)
+
+  // iOS PWA kill-relaunch opens to start_url ('/') not the last URL.
+  // If a session was in progress (stepStartEpoch still in localStorage),
+  // redirect back immediately so the timer can restore.
+  useEffect(() => {
+    if (hasActiveSession()) {
+      navigate('/session', { replace: true })
+    }
+  }, [navigate])
 
   const {
     data: session,

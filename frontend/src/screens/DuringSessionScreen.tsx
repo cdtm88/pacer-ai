@@ -1,31 +1,62 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
-import { Button } from '@/components/ui/button'
-import { SessionStepList } from '@/components/session/SessionStepList'
-import type { SessionStep } from '@/components/session/SessionStepList'
-import { getSessionToday } from '@/lib/api'
+import { getSessionToday, getProfileMe } from '@/lib/api'
 import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { useUiStore } from '@/stores/uiStore'
+import {
+  loadSession,
+  saveSession,
+  clearSession,
+  type PersistedSession,
+} from '@/lib/sessionPersistence'
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Types & helpers
 // ---------------------------------------------------------------------------
 
-function formatTimer(secondsLeft: number): string {
-  const s = Math.max(0, secondsLeft)
+type ZoneType = 'recovery' | 'endurance' | 'tempo' | 'threshold' | 'vo2'
+
+export interface SessionStep {
+  label: string
+  duration: number // minutes
+  zone?: ZoneType
+}
+
+const ZONE_META: Record<ZoneType, { color: string; label: string; pctLow: number; pctHigh: number | null }> = {
+  recovery:  { color: 'var(--color-zone-recovery)',  label: 'Recovery',  pctLow: 0,   pctHigh: 55  },
+  endurance: { color: 'var(--color-zone-endurance)', label: 'Endurance', pctLow: 56,  pctHigh: 75  },
+  tempo:     { color: 'var(--color-zone-tempo)',     label: 'Tempo',     pctLow: 76,  pctHigh: 90  },
+  threshold: { color: 'var(--color-zone-threshold)', label: 'Threshold', pctLow: 91,  pctHigh: 105 },
+  vo2:       { color: 'var(--color-zone-vo2)',       label: 'VO2 Max',   pctLow: 106, pctHigh: null },
+}
+
+function powerTarget(zone: ZoneType, ftp: number | null): string {
+  const { pctLow, pctHigh } = ZONE_META[zone]
+  if (ftp && ftp > 0) {
+    const lo = Math.round(ftp * pctLow / 100)
+    const hi = pctHigh ? Math.round(ftp * pctHigh / 100) : null
+    return hi ? `${lo}–${hi}W` : `${lo}W+`
+  }
+  return pctHigh ? `${pctLow}–${pctHigh}% FTP` : `${pctLow}%+ FTP`
+}
+
+function formatTimer(secs: number): string {
+  const s = Math.max(0, secs)
   const mm = Math.floor(s / 60)
   const ss = s % 60
   return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
 }
 
-type ZoneType = 'recovery' | 'endurance' | 'tempo' | 'threshold' | 'vo2'
-
 function validZone(z: unknown): ZoneType {
   const valid: ZoneType[] = ['recovery', 'endurance', 'tempo', 'threshold', 'vo2']
   return valid.includes(z as ZoneType) ? (z as ZoneType) : 'endurance'
 }
+
+// ---------------------------------------------------------------------------
+// Step builders
+// ---------------------------------------------------------------------------
 
 interface SessionStructure {
   warmup?: { duration_minutes?: number; description?: string }
@@ -36,42 +67,18 @@ interface SessionStructure {
 function parseSteps(structure: unknown, sessionType: string): SessionStep[] {
   if (!structure || typeof structure !== 'object') return []
   const s = structure as SessionStructure
-
   const steps: SessionStep[] = []
-
-  if (s.warmup) {
-    steps.push({
-      label: s.warmup.description ?? 'Warm-up',
-      duration: s.warmup.duration_minutes ?? 10,
-      zone: 'recovery',
-    })
-  }
-  if (s.main_set) {
-    steps.push({
-      label: s.main_set.description ?? 'Main set',
-      duration: s.main_set.duration_minutes ?? 20,
-      zone: validZone(sessionType),
-    })
-  }
-  if (s.cooldown) {
-    steps.push({
-      label: s.cooldown.description ?? 'Cool-down',
-      duration: s.cooldown.duration_minutes ?? 5,
-      zone: 'recovery',
-    })
-  }
-
+  if (s.warmup) steps.push({ label: s.warmup.description ?? 'Warm-up', duration: s.warmup.duration_minutes ?? 10, zone: 'recovery' })
+  if (s.main_set) steps.push({ label: s.main_set.description ?? 'Main set', duration: s.main_set.duration_minutes ?? 20, zone: validZone(sessionType) })
+  if (s.cooldown) steps.push({ label: s.cooldown.description ?? 'Cool-down', duration: s.cooldown.duration_minutes ?? 5, zone: 'recovery' })
   return steps
 }
 
 function generateFreeRideSteps(totalMins: number): SessionStep[] {
   const MIN_SEG = 3
-  const warmupRaw = Math.round(totalMins * 0.1)
-  const cooldownRaw = Math.round(totalMins * 0.1)
-  const warmup = Math.max(MIN_SEG, warmupRaw)
-  const cooldown = Math.max(MIN_SEG, cooldownRaw)
+  const warmup = Math.max(MIN_SEG, Math.round(totalMins * 0.1))
+  const cooldown = Math.max(MIN_SEG, Math.round(totalMins * 0.1))
   const main = Math.max(MIN_SEG, totalMins - warmup - cooldown)
-
   return [
     { label: 'Warm-up', duration: warmup, zone: 'recovery' },
     { label: 'Free ride', duration: main, zone: 'endurance' },
@@ -80,196 +87,326 @@ function generateFreeRideSteps(totalMins: number): SessionStep[] {
 }
 
 // ---------------------------------------------------------------------------
-// Inner component that owns timer state for a given step set
+// Persistence restore
 // ---------------------------------------------------------------------------
 
-interface SessionRunnerProps {
-  steps: SessionStep[]
+interface RestoredState {
+  stepIndex: number
+  completedDurationSecs: number
+  stepStartEpoch: number
 }
 
-function SessionRunner({ steps }: SessionRunnerProps) {
+function computeRestoredState(saved: PersistedSession | null, steps: SessionStep[]): RestoredState {
+  if (!saved || saved.stepIndex >= steps.length) {
+    return { stepIndex: 0, completedDurationSecs: 0, stepStartEpoch: Date.now() }
+  }
+  let stepIndex = saved.stepIndex
+  let completedDurationSecs = saved.completedDurationSecs
+  let elapsedInStepMs = Date.now() - saved.stepStartEpoch
+  while (stepIndex < steps.length) {
+    const stepTotalMs = steps[stepIndex].duration * 60 * 1000
+    if (elapsedInStepMs < stepTotalMs) break
+    completedDurationSecs += steps[stepIndex].duration * 60
+    elapsedInStepMs -= stepTotalMs
+    stepIndex++
+  }
+  return { stepIndex, completedDurationSecs, stepStartEpoch: Date.now() - elapsedInStepMs }
+}
+
+// ---------------------------------------------------------------------------
+// SessionRunner
+// ---------------------------------------------------------------------------
+
+function SessionRunner({ steps, ftp }: { steps: SessionStep[]; ftp: number | null }) {
   const navigate = useNavigate()
-  const [currentIndex, setCurrentIndex] = useState(0)
-  const [completedDurationSecs, setCompletedDurationSecs] = useState(0)
+
+  const restoredRef = useRef<RestoredState | null>(null)
+  if (restoredRef.current === null) {
+    restoredRef.current = computeRestoredState(loadSession(), steps)
+  }
+
+  const [currentIndex, setCurrentIndex] = useState(restoredRef.current.stepIndex)
+  const [completedDurationSecs, setCompletedDurationSecs] = useState(restoredRef.current.completedDurationSecs)
+  const [stepStartEpoch, setStepStartEpoch] = useState(restoredRef.current.stepStartEpoch)
 
   const isDone = currentIndex >= steps.length
   const currentStep = steps[currentIndex]
   const stepDuration = currentStep ? currentStep.duration * 60 : 0
+  const { secondsLeft } = useSessionTimer(stepDuration, stepStartEpoch)
 
-  const { secondsLeft, advance } = useSessionTimer(stepDuration)
-
-  // Advance to next step
   const goNext = useCallback(() => {
-    if (currentIndex < steps.length) {
-      setCompletedDurationSecs(prev => prev + steps[currentIndex].duration * 60)
-      setCurrentIndex(prev => prev + 1)
-    }
-  }, [currentIndex, steps])
+    if (currentIndex >= steps.length) return
+    const nextIndex = currentIndex + 1
+    const nextCompleted = completedDurationSecs + steps[currentIndex].duration * 60
+    const nextEpoch = Date.now()
+    setCurrentIndex(nextIndex)
+    setCompletedDurationSecs(nextCompleted)
+    setStepStartEpoch(nextEpoch)
+    saveSession({ stepIndex: nextIndex, completedDurationSecs: nextCompleted, stepStartEpoch: nextEpoch })
+  }, [currentIndex, completedDurationSecs, steps])
 
-  // Reset timer when step changes
+  // Save on mount
   useEffect(() => {
-    advance()
-  }, [currentIndex, advance])
+    if (!isDone) saveSession({ stepIndex: currentIndex, completedDurationSecs, stepStartEpoch })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  // Auto-advance when timer hits 0
+  // 1s interval save
   useEffect(() => {
-    if (!isDone && secondsLeft === 0 && stepDuration > 0) {
-      goNext()
+    if (isDone) return
+    const id = setInterval(() => {
+      saveSession({ stepIndex: currentIndex, completedDurationSecs, stepStartEpoch })
+    }, 1000)
+    return () => clearInterval(id)
+  }, [currentIndex, completedDurationSecs, stepStartEpoch, isDone])
+
+  // visibilitychange + pagehide save
+  useEffect(() => {
+    const save = () => {
+      if (!isDone) saveSession({ stepIndex: currentIndex, completedDurationSecs, stepStartEpoch })
     }
+    document.addEventListener('visibilitychange', save)
+    window.addEventListener('pagehide', save)
+    return () => {
+      document.removeEventListener('visibilitychange', save)
+      window.removeEventListener('pagehide', save)
+    }
+  }, [currentIndex, completedDurationSecs, stepStartEpoch, isDone])
+
+  useEffect(() => { if (isDone) clearSession() }, [isDone])
+
+  useEffect(() => {
+    if (!isDone && secondsLeft === 0 && stepDuration > 0) goNext()
   }, [secondsLeft, isDone, stepDuration, goNext])
 
+  // ── Session complete ──────────────────────────────────────────────────────
+
   if (isDone) {
-    const totalSecs = completedDurationSecs
-    const totalMins = Math.floor(totalSecs / 60)
+    const totalMins = Math.floor(completedDurationSecs / 60)
     const totalHours = Math.floor(totalMins / 60)
     const remainMins = totalMins % 60
-    const remainSecs = totalSecs % 60
-
-    const timeStr =
-      totalMins >= 60
-        ? `${totalHours}h ${remainMins}m`
-        : `${totalMins}m ${remainSecs}s`
+    const timeStr = totalMins >= 60 ? `${totalHours}h ${remainMins}m` : `${totalMins}m`
 
     return (
-      <div
-        className="min-h-screen flex flex-col items-center justify-center px-6"
-        style={{ backgroundColor: 'var(--color-bg-2)' }}
-      >
-        <p
+      <div style={{
+        minHeight: '100dvh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'var(--color-surface)',
+        padding: '24px',
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+      }}>
+        <p style={{ fontSize: 13, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-zone-recovery)', marginBottom: 16 }}>
+          Complete
+        </p>
+        <p style={{ fontSize: 56, fontWeight: 700, color: 'var(--color-ink)', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 8 }}>
+          {timeStr}
+        </p>
+        <p style={{ fontSize: 15, color: 'var(--color-ink-3)', marginBottom: 48 }}>
+          {steps.length} steps finished
+        </p>
+        <button
+          onClick={() => { clearSession(); navigate('/') }}
           style={{
-            fontSize: 40,
-            fontWeight: 700,
-            color: 'var(--color-ink)',
-            marginBottom: 12,
-            letterSpacing: '-0.02em',
-          }}
-        >
-          Session complete
-        </p>
-        <p style={{ fontSize: 16, color: 'var(--color-ink-2)', marginBottom: 4 }}>
-          Total time: {timeStr}
-        </p>
-        <p style={{ fontSize: 16, color: 'var(--color-ink-2)', marginBottom: 32 }}>
-          {steps.length} steps completed
-        </p>
-        <Button
-          onClick={() => navigate('/')}
-          style={{
-            backgroundColor: 'var(--color-blue-6)',
-            color: '#fff',
+            backgroundColor: 'var(--color-ink)',
+            color: 'var(--color-surface)',
             border: 'none',
-            borderRadius: 10,
-            padding: '12px 28px',
-            fontSize: 16,
+            borderRadius: 12,
+            padding: '14px 32px',
+            fontSize: 15,
             fontWeight: 600,
-            minHeight: 44,
+            cursor: 'pointer',
+            minHeight: 48,
           }}
         >
           Back to today
-        </Button>
+        </button>
       </div>
     )
   }
 
+  // ── Active session ────────────────────────────────────────────────────────
+
+  const zone = currentStep.zone ?? 'endurance'
+  const { color: zoneColor, label: zoneLabel } = ZONE_META[zone]
+  const target = powerTarget(zone, ftp)
   const nextStep = steps[currentIndex + 1]
-  const showWarning = secondsLeft <= 3 && secondsLeft > 0 && nextStep
+  const nearEnd = secondsLeft <= 5 && secondsLeft > 0 && nextStep
 
   return (
-    <div
-      className="min-h-screen flex flex-col"
-      style={{ backgroundColor: 'var(--color-bg-2)' }}
-    >
-      <div className="flex-1 flex flex-col justify-center px-6 pt-12 pb-6">
-        <SessionStepList steps={steps} currentIndex={currentIndex} />
+    <div style={{
+      minHeight: '100dvh',
+      display: 'flex',
+      flexDirection: 'column',
+      backgroundColor: 'var(--color-surface)',
+    }}>
+      {/* Zone color strip */}
+      <div style={{ height: 5, backgroundColor: zoneColor, width: '100%', flexShrink: 0 }} />
 
-        {/* Timer */}
-        <div className="mt-10">
-          <p
-            style={{
-              fontSize: 40,
-              fontWeight: 700,
-              color: 'var(--color-ink)',
-              fontVariantNumeric: 'tabular-nums',
-              letterSpacing: '0.05em',
-            }}
-          >
+      {/* Content — centred column */}
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        textAlign: 'center',
+        paddingTop: 'max(20px, env(safe-area-inset-top))',
+        paddingBottom: 'max(20px, env(safe-area-inset-bottom))',
+        paddingLeft: 28,
+        paddingRight: 28,
+      }}>
+
+        {/* Step counter */}
+        <p style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-ink-3)', marginBottom: 20 }}>
+          Step {currentIndex + 1} / {steps.length}
+        </p>
+
+        {/* Zone badge */}
+        <span style={{
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: '0.07em',
+          textTransform: 'uppercase',
+          color: zoneColor,
+          border: `1.5px solid ${zoneColor}`,
+          borderRadius: 20,
+          padding: '5px 12px',
+          marginBottom: 16,
+          display: 'inline-block',
+        }}>
+          {zoneLabel}
+        </span>
+
+        {/* Step name */}
+        <p style={{
+          fontSize: 18,
+          fontWeight: 500,
+          color: 'var(--color-ink-2)',
+          lineHeight: 1.4,
+          maxWidth: 280,
+        }}>
+          {currentStep.label}
+        </p>
+
+        {/* Timer + power target — hero block */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <p style={{
+            fontSize: 96,
+            fontWeight: 700,
+            color: 'var(--color-ink)',
+            fontVariantNumeric: 'tabular-nums',
+            letterSpacing: '-0.03em',
+            lineHeight: 1,
+            marginBottom: 14,
+          }}>
             {formatTimer(secondsLeft)}
           </p>
 
-          {/* 3-second countdown warning */}
-          {showWarning ? (
-            <p
-              style={{
-                fontSize: 14,
-                color: 'var(--color-warn)',
-                marginTop: 4,
-              }}
-            >
-              Starting {nextStep.label} in {secondsLeft}...
-            </p>
-          ) : null}
+          {/* Power target */}
+          <p style={{
+            fontSize: 28,
+            fontWeight: 700,
+            color: zoneColor,
+            letterSpacing: '-0.01em',
+            lineHeight: 1,
+          }}>
+            {target}
+          </p>
         </div>
+
+        {/* Next step */}
+        {nextStep && (
+          <div style={{ marginBottom: 24 }}>
+            <p style={{
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: '0.07em',
+              textTransform: 'uppercase',
+              color: nearEnd ? zoneColor : 'var(--color-ink-3)',
+              marginBottom: 4,
+              transition: 'color 0.3s',
+            }}>
+              {nearEnd ? `Up next in ${secondsLeft}s` : 'Next'}
+            </p>
+            <p style={{ fontSize: 15, color: 'var(--color-ink-2)', fontWeight: 500, lineHeight: 1.4 }}>
+              {nextStep.label}
+            </p>
+          </div>
+        )}
 
         {/* Skip step */}
-        <div className="mt-6">
-          <button
-            onClick={goNext}
-            style={{
-              fontSize: 14,
-              color: 'var(--color-ink-2)',
-              background: 'none',
-              border: '1px solid var(--color-line)',
-              borderRadius: 8,
-              padding: '10px 16px',
-              minHeight: 44,
-              cursor: 'pointer',
-            }}
-          >
-            Skip step
-          </button>
-        </div>
-      </div>
+        <button
+          onClick={goNext}
+          style={{
+            width: '100%',
+            padding: '14px',
+            marginBottom: 12,
+            background: 'none',
+            border: '1.5px solid var(--color-line)',
+            borderRadius: 12,
+            fontSize: 14,
+            fontWeight: 600,
+            color: 'var(--color-ink-2)',
+            cursor: 'pointer',
+            minHeight: 48,
+          }}
+        >
+          Skip step
+        </button>
 
-      {/* End session: bottom-right, outline variant, --color-bad text */}
-      <div className="flex justify-end px-6 pb-8">
-        <Button
-          variant="outline"
-          style={{ color: 'var(--color-bad)', borderColor: 'var(--color-bad)' }}
-          onClick={() => navigate('/')}
+        {/* End session */}
+        <button
+          onClick={() => { clearSession(); navigate('/') }}
+          style={{
+            background: 'none',
+            border: 'none',
+            fontSize: 13,
+            fontWeight: 600,
+            color: 'var(--color-bad)',
+            cursor: 'pointer',
+            padding: '8px 0',
+            minHeight: 44,
+          }}
         >
           End session
-        </Button>
+        </button>
+
       </div>
     </div>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Main screen: loads data, computes steps, delegates to SessionRunner
+// DuringSessionScreen — data loader
 // ---------------------------------------------------------------------------
 
 export function DuringSessionScreen() {
   const freeRideDurationMins = useUiStore(s => s.freeRideDurationMins)
   const setFreeRideDurationMins = useUiStore(s => s.setFreeRideDurationMins)
 
-  // Wake lock: keep screen on during session (IOS-01)
   useWakeLock()
 
-  // Clean up free-ride state on unmount so it does not leak into a real session
   useEffect(() => {
-    return () => {
-      setFreeRideDurationMins(null)
-    }
+    return () => { setFreeRideDurationMins(null) }
   }, [setFreeRideDurationMins])
 
   const { data: session } = useQuery({
     queryKey: ['session', 'today'],
     queryFn: getSessionToday,
-    // Do not refetch while riding
     staleTime: Infinity,
   })
 
-  // Derive steps
+  const { data: profile } = useQuery({
+    queryKey: ['profile', 'me'],
+    queryFn: getProfileMe,
+    staleTime: Infinity,
+  })
+
+  const ftp = profile?.ftp ?? null
+
   let steps: SessionStep[]
   if (freeRideDurationMins != null) {
     steps = generateFreeRideSteps(freeRideDurationMins)
@@ -277,23 +414,22 @@ export function DuringSessionScreen() {
     const raw = (session as unknown as { structure?: unknown }).structure
     steps = parseSteps(raw, session.type)
   } else {
-    // No session and no free-ride duration; fallback to empty (guard against crash)
     steps = []
   }
 
   if (steps.length === 0) {
-    // Minimal empty guard
     return (
-      <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ backgroundColor: 'var(--color-bg-2)' }}
-      >
-        <p style={{ color: 'var(--color-ink-2)', fontSize: 16 }}>
-          No session steps available.
-        </p>
+      <div style={{
+        minHeight: '100dvh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'var(--color-surface)',
+      }}>
+        <p style={{ color: 'var(--color-ink-3)', fontSize: 15 }}>No session steps available.</p>
       </div>
     )
   }
 
-  return <SessionRunner steps={steps} />
+  return <SessionRunner steps={steps} ftp={ftp} />
 }
