@@ -39,12 +39,13 @@ export function useAuth() {
     })
 
     // onAuthStateChange keeps the store in sync after the initial seed.
-    // Guard against transient null events (e.g. INITIAL_SESSION races) clobbering
-    // a valid session — only SIGNED_OUT is allowed to clear it.
+    // Guard against transient INITIAL_SESSION null events clobbering a valid
+    // session. Other null events (e.g. TOKEN_REFRESHED with a revoked token)
+    // must clear the session so the user is not stuck in an authenticated state.
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, newSession) => {
-      if (newSession === null && event !== 'SIGNED_OUT') return
+      if (newSession === null && event === 'INITIAL_SESSION') return
       setAuth({
         session: newSession,
         user: newSession?.user ?? null,
