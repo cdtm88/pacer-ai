@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SessionCard } from '@/components/session/SessionCard'
+import { DurationPickerModal } from '@/components/session/DurationPickerModal'
 import { getSessionToday, getUpcomingSessions, getLatestPmc } from '@/lib/api'
 
 function formatNextRideDay(dateStr: string): string {
@@ -28,6 +30,7 @@ function isValidZone(type: string | null): type is ZoneType {
 
 export function TodayScreen() {
   const navigate = useNavigate()
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   const {
     data: session,
@@ -100,12 +103,28 @@ export function TodayScreen() {
           <h2 style={{ fontSize: 20, fontWeight: 600, color: 'var(--color-ink)', marginBottom: 8 }}>
             No session today
           </h2>
-          <p style={{ fontSize: 16, color: 'var(--color-ink-2)' }}>
+          <p style={{ fontSize: 16, color: 'var(--color-ink-2)', marginBottom: 16 }}>
             {nextSession
               ? `Your next ride is ${formatNextRideDay((nextSession as {scheduled_date?: string}).scheduled_date ?? '')}. Rest up.`
               : 'Enjoy your rest day.'}
           </p>
+          <button
+            onClick={() => setPickerOpen(true)}
+            style={{
+              fontSize: 14,
+              fontWeight: 500,
+              color: 'var(--color-blue-6)',
+              border: '1px solid var(--color-blue-6)',
+              borderRadius: 8,
+              padding: '9px 18px',
+              background: 'transparent',
+              cursor: 'pointer',
+            }}
+          >
+            Ride anyway
+          </button>
         </div>
+        <DurationPickerModal open={pickerOpen} onOpenChange={setPickerOpen} />
       </div>
     )
   }
