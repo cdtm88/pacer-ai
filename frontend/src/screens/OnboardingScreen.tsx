@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { sseUrl, getProfileMe } from '../lib/api'
+import { getProfileMe } from '../lib/api'
+import { supabase } from '../lib/supabase'
 import { ChatBubble } from '../components/chat/ChatBubble'
 import { ChatInput } from '../components/chat/ChatInput'
 
@@ -132,17 +133,18 @@ export function OnboardingScreen() {
       setStreamError(null)
 
       try {
-        const url = await sseUrl('/onboarding/start')
-        // sseUrl appends ?token=<jwt>; for POST we pass it as a query param.
         // WR-005: include conversation_id on subsequent turns so the backend
         // can load prior context instead of creating a new conversation.
         const bodyPayload: Record<string, string> = {}
         if (userMessage) bodyPayload.message = userMessage
         if (conversationIdRef.current) bodyPayload.conversation_id = conversationIdRef.current
-        const res = await fetch(url, {
+        const { data: sessionData } = await supabase.auth.getSession()
+        const token = sessionData.session?.access_token ?? ''
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/onboarding/start`, {
           method: 'POST',
           signal: controller.signal,
           headers: {
+            Authorization: `Bearer ${token}`,
             Accept: 'text/event-stream',
             'Content-Type': 'application/json',
           },
@@ -294,16 +296,18 @@ export function OnboardingScreen() {
     setStreamError(null)
 
     try {
-      const url = await sseUrl('/onboarding/start')
       // WR-005: pass conversation_id so the backend loads prior context.
       const confirmBody: Record<string, string> = {
         message: 'This looks right. Please save my profile and generate my plan.',
       }
       if (conversationIdRef.current) confirmBody.conversation_id = conversationIdRef.current
-      const res = await fetch(url, {
+      const { data: confirmSessionData } = await supabase.auth.getSession()
+      const confirmToken = confirmSessionData.session?.access_token ?? ''
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/onboarding/start`, {
         method: 'POST',
         signal: controller.signal,
         headers: {
+          Authorization: `Bearer ${confirmToken}`,
           Accept: 'text/event-stream',
           'Content-Type': 'application/json',
         },
