@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router'
 import { supabase } from '../lib/supabase'
+import { useAuthStore } from '../stores/authStore'
 
 /**
  * Handles the PKCE magic-link callback.
@@ -30,13 +31,19 @@ export function AuthCallbackScreen() {
 
     supabase.auth
       .exchangeCodeForSession(code)
-      .then(({ error }) => {
+      .then(({ data, error }) => {
         if (error) {
           console.error('[AuthCallback] PKCE exchange failed:', error.message)
           navigate('/login', { replace: true })
         } else {
-          // onAuthStateChange in useAuth will fire SIGNED_IN and populate authStore.
-          // Navigate to root; AuthGate will let the user through once session is set.
+          // GoTrue-JS v2 fires SIGNED_IN via setTimeout(0) — deferred after this
+          // .then() resolves. Directly populate authStore with the returned session
+          // so AuthGate sees a valid session when navigate('/') triggers its render.
+          useAuthStore.getState().setAuth({
+            session: data.session,
+            user: data.session.user,
+            isLoading: false,
+          })
           navigate('/', { replace: true })
         }
       })
