@@ -32,6 +32,7 @@ Security (Phase 4):
   - Backend writes use SERVICE_ROLE_KEY (never anon key)
 """
 
+import logging
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
@@ -44,6 +45,8 @@ from api.db import get_async_supabase as _get_async_supabase
 from api.utils import validate_uuid
 from api.sports_science.compliance import validate_session_vs_actual
 from api.sports_science.load import progress_load
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -704,7 +707,9 @@ async def mark_session_missed(
                 if event_id:
                     background_tasks.add_task(update_calendar_event, user_id, event_id, session)
     except Exception:
-        pass  # miss already recorded; detection failure is non-fatal
+        logger.warning(
+            "Signal detection/adaptation failed for session %s (non-fatal)", session_id, exc_info=True
+        )
 
     return {
         "session_id": session_id,
