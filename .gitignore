@@ -1,7 +1,33 @@
+# Environment & secrets
 .env
+.env.local
+.env.*.local
+
+# Python
 .venv/
 __pycache__/
 *.pyc
+*.pyo
 .pytest_cache/
 .ruff_cache/
+
+# OS
 .DS_Store
+
+# Test artifacts
+test-results/
+frontend/test-results/
+.playwright-mcp/
+playwright-report/
+
+# Planning cache & internal manifests
+.planning/research/.cache/
+.planning/.wave*-manifest.json
+
+# Screenshots & debug files
+*.png
+*.jpg
+
+# IDE
+.vscode/
+.idea/
