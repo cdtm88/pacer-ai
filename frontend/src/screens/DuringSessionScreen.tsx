@@ -235,25 +235,25 @@ function SessionRunner({
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'var(--color-surface)',
+        backgroundColor: 'var(--color-bg-2)',
         padding: '24px',
         paddingTop: 'env(safe-area-inset-top)',
         paddingBottom: 'env(safe-area-inset-bottom)',
       }}>
-        <p style={{ fontSize: 13, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-zone-recovery)', marginBottom: 16 }}>
-          Complete
+        <p style={{ fontSize: 40, fontWeight: 700, color: 'var(--color-ink)', marginBottom: 16 }}>
+          Session complete
         </p>
         <p style={{ fontSize: 56, fontWeight: 700, color: 'var(--color-ink)', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 8 }}>
           {timeStr}
         </p>
         <p style={{ fontSize: 15, color: 'var(--color-ink-3)', marginBottom: 48 }}>
-          {steps.length} steps finished
+          {steps.length} steps completed
         </p>
         <button
           onClick={() => { void finishSession() }}
           style={{
-            backgroundColor: 'var(--color-ink)',
-            color: 'var(--color-surface)',
+            backgroundColor: 'var(--color-blue-6)',
+            color: '#fff',
             border: 'none',
             borderRadius: 12,
             padding: '14px 32px',
@@ -275,7 +275,7 @@ function SessionRunner({
   const { color: zoneColor, label: zoneLabel } = ZONE_META[zone]
   const target = powerTarget(zone, ftp)
   const nextStep = steps[currentIndex + 1]
-  const nearEnd = secondsLeft <= 5 && secondsLeft > 0 && nextStep
+  const nearEnd = secondsLeft <= 3 && secondsLeft > 0 && nextStep
 
   return (
     <div style={{
@@ -296,12 +296,12 @@ function SessionRunner({
         textAlign: 'center',
         paddingTop: 'max(20px, env(safe-area-inset-top))',
         paddingBottom: 'max(20px, env(safe-area-inset-bottom))',
-        paddingLeft: 28,
-        paddingRight: 28,
+        paddingLeft: 24,
+        paddingRight: 24,
       }}>
 
         {/* Step counter */}
-        <p style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-ink-3)', marginBottom: 20 }}>
+        <p style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-ink-3)', marginBottom: 16 }}>
           Step {currentIndex + 1} / {steps.length}
         </p>
 
@@ -341,7 +341,7 @@ function SessionRunner({
             fontVariantNumeric: 'tabular-nums',
             letterSpacing: '-0.03em',
             lineHeight: 1,
-            marginBottom: 14,
+            marginBottom: 16,
           }}>
             {formatTimer(secondsLeft)}
           </p>
@@ -361,16 +361,22 @@ function SessionRunner({
         {/* Next step */}
         {nextStep && (
           <div style={{ marginBottom: 24 }}>
-            <p style={{
+            <p style={nearEnd ? {
+              fontSize: 14,
+              fontWeight: 400,
+              color: 'var(--color-warn)',
+              marginBottom: 4,
+              transition: 'color 0.3s',
+            } : {
               fontSize: 11,
               fontWeight: 700,
               letterSpacing: '0.07em',
               textTransform: 'uppercase',
-              color: nearEnd ? zoneColor : 'var(--color-ink-3)',
+              color: 'var(--color-ink-3)',
               marginBottom: 4,
               transition: 'color 0.3s',
             }}>
-              {nearEnd ? `Up next in ${secondsLeft}s` : 'Next'}
+              {nearEnd ? `Starting ${nextStep.label} in ${secondsLeft}...` : 'Next'}
             </p>
             <p style={{ fontSize: 15, color: 'var(--color-ink-2)', fontWeight: 500, lineHeight: 1.4 }}>
               {nextStep.label}
