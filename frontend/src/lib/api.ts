@@ -195,7 +195,9 @@ export async function createConversation(title?: string): Promise<Conversation> 
   })
   if (!res.ok) throw new Error(`createConversation failed: ${res.status}`)
   const data = await res.json() as { conversation_id?: string; id?: string } & Record<string, unknown>
-  return { ...data, id: data.conversation_id ?? data.id ?? '' } as unknown as Conversation
+  const id = data.conversation_id ?? data.id
+  if (!id) throw new Error('createConversation: backend returned no conversation id')
+  return { ...data, id } as unknown as Conversation
 }
 
 // POST /adaptations/sessions/{id}/missed
