@@ -281,7 +281,12 @@ async def calendar_callback(
     nonce, claimed_user_id, received_sig = parts
 
     # Verify HMAC to ensure state was issued by this server for this user_id.
-    secret = os.environ.get("SUPABASE_JWT_SECRET", "")
+    secret = os.environ.get("SUPABASE_JWT_SECRET")
+    if not secret:
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "server_misconfigured", "detail": "SUPABASE_JWT_SECRET is required"},
+        )
     expected_sig = hmac.new(
         secret.encode(),
         f"{nonce}:{claimed_user_id}".encode(),
