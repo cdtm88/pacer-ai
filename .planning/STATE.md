@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 05
-status: complete
+current_phase: 04
+current_phase_name: ui-and-calendar
+status: executing
 stopped_at: Milestone v1.0 complete — all 5 phases done
-last_updated: "2026-06-21T00:00:00Z"
+last_updated: "2026-06-21T13:36:36.272Z"
 last_activity: 2026-06-21
-last_activity_desc: Milestone v1.0 complete
+last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 5
-  completed_phases: 5
-  total_plans: 32
-  completed_plans: 32
-  percent: 100
-current_phase_name: during-session-and-zwo-export
+  completed_phases: 4
+  total_plans: 37
+  completed_plans: 33
+  percent: 80
 ---
 
 # Project State
@@ -24,14 +24,14 @@ current_phase_name: during-session-and-zwo-export
 See: .planning/PROJECT.md (updated 2026-06-21)
 
 **Core value:** A beginner with no FTP and no history completes an interview and immediately receives a safe, structured cycling plan with explicit targets — that plan adapts automatically as real ride data arrives.
-**Current focus:** Milestone v1.0 complete — ready for `/gsd-complete-milestone v1.0`
+**Current focus:** Phase 04 — ui-and-calendar
 
 ## Current Position
 
-Phase: 05 (during-session-and-zwo-export) — COMPLETE
-Plan: 5 of 5
-Status: Milestone v1.0 complete — all 5 phases verified
-Last activity: 2026-06-21 — UAT passed 6/6, phase marked complete
+Phase: 04 (ui-and-calendar) — EXECUTING
+Plan: 2 of 16
+Status: Ready to execute
+Last activity: 2026-06-21 — Phase 04 execution started
 
 Progress: [████████████████████] 32/32 plans (100%)
 
@@ -78,6 +78,7 @@ Progress: [████████████████████] 32/32 p
 | Phase 05 P03 | 4min | 3 tasks | 5 files |
 | Phase 05 P04 | 3min | 3 tasks | 5 files |
 | Phase 05 P05 | 1min | 2 tasks | 0 files |
+| Phase 04 P14 | 2min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -116,6 +117,7 @@ Recent decisions affecting current work:
 - [Phase ?]: onboarding SSE multi-turn: capture create_conversation return, load prior turns via load_conversation, no new sse_generator param
 - [Phase ?]: Playwright LIFO: specific route handlers registered after general ones to win the match
 - [Phase ?]: Real-device verification required
+- [Phase ?]: getSession() seeds auth store on mount; onAuthStateChange ignores transient null except SIGNED_OUT (04-14 auth redirect fix)
 
 ### Pending Todos
 
@@ -137,5 +139,5 @@ None yet.
 **Stopped at:** Milestone v1.0 complete, ready to archive
 **Resume file:** None
 
-Last session: 2026-06-21
+Last session: 2026-06-21T13:36:32.576Z
 Next action: `/gsd-complete-milestone v1.0`
