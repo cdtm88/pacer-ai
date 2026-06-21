@@ -1,14 +1,14 @@
 ---
-status: partial
+status: diagnosed
 phase: 04-ui-and-calendar
 source: [04-01-SUMMARY.md, 04-02-SUMMARY.md, 04-03-SUMMARY.md, 04-04-SUMMARY.md, 04-05-SUMMARY.md, 04-06-SUMMARY.md, 04-07-SUMMARY.md, 04-08-SUMMARY.md, 04-09-SUMMARY.md]
 started: 2026-06-20T00:00:00Z
-updated: 2026-06-21T17:10:00Z
+updated: 2026-06-21T20:00:00Z
 ---
 
 ## Current Test
 
-[testing paused — 1 item outstanding: test 17 blocked on Google OAuth setup]
+[testing complete]
 
 ## Tests
 
@@ -112,7 +112,6 @@ issues: 7
 pending: 0
 skipped: 2
 blocked: 1
-blocked: 0
 
 ## Gaps
 
@@ -121,24 +120,70 @@ blocked: 0
   reason: "User reported: redirects to /login after signing in"
   severity: major
   test: 5
-  artifacts: []
-  missing: []
+  root_cause: "useAuth.ts calls getSession() on mount; if it resolves before the PKCE exchange in AuthCallbackScreen completes, it sets isLoading:false, session:null — poisoning the store. When AuthCallbackScreen then calls navigate('/'), AuthGate sees isLoading:false, session:null and immediately redirects to /login."
+  artifacts:
+    - path: "frontend/src/hooks/useAuth.ts"
+      issue: "getSession() resolves with null while on /auth/callback, sets isLoading:false with no session before PKCE exchange completes"
+    - path: "frontend/src/screens/AuthCallbackScreen.tsx"
+      issue: "calls setAuth then navigate('/') — React Router may render AuthGate with stale null session if Zustand set hasn't flushed"
+  missing:
+    - "Skip setAuth(isLoading:false) in useAuth when current path is /auth/callback"
+
+- truth: "Mark session missed dialog appears and triggers replan on confirm"
+  status: failed
+  reason: "User reported: mark missed popup is just broken"
+  severity: major
+  test: 8
+  root_cause: "SessionCard.tsx implements mark-missed confirmation as inline state-toggled p/button elements — no AlertDialog component, so no role=alertdialog in DOM. The shadcn AlertDialog component exists but is never imported in SessionCard."
+  artifacts:
+    - path: "frontend/src/components/session/SessionCard.tsx"
+      issue: "Uses inline conditional render (missedOpen ? ... : ...) instead of <AlertDialog> from @/components/ui/alert-dialog"
+  missing:
+    - "Replace inline confirmation block with <AlertDialog> bound to missedOpen state"
+
+- truth: "Mark session done marks session as completed"
+  status: failed
+  reason: "User reported: mark as done does nothing"
+  severity: major
+  test: 9
+  root_cause: "api/routes/sessions.py PATCH handler calls .update().eq().execute() without .select() — supabase-py returns data=[] on all updates without .select(), so if not result.data always raises 404. Frontend catches the 404 and re-enables the button, appearing to do nothing."
+  artifacts:
+    - path: "api/routes/sessions.py"
+      issue: "lines 244-250: .update({'status':'completed'}).eq(...).execute() missing .select(_SESSION_COLUMNS) — returns empty data on success, triggers 404"
+  missing:
+    - "Add .select(_SESSION_COLUMNS) before .execute() in the update_session handler"
 
 - truth: "FIT file upload succeeds and ride appears in History list"
   status: failed
   reason: "User reported: Upload failed. uploadRide failed: 422. Try again."
   severity: major
   test: 12
-  artifacts: []
-  missing: []
+  root_cause: "Backend raises 422 when parsed is None OR duration_secs < 600. A short/invalid FIT file fails fitdecode parsing and hits this guard. In Playwright tests, full-uat.spec.ts has a LIFO route registration bug — /rides/upload registered before /rides/ so general handler wins and upload request hits real backend."
+  artifacts:
+    - path: "api/routes/rides.py"
+      issue: "lines 489-496: 422 raised when parse_fit_file() returns None or duration_secs < 600 — real UAT needs a valid FIT file with 10+ min of data"
+    - path: "frontend/tests/e2e/full-uat.spec.ts"
+      issue: "lines 231-232: /rides/upload registered before /rides/ — LIFO means general handler wins, upload requests hit real backend"
+  missing:
+    - "Swap route registration order in full-uat.spec.ts (register /rides/ first, /rides/upload last)"
+    - "Use test-ride.fit from repo root for real UAT testing"
 
 - truth: "Sending a chat message returns a streamed coach reply"
   status: failed
   reason: "User reported: no response; also UI needs improving"
   severity: major
   test: 14
-  artifacts: []
-  missing: []
+  root_cause: "Two bugs: (1) createConversation() backend returns {conversation_id:...} but frontend reads conversation?.id — always undefined, so handleSend bails immediately before any SSE request. (2) sseUrl() always appends ?token=... even when path already has query params, producing malformed URL with two ? chars."
+  artifacts:
+    - path: "frontend/src/lib/api.ts"
+      issue: "createConversation() types response as Conversation (field: id) but backend returns {conversation_id}; id is always undefined"
+    - path: "frontend/src/lib/api.ts"
+      issue: "sseUrl() line 35: always appends ?token= even when path has existing query string — should use & when ? already present"
+    - path: "frontend/src/screens/ChatScreen.tsx"
+      issue: "line 110: guard `if (!conversation?.id ...)` bails before SSE due to shape mismatch"
+  missing:
+    - "Map conversation_id to id in createConversation() response: return {id: data.conversation_id, ...}"
+    - "Fix sseUrl() to use & instead of ? when path already contains ?"
 
 - truth: "Onboarding interview advances through questions without looping"
   status: failed
