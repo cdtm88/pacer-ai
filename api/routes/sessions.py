@@ -69,12 +69,13 @@ async def today_session(
         .select(_SESSION_COLUMNS)
         .eq("user_id", user_id)
         .eq("scheduled_date", today)
+        .eq("status", "planned")
         .execute()
     )
 
     if result.data:
         return result.data[0]
-    return {}
+    raise HTTPException(status_code=404, detail="No session today")
 
 
 # ---------------------------------------------------------------------------
@@ -339,6 +340,6 @@ async def export_session_zwo(
 
     return Response(
         content=xml_bytes,
-        media_type="application/xml",
+        media_type="application/octet-stream",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

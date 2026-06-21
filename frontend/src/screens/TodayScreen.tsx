@@ -102,6 +102,9 @@ export function TodayScreen() {
   // Next upcoming session for empty state day label
   const nextSession = upcoming?.find(s => s.status === 'planned')
 
+  // Upcoming sessions for empty-state strip
+  const emptyStateUpcoming = (upcoming ?? []).slice(0, 4)
+
   // Empty state: no session today
   if (!session) {
     return (
@@ -134,6 +137,65 @@ export function TodayScreen() {
             Ride anyway
           </button>
         </div>
+
+        {emptyStateUpcoming.length > 0 && (
+          <div className="mt-6">
+            <h3
+              className="mb-3"
+              style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-ink-2)' }}
+            >
+              Coming up
+            </h3>
+            <div className="flex md:flex-col gap-3 overflow-x-auto md:overflow-visible pb-2 md:pb-0">
+              {emptyStateUpcoming.map((s) => {
+                const zoneType = isValidZone((s as {type?: string | null}).type ?? null)
+                  ? ((s as {type?: string | null}).type as ZoneType)
+                  : null
+                const scheduledDate = (s as {scheduled_date?: string}).scheduled_date ?? ''
+                const durationMins = (s as {duration_mins?: number | null}).duration_mins
+                  ?? (s as {duration_minutes?: number | null}).duration_minutes
+                  ?? null
+
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => navigate('/agenda')}
+                    className="flex items-center gap-3 rounded-lg px-4 py-3 shrink-0 text-left transition-colors"
+                    style={{
+                      backgroundColor: 'var(--color-surface)',
+                      border: '1px solid var(--color-line)',
+                      minWidth: 160,
+                    }}
+                  >
+                    <span style={{ fontSize: 12, color: 'var(--color-ink-2)', width: 40 }}>
+                      {formatStripDate(scheduledDate)}
+                    </span>
+                    <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-ink)', flex: 1 }}>
+                      {(s as {type?: string | null}).type ?? 'Session'}
+                    </span>
+                    {zoneType && (
+                      <span
+                        className="rounded-full shrink-0"
+                        style={{
+                          width: 8,
+                          height: 8,
+                          backgroundColor: `var(${ZONE_VAR[zoneType]})`,
+                          display: 'inline-block',
+                        }}
+                      />
+                    )}
+                    {durationMins != null && (
+                      <span style={{ fontSize: 12, color: 'var(--color-ink-3)' }}>
+                        {durationMins}m
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         <DurationPickerModal open={pickerOpen} onOpenChange={setPickerOpen} />
       </div>
     )
@@ -145,16 +207,14 @@ export function TodayScreen() {
     .slice(0, 4)
 
   return (
-    <div className="p-6 max-w-2xl mx-auto md:grid md:grid-cols-2 md:gap-6">
-      {/* Left column: card + next-few-days */}
-      <div>
-        <SessionCard
-          session={session as unknown as Parameters<typeof SessionCard>[0]['session']}
-          pmc={pmc as unknown as Parameters<typeof SessionCard>[0]['pmc']}
-        />
+    <div className="p-6 max-w-4xl mx-auto">
+      <SessionCard
+        session={session as unknown as Parameters<typeof SessionCard>[0]['session']}
+        pmc={pmc as unknown as Parameters<typeof SessionCard>[0]['pmc']}
+      />
 
-        {/* Next-few-days strip */}
-        {stripSessions.length > 0 && (
+      {/* Next-few-days strip */}
+      {stripSessions.length > 0 && (
           <div className="mt-6">
             <h3
               className="mb-3"
@@ -163,7 +223,7 @@ export function TodayScreen() {
               Coming up
             </h3>
             <div
-              className="flex md:flex-col gap-3 overflow-x-auto md:overflow-visible pb-2 md:pb-0"
+              className="flex flex-wrap gap-3 pb-2"
             >
               {stripSessions.map((s) => {
                 const zoneType = isValidZone((s as {type?: string | null}).type ?? null)
@@ -213,10 +273,6 @@ export function TodayScreen() {
             </div>
           </div>
         )}
-      </div>
-
-      {/* Right column: reserved for Phase 2 fitness panel */}
-      <div className="hidden md:block" />
     </div>
   )
 }

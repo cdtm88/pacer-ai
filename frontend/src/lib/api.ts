@@ -197,7 +197,17 @@ export async function markSessionMissed(sessionId: string): Promise<void> {
     method: 'POST',
     body: JSON.stringify({}),
   })
-  if (!res.ok) throw new Error(`markSessionMissed failed: ${res.status}`)
+  if (!res.ok) {
+    // Surface backend structured error detail (shape: {detail: {error, detail}} or {detail: string})
+    let reason = `markSessionMissed failed: ${res.status}`
+    try {
+      const body = await res.json()
+      const d = body?.detail
+      const detail = typeof d === 'object' ? d?.detail ?? d?.error : typeof d === 'string' ? d : null
+      if (typeof detail === 'string' && detail.length > 0) reason = detail
+    } catch { /* JSON parse failed — keep status-code fallback */ }
+    throw new Error(reason)
+  }
 }
 
 // PATCH /sessions/{id} — set status to 'completed'
@@ -207,7 +217,17 @@ export async function markSessionDone(sessionId: string): Promise<void> {
     method: 'PATCH',
     body: JSON.stringify({ status: 'completed' }),
   })
-  if (!res.ok) throw new Error(`markSessionDone failed: ${res.status}`)
+  if (!res.ok) {
+    // Surface backend structured error detail (shape: {detail: {error, detail}} or {detail: string})
+    let reason = `markSessionDone failed: ${res.status}`
+    try {
+      const body = await res.json()
+      const d = body?.detail
+      const detail = typeof d === 'object' ? d?.detail ?? d?.error : typeof d === 'string' ? d : null
+      if (typeof detail === 'string' && detail.length > 0) reason = detail
+    } catch { /* JSON parse failed — keep status-code fallback */ }
+    throw new Error(reason)
+  }
 }
 
 // GET /sessions/{id}/export.zwo — downloads the ZWO workout file as a blob

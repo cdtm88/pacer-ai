@@ -681,24 +681,29 @@ async def mark_session_missed(
     await supabase.table("sessions").update({"status": "missed"}).eq("id", session_id).execute()
 
     # Re-run full signal detection to pick up cascading effects.
-    signals = await detect_signals(user_id)
-    scope = decide_scope(signals)
-
+    # Errors here must not 500 the response — the miss was already recorded.
+    signals: list = []
     result = None
-    if scope == "micro" and signals:
-        result = await apply_micro_adjustment(user_id, signals[0])
-    elif scope == "macro":
-        result = await apply_macro_replan(user_id, signals)
+    try:
+        signals = await detect_signals(user_id)
+        scope = decide_scope(signals)
 
-    # CAL-02: fire-and-forget calendar sync (CAL-04: never 500 on failure).
-    if result and result.get("status") == "applied":
-        after_sessions = result.get("after", [])
-        before_sessions = result.get("before", [])
-        before_by_id = {s["id"]: s for s in before_sessions}
-        for session in after_sessions:
-            event_id = session.get("calendar_event_id") or before_by_id.get(session["id"], {}).get("calendar_event_id")
-            if event_id:
-                background_tasks.add_task(update_calendar_event, user_id, event_id, session)
+        if scope == "micro" and signals:
+            result = await apply_micro_adjustment(user_id, signals[0])
+        elif scope == "macro":
+            result = await apply_macro_replan(user_id, signals)
+
+        # CAL-02: fire-and-forget calendar sync (CAL-04: never 500 on failure).
+        if result and result.get("status") == "applied":
+            after_sessions = result.get("after", [])
+            before_sessions = result.get("before", [])
+            before_by_id = {s["id"]: s for s in before_sessions}
+            for session in after_sessions:
+                event_id = session.get("calendar_event_id") or before_by_id.get(session["id"], {}).get("calendar_event_id")
+                if event_id:
+                    background_tasks.add_task(update_calendar_event, user_id, event_id, session)
+    except Exception:
+        pass  # miss already recorded; detection failure is non-fatal
 
     return {
         "session_id": session_id,

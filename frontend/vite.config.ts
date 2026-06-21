@@ -6,6 +6,22 @@ import path from 'path'
 
 // https://vite.dev/config/
 export default defineConfig({
+  server: {
+    allowedHosts: true,
+    proxy: Object.fromEntries(
+      ['/onboarding', '/profiles', '/sessions', '/chat', '/conversations', '/rides', '/adaptations', '/health', '/calendar'].map((path) => [
+        path,
+        {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+          bypass(req) {
+            // Let Vite serve index.html for browser navigation (HTML requests)
+            if (req.headers?.accept?.includes('text/html')) return req.url ?? '/'
+          },
+        },
+      ])
+    ),
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

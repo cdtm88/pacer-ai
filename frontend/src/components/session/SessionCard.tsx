@@ -4,22 +4,20 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import { Play, Download, CheckCircle, XCircle, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { ZoneChip } from './ZoneChip'
 import type { ZoneType } from './ZoneChip'
 import { TsbChip } from './TsbChip'
 import type { PmcRow } from './TsbChip'
 import { ZwoExportModal } from './ZwoExportModal'
 import { markSessionDone, markSessionMissed } from '@/lib/api'
+
+const ZONE_COLORS: Record<string, string> = {
+  recovery:  '#2B8A5B',
+  endurance: '#228BE6',
+  tempo:     '#F0A030',
+  threshold: '#E8590C',
+  vo2:       '#C92A2A',
+}
 
 export interface SessionData {
   id: string
@@ -71,15 +69,17 @@ export function SessionCard({ session, pmc, ftp = null }: SessionCardProps) {
   const { weekday, date } = formatDate(session.scheduled_date)
   const structureText = getStructureText(session.structure)
   const duration = getDuration(session)
+  const zoneColor = session.type ? (ZONE_COLORS[session.type] ?? null) : null
 
   async function handleMarkDone() {
     setIsDoneLoading(true)
     try {
       await markSessionDone(session.id)
+      // Keys match TodayScreen useQuery keys: ['session','today'] and ['sessions','upcoming']
       queryClient.invalidateQueries({ queryKey: ['session', 'today'] })
       queryClient.invalidateQueries({ queryKey: ['sessions', 'upcoming'] })
-    } catch {
-      toast.error('Could not mark session as done. Please try again.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not mark session as done. Please try again.')
     } finally {
       setIsDoneLoading(false)
     }
@@ -89,11 +89,12 @@ export function SessionCard({ session, pmc, ftp = null }: SessionCardProps) {
     setIsMissedLoading(true)
     try {
       await markSessionMissed(session.id)
+      setMissedOpen(false) // close confirmation only on success; stays open on failure for retry
+      // Keys match TodayScreen useQuery keys: ['session','today'] and ['sessions','upcoming']
       queryClient.invalidateQueries({ queryKey: ['session', 'today'] })
       queryClient.invalidateQueries({ queryKey: ['sessions', 'upcoming'] })
-      setMissedOpen(false)
-    } catch {
-      toast.error('Could not mark session as missed. Please try again.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not mark session as missed. Please try again.')
     } finally {
       setIsMissedLoading(false)
     }
@@ -101,15 +102,22 @@ export function SessionCard({ session, pmc, ftp = null }: SessionCardProps) {
 
   return (
     <>
+      {/* Card + actions: stacked on mobile, side-by-side on desktop */}
+      <div className="md:grid md:grid-cols-[1fr_220px] md:gap-6 md:items-start">
       {/* Session card */}
       <div
-        className="rounded-xl p-6"
+        className="rounded-xl overflow-hidden"
         style={{
           backgroundColor: 'var(--color-surface)',
           border: '1px solid var(--color-line)',
           borderRadius: 12,
         }}
       >
+        {/* Zone color accent bar */}
+        {zoneColor && (
+          <div style={{ height: 4, backgroundColor: zoneColor }} />
+        )}
+        <div className="p-6">
         {/* Date line */}
         <p
           className="mb-2"
@@ -167,85 +175,92 @@ export function SessionCard({ session, pmc, ftp = null }: SessionCardProps) {
             <span>{duration} min</span>
           </div>
         )}
+        </div>
       </div>
 
-      {/* Action row */}
-      <div className="grid grid-cols-2 gap-2 mt-4">
-        {/* Start session */}
-        <Button
-          variant="default"
-          className="col-span-2"
-          style={{ backgroundColor: 'var(--color-blue-6)', color: '#fff' }}
-          onClick={() => navigate('/session')}
-        >
-          <Play size={16} className="mr-2" />
-          Start session
-        </Button>
-
-        {/* Export to Zwift */}
-        <Button
-          variant="outline"
-          className="w-full"
-          aria-label="Export to Zwift"
-          onClick={() => setZwoOpen(true)}
-        >
-          <Download size={16} className="mr-2" />
-          Export to Zwift
-        </Button>
-
-        {/* Mark done */}
-        <Button
-          variant="outline"
-          className="w-full"
-          style={{ color: 'var(--color-good)', borderColor: 'var(--color-good)' }}
-          onClick={handleMarkDone}
-          disabled={isDoneLoading}
-        >
-          <CheckCircle size={16} className="mr-2" />
-          Mark done
-        </Button>
-
-        {/* Mark missed */}
-        <Button
-          variant="ghost"
-          className="col-span-2"
-          style={{ color: 'var(--color-bad)' }}
-          onClick={() => setMissedOpen(true)}
-        >
-          <XCircle size={16} className="mr-2" />
-          Mark missed
-        </Button>
-      </div>
-
-      {/* ZWO export modal */}
-      <ZwoExportModal
-        session={session}
-        ftp={ftp}
-        open={zwoOpen}
-        onOpenChange={setZwoOpen}
-      />
-
-      {/* Mark missed confirmation dialog */}
-      <AlertDialog open={missedOpen} onOpenChange={setMissedOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Mark this session as missed?</AlertDialogTitle>
-            <AlertDialogDescription>
+      {/* Action row — toggles to inline confirmation when missedOpen */}
+      <div className="flex flex-col gap-2 mt-4 md:mt-0">
+        {missedOpen ? (
+          <>
+            <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-ink)', textAlign: 'center', marginBottom: 4 }}>
+              Mark this session as missed?
+            </p>
+            <p style={{ fontSize: 13, color: 'var(--color-ink-2)', textAlign: 'center', marginBottom: 4 }}>
               This will trigger a re-plan. Your coach will adjust upcoming sessions.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep it</AlertDialogCancel>
-            <AlertDialogAction
+            </p>
+            <Button
+              variant="default"
+              className="w-full"
+              style={{ backgroundColor: 'var(--color-bad)', color: '#fff' }}
               onClick={handleMarkMissed}
               disabled={isMissedLoading}
-              style={{ backgroundColor: 'var(--color-bad)', color: '#fff' }}
             >
               Yes, mark missed
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setMissedOpen(false)}
+            >
+              Keep it
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              variant="default"
+              className="w-full"
+              style={{ backgroundColor: 'var(--color-blue-6)', color: '#fff' }}
+              onClick={() => navigate('/session')}
+            >
+              <Play size={16} className="mr-2" />
+              Start session
+            </Button>
+
+            <Button
+              variant="outline"
+              className="w-full"
+              aria-label="Export to Zwift"
+              onClick={() => setZwoOpen(true)}
+            >
+              <Download size={16} className="mr-2" />
+              Export to Zwift
+            </Button>
+
+            <Button
+              variant="outline"
+              className="w-full"
+              style={{ color: 'var(--color-good)', borderColor: 'var(--color-good)' }}
+              onClick={handleMarkDone}
+              disabled={isDoneLoading}
+            >
+              <CheckCircle size={16} className="mr-2" />
+              Mark done
+            </Button>
+
+            <Button
+              variant="ghost"
+              className="w-full"
+              style={{ color: 'var(--color-bad)' }}
+              onClick={() => setMissedOpen(true)}
+            >
+              <XCircle size={16} className="mr-2" />
+              Mark missed
+            </Button>
+          </>
+        )}
+      </div>
+
+      </div>{/* end card+actions grid */}
+
+      {/* ZWO export panel (inline, no portal) */}
+      {zwoOpen && (
+        <ZwoExportModal
+          session={session}
+          ftp={ftp}
+          onClose={() => setZwoOpen(false)}
+        />
+      )}
     </>
   )
 }
