@@ -91,6 +91,10 @@ def parse_fit_file(file_bytes: bytes) -> Optional[dict]:
     # so we record the ride date the session occurred, not the upload date.
     ride_start_time: Optional[datetime] = None
     first_record_ts: Optional[datetime] = None
+    # Track last record timestamp to compute accurate duration for non-1Hz files.
+    # Smart-recording devices (Garmin, Wahoo) may emit fewer than 1 record/sec;
+    # using (last - first) timestamp avoids undercounting duration.
+    last_record_ts: Optional[datetime] = None
 
     try:
         with fitdecode.FitReader(
@@ -126,9 +130,13 @@ def parse_fit_file(file_bytes: bytes) -> Optional[dict]:
                 cadence = frame.get_value("cadence", fallback=None)
                 ts = frame.get_value("timestamp", fallback=None)
 
-                # Capture the earliest record timestamp as fallback for ride date (WR-009).
-                if ts is not None and first_record_ts is None and isinstance(ts, datetime):
-                    first_record_ts = ts
+                # Capture the earliest and latest record timestamps.
+                # first_record_ts is used as fallback for ride date (WR-009).
+                # last_record_ts is used for timestamp-based duration computation.
+                if ts is not None and isinstance(ts, datetime):
+                    if first_record_ts is None:
+                        first_record_ts = ts
+                    last_record_ts = ts
 
                 # Power: zeros are valid (coasting still counts for NP). Convert None -> 0.
                 power_samples.append(float(power) if power is not None else 0.0)
@@ -143,7 +151,22 @@ def parse_fit_file(file_bytes: bytes) -> Optional[dict]:
         logger.warning("fitdecode failed to open file: %s", exc)
         return None
 
-    duration_secs = len(power_samples)
+    # Prefer timestamp-based duration (last minus first record) when both endpoints are
+    # present. This correctly handles smart-recording devices that emit fewer than
+    # 1 record/sec (e.g. Garmin auto-pause, Wahoo ELEMNT variable-rate recording).
+    # Fall back to sample count only when timestamps are absent (legacy/synthetic files).
+    if first_record_ts is not None and last_record_ts is not None and last_record_ts > first_record_ts:
+        duration_secs = int((last_record_ts - first_record_ts).total_seconds()) + 1
+        logger.info(
+            "FIT duration from timestamps: %ds (first=%s, last=%s, samples=%d)",
+            duration_secs, first_record_ts, last_record_ts, len(power_samples),
+        )
+    else:
+        duration_secs = len(power_samples)
+        logger.info(
+            "FIT duration from sample count: %ds (no timestamps or single-point)",
+            duration_secs,
+        )
 
     # Compute averages; return None for sensors with no data.
     arr_power = np.array(power_samples, dtype=float)
