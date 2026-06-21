@@ -48,3 +48,12 @@ body {
   font-family: var(--font-family-sans);
   margin: 0;
 }
+
+/* Markdown prose styles for coach chat bubbles */
+.markdown-body p { margin: 0 0 0.5em; }
+.markdown-body p:last-child { margin-bottom: 0; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body em { font-style: italic; }
+.markdown-body ul, .markdown-body ol { margin: 0.25em 0 0.5em 1.25em; padding: 0; }
+.markdown-body li { margin-bottom: 0.2em; }
+.markdown-body code { font-size: 0.875em; background: var(--color-line-2); border-radius: 3px; padding: 0.1em 0.3em; }

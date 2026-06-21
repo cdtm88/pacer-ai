@@ -8,10 +8,10 @@ updated: 2026-06-20T00:00:00Z
 
 ## Current Test
 
-number: 2
-name: Login Screen
+number: 5
+name: Navigation Shell
 expected: |
-  Navigate to /login (or open the app unauthenticated). A centered card shows the "PacerAI" logotype, the descriptor "Your adaptive cycling coach.", an email input field, and a "Send magic link" primary button. No em dashes anywhere on the page.
+  After signing in, the bottom tab bar is visible at the bottom of the screen (mobile viewport). It shows four tabs: Today, Agenda, History, Chat. A Settings gear icon appears in the screen header (not a 5th tab). On desktop (768px+ viewport), a 240px sidebar replaces the bottom bar with the same destinations plus Settings at the bottom.
 awaiting: user response
 
 ## Tests
@@ -22,19 +22,22 @@ result: pass
 
 ### 2. Login Screen
 expected: Navigate to /login (or open the app unauthenticated). A centered card shows the "PacerAI" logotype, the descriptor "Your adaptive cycling coach.", an email input field, and a "Send magic link" primary button. No em dashes anywhere on the page.
-result: [pending]
+result: pass
 
 ### 3. Magic Link Send
 expected: Enter a valid email and click "Send magic link". The card transitions to show "Check your email" as the heading and "We sent a link to {email}. Click it to sign in." as the body. No page reload; just an in-place state change.
-result: [pending]
+result: pass
+note: "a bit slow but passed"
 
 ### 4. AuthGate Redirect
 expected: Open the app at / without being signed in. The app immediately redirects to /login without flashing any authenticated content.
-result: [pending]
+result: pass
 
 ### 5. Navigation Shell
 expected: After signing in, the bottom tab bar is visible at the bottom of the screen (mobile viewport). It shows four tabs: Today, Agenda, History, Chat. A Settings gear icon appears in the screen header (not a 5th tab). On desktop (768px+ viewport), a 240px sidebar replaces the bottom bar with the same destinations plus Settings at the bottom.
-result: [pending]
+result: issue
+reported: "redirects to /login after signing in"
+severity: major
 
 ### 6. Today Screen
 expected: Navigate to / (Today tab). If a session is scheduled for today, a SessionCard appears showing the session objective, zone chip (e.g. "Zone 2"), action buttons ("Mark done", "Mark missed", "Start session", "Export to Zwift"), and a strip of upcoming sessions below. If no session is scheduled, an empty state shows "No session today" copy.
@@ -91,12 +94,18 @@ result: [pending]
 ## Summary
 
 total: 18
-passed: 1
-issues: 0
-pending: 17
+passed: 4
+issues: 1
+pending: 14
 skipped: 0
 blocked: 0
 
 ## Gaps
 
-[none yet]
+- truth: "After signing in via magic link, app shows navigation shell at /"
+  status: failed
+  reason: "User reported: redirects to /login after signing in"
+  severity: major
+  test: 5
+  artifacts: []
+  missing: []

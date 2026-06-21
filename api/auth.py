@@ -6,10 +6,14 @@ Exports `get_current_user`, a FastAPI Depends() callable that verifies the
 Supabase JWT from either the Authorization Bearer header or a ?token= query
 param (SSE fallback -- EventSource cannot send headers; see Pitfall 1).
 
+Newer Supabase projects issue ES256 (ECDSA) tokens verified via JWKS.
+Older projects use HS256 with SUPABASE_JWT_SECRET. Both are supported:
+  - ES256 path: JWKS fetched from SUPABASE_URL/auth/v1/.well-known/jwks.json
+  - HS256 path: SUPABASE_JWT_SECRET env var (fallback for legacy projects)
+
 Security requirements enforced:
-  - HS256 algorithm only (T-04-02)
+  - ES256 or HS256 algorithms only
   - audience="authenticated" required (Supabase issues this claim; T-04-02)
-  - Secret is read from SUPABASE_JWT_SECRET env var, never the anon key (Pitfall 6)
   - Missing or invalid token -> HTTP 401 with structured error detail
   - Valid token returns {"user_id": payload["sub"], "email": payload.get("email")}
 
@@ -28,8 +32,27 @@ SSE usage (token in query string because EventSource cannot send headers):
 import os
 
 import jwt
+from jwt import PyJWKClient
 from fastapi import Depends, HTTPException, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+# ---------------------------------------------------------------------------
+# JWKS client (cached singleton -- fetches public keys on first use)
+# ---------------------------------------------------------------------------
+
+_jwks_client: PyJWKClient | None = None
+
+
+def _get_jwks_client() -> PyJWKClient | None:
+    global _jwks_client
+    supabase_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
+    if not supabase_url:
+        return None
+    if _jwks_client is None:
+        jwks_url = f"{supabase_url}/auth/v1/.well-known/jwks.json"
+        _jwks_client = PyJWKClient(jwks_url, cache_keys=True)
+    return _jwks_client
+
 
 # ---------------------------------------------------------------------------
 # JWT dependency
@@ -53,20 +76,16 @@ async def get_current_user(
       1. Authorization: Bearer <jwt>  (standard REST requests)
       2. ?token=<jwt>                 (SSE endpoints; EventSource cannot send headers)
 
-    Args:
-        cred:  HTTPBearer credential extracted from the Authorization header.
-               auto_error=False means FastAPI does NOT raise on missing header;
-               we handle that case below to produce a structured 401 error.
-        token: Optional ?token= query param for SSE clients.
+    Tries ES256 via JWKS first (new Supabase projects), then falls back to
+    HS256 with SUPABASE_JWT_SECRET (legacy projects).
 
     Returns:
         {"user_id": str, "email": str | None}
 
     Raises:
-        HTTPException 401 if the token is missing, malformed, expired, or
-        signed with the wrong secret / wrong audience.
+        HTTPException 401 if the token is missing, malformed, expired, or fails
+        both verification paths.
     """
-    # Prefer Authorization header; fall back to ?token= for SSE clients.
     raw = cred.credentials if cred else token
     if not raw:
         raise HTTPException(
@@ -74,13 +93,27 @@ async def get_current_user(
             detail={"error": "unauthorized", "detail": "Missing authentication token"},
         )
 
-    # Read secret at call time (not at module import) so the env var can be
-    # injected by tests via monkeypatch.setenv without import-order issues.
+    # --- ES256 path via JWKS (preferred for new Supabase projects) ---
+    jwks_client = _get_jwks_client()
+    if jwks_client is not None:
+        try:
+            signing_key = jwks_client.get_signing_key_from_jwt(raw)
+            payload = jwt.decode(
+                raw,
+                signing_key.key,
+                algorithms=["ES256", "RS256"],
+                audience="authenticated",
+            )
+            return {"user_id": payload["sub"], "email": payload.get("email")}
+        except jwt.PyJWTError:
+            pass  # fall through to HS256 path
+
+    # --- HS256 path via SUPABASE_JWT_SECRET (legacy projects) ---
     secret = os.environ.get("SUPABASE_JWT_SECRET")
     if not secret:
         raise HTTPException(
             status_code=500,
-            detail={"error": "server_error", "detail": "SUPABASE_JWT_SECRET not configured"},
+            detail={"error": "server_error", "detail": "No valid auth configuration (SUPABASE_URL or SUPABASE_JWT_SECRET required)"},
         )
 
     try:

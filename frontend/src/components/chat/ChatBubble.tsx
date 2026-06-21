@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react'
+import Markdown from 'react-markdown'
 
 // ---------------------------------------------------------------------------
 // ChatBubble — role-based message bubble for coach, user, adaptation, and
 // capability-gap messages. Never uses dangerouslySetInnerHTML (T-04-19).
+// react-markdown renders to React elements, satisfying T-04-19.
 // ---------------------------------------------------------------------------
 
 export type BubbleRole = 'coach' | 'user' | 'adaptation' | 'capability-gap'
@@ -91,7 +93,7 @@ export function ChatBubble({
       >
         {isStreaming ? (
           <StreamingEllipsis />
-        ) : (
+        ) : isUser ? (
           <span
             style={{
               fontSize: '16px',
@@ -101,6 +103,13 @@ export function ChatBubble({
           >
             {children}
           </span>
+        ) : (
+          <div
+            style={{ fontSize: '16px', lineHeight: '1.5' }}
+            className="markdown-body"
+          >
+            <Markdown>{typeof children === 'string' ? children : undefined}</Markdown>
+          </div>
         )}
       </div>
       {timestamp && (
