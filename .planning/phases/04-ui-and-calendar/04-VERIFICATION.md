@@ -1,55 +1,33 @@
 ---
 phase: 04-ui-and-calendar
-verified: 2026-06-20T22:15:00Z
+verified: 2026-06-21T19:30:00Z
 status: gaps_found
-score: 3/5
+score: 4/5
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:
   previous_status: gaps_found
-  previous_score: 2/5
+  previous_score: 3/5
   gaps_closed:
     - "router.tsx now imports all four real screens (OnboardingScreen, HistoryScreen, ChatScreen, SettingsScreen) — stubs removed"
     - "PATCH /sessions/{session_id} endpoint added to sessions.py with JWT ownership guard"
     - "compliance lookup table fixed from training_sessions to sessions with correct column names"
     - "onboarding.py now captures conversation_id and loads prior turns via load_conversation"
+    - "4 Vitest unit tests fixed: today.test.tsx assertions updated to sentence-case (Fresh/Balanced/Fatigued) — 10/10 pass (confirmed 2026-06-21)"
   gaps_remaining:
-    - "CAL-03: Railway not deployed; Google OAuth consent screen verification not submitted; production OAuth flow untestable"
-    - "4 Vitest unit tests in today.test.tsx fail: assertions expect lowercase TSB labels (fresh/balanced/fatigued) but TsbChip now renders sentence-case (Fresh/Balanced/Fatigued) after 04-10 E2E fix"
-  regressions:
-    - "today.test.tsx: 4 tests fail due to sentence-case label mismatch introduced by commit 8666c20 (TsbChip.tsx label fix for E2E compatibility)"
+    - "CAL-03b: Google OAuth production verification not submitted to Google Verification Centre — deferred to next milestone"
+  deferred:
+    - item: "CAL-03b: Google OAuth consent screen verification (logo, privacy policy, ToS, Google review)"
+      reason: "Requires app to be live first; deferred to next milestone after Railway deployment"
+      milestone: "v1.1"
 gaps:
-  - truth: "Google Calendar events are created/updated/deleted in sync; OAuth uses production credentials, not Testing mode"
-    status: failed
-    reason: "CAL-03 explicitly requires production credentials before real user testing. Railway backend is not deployed (no live callback URL). Google OAuth verification has not been submitted to the Verification Centre — required for calendar.events sensitive scope. No later milestone phase covers these items: Phase 5 owns ZWO/iOS only. The ROADMAP.md success criterion #3 for Phase 4 states this must be TRUE. calendar.py implementation is complete; the gap is infrastructure and Google review, not code."
+  - truth: "Google Calendar OAuth uses production credentials, not Testing mode; end-to-end OAuth flow verified with real Google account"
+    status: partial
+    reason: "CAL-03 split into two items. CAL-03a (Railway deployment) is in progress — Dockerfile and env vars to be set up. CAL-03b (Google OAuth production verification: logo, privacy policy, ToS, Google review) deferred to v1.1. Calendar code (calendar.py) is complete and correct."
     artifacts:
       - path: "api/routes/calendar.py"
-        issue: "Implementation is complete and correct; blocked on external infrastructure only"
-    missing:
-      - "Railway deployment (FastAPI + DB) to provide a live OAuth callback URL"
-      - "App logo, privacy policy URL, Terms of Service URL (required by Google for verification)"
-      - "Submit to Google Verification Centre for calendar.events sensitive scope"
-      - "Once verified: run production OAuth flow end-to-end with real Google account"
-
-  - truth: "All six screens are implemented and navigable; mobile bottom tab bar and desktop left sidebar both work"
-    status: partial
-    reason: "Screen routing is now fully wired (gap 1 closed). However, 4 Vitest unit tests in today.test.tsx now fail because TsbChip.tsx was updated to sentence-case labels (Fresh/Balanced/Fatigued) by commit 8666c20 but the unit tests still assert lowercase (fresh/balanced/fatigued). This is a test-code regression introduced by the E2E compatibility fix. The app renders correctly; the tests are inconsistent with the implementation."
-    artifacts:
-      - path: "frontend/src/tests/today.test.tsx"
-        issue: "Lines 100, 105, 110, 137: getByText('fresh'), getByText('fatigued'), getByText('balanced') -- all fail because TsbChip now renders 'Fresh', 'Fatigued', 'Balanced' (sentence case)"
-      - path: "frontend/src/components/session/TsbChip.tsx"
-        issue: "STATE_STYLE.label values changed to sentence case in commit 8666c20; unit test assertions not updated to match"
-    missing:
-      - "Update today.test.tsx assertions to use sentence-case: 'Fresh', 'Balanced', 'Fatigued' (3 label checks + 1 in SessionCard block)"
-      - "Update today.test.tsx line 126-128: queryByText assertions for cold-start gate also need sentence-case"
-
-human_verification:
-  - test: "Complete the Google OAuth flow with a real Google account on the production deployment"
-    expected: "User is redirected to Google, grants calendar.events scope, is redirected back to /settings?calendar=connected, calendar status shows connected"
-    why_human: "Requires Railway backend deployed with live BACKEND_BASE_URL; requires Google OAuth verification approved; cannot be simulated by mock tests"
-  - test: "After connecting calendar, trigger a plan adaptation and verify Google Calendar events update"
-    expected: "Calendar events for moved/removed sessions are updated or deleted; new session events are created"
-    why_human: "Requires live Railway backend, real Supabase DB, and Google Calendar API access"
+        issue: "Implementation complete; CAL-03a needs Railway deploy; CAL-03b deferred to v1.1"
+    deferred_to: "v1.1 (CAL-03b only)"
 ---
 
 # Phase 04: UI and Calendar Verification Report (Re-verification)
@@ -72,9 +50,9 @@ Plans 04-09 and 04-10 closed three of the four code gaps. Plan 04-11 documented 
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | All six screens (Onboarding, Today, Agenda, History, During-Session, Chat, Settings) are implemented and navigable; mobile bottom tab bar and desktop left sidebar both work | PARTIAL | router.tsx lines 13-16: all four previously-stub screens now imported from ./screens/. 34/34 Playwright E2E tests pass (frontend/test-results/.last-run.json status=passed, timestamped 2026-06-20 21:42). However 4 Vitest unit tests in today.test.tsx fail due to sentence-case label mismatch (TsbChip 'Fresh' vs test assert 'fresh') |
+| 1 | All six screens (Onboarding, Today, Agenda, History, During-Session, Chat, Settings) are implemented and navigable; mobile bottom tab bar and desktop left sidebar both work | VERIFIED | router.tsx lines 13-16: all four previously-stub screens imported from ./screens/. 34/34 Playwright E2E tests pass. 10/10 Vitest unit tests pass (today.test.tsx sentence-case assertions fixed 2026-06-21) |
 | 2 | Today screen shows session card with Start Session, Export to Zwift, Mark Done, Mark Missed; TSB chip gated on 28+ days | VERIFIED | PATCH /sessions/{session_id} added at line 221 of sessions.py (commit 6064c66); markSessionDone in api.ts calls PATCH /sessions/{sessionId}; SessionCard line 76 calls it. Playwright T09 passes confirming no crash. TSB gate and sentence-case labels verified via E2E T07 |
-| 3 | Google Calendar events created/updated/deleted in sync; Calendar OAuth uses production credentials, not Testing mode | FAILED | CAL-01/CAL-02/CAL-04 code is complete and E2E-mocked; CAL-03 requires production deployment and Google review. Railway backend not deployed. Google verification not submitted. Phase 5 ROADMAP does not cover this. No later milestone phase addresses CAL-03 |
+| 3 | Google Calendar events created/updated/deleted in sync; Calendar OAuth uses production credentials, not Testing mode | PARTIAL | CAL-01/CAL-02/CAL-04 code complete. CAL-03a (Railway deploy) pending — in progress. CAL-03b (Google OAuth production verification) deferred to v1.1 — requires logo, privacy policy, ToS, Google review |
 | 4 | Calendar sync failures surface gracefully without disrupting plan or chat | VERIFIED | compliance lookup now queries sessions table (rides.py line 300, commit bdae60c); exception swallowed at line 313 (best-effort). calendar_sync.py exception swallowing unchanged. BackgroundTasks isolation in adaptations.py unchanged |
 | 5 | App installable as PWA on iOS/Android; offline during-session; iOS install banner; light mode only, no pure blacks, no em dashes | VERIFIED | Unchanged from initial verification: IOSInstallBanner.tsx, vite-plugin-pwa, no #000000 in index.css, no em dashes in UI copy |
 

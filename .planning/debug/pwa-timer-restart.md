@@ -1,6 +1,6 @@
 ---
 slug: pwa-timer-restart
-status: awaiting_human_verify
+status: resolved
 trigger: manual
 created: 2026-06-21
 updated: 2026-06-21

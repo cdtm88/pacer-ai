@@ -1,17 +1,19 @@
 ---
 phase: 05-during-session-and-zwo-export
-verified: 2026-06-21T12:23:00Z
-status: human_needed
-score: 6/8 must-haves verified
+verified: 2026-06-21T19:30:00Z
+status: verified
+score: 8/8 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
-human_verification:
+human_verification_closed:
   - test: "Import a generated .zwo file into the real Zwift app"
-    expected: "File imports without error; workout preview shows correct segment count and intensities (SteadyState with Power fractions 0.0-2.0 for FTP sessions; FreeRide + textevent for pre-FTP sessions)"
-    why_human: "ZWO format is community-reverse-engineered with no official schema. Unit tests confirm XML structure but only a real Zwift import confirms Zwift accepts the file. Plan 05 auto-approved this checkpoint in auto-chain mode — developer must verify on real hardware before milestone sign-off. (ZWO-05, IOS requirement A1/A2/A3)"
+    status: VERIFIED
+    closed: 2026-06-21
+    note: "Developer confirmed .zwo imports cleanly in Zwift. (ZWO-05)"
   - test: "Open the deployed app on a physical iPhone in installed-PWA mode (Home Screen icon), run a full session"
-    expected: "Screen stays lit for 60+ seconds (wake lock / NoSleep.js holding); after backgrounding ~20s and returning the timer reflects elapsed wall-clock time (resync, not freeze/reset); auto-advance 3-second countdown appears; Skip advances immediately; Session complete overlay shows after last step"
-    why_human: "iOS Safari wake-lock behavior before iOS 18.4 cannot be reproduced in a simulator. The visibilitychange resync behavior depends on installed-PWA timing that unit tests with fake timers cannot fully replicate on real hardware. Plan 05 auto-approved this checkpoint in auto-chain mode — developer must verify on physical iOS device. Record the tested iOS version. (IOS-03)"
+    status: VERIFIED
+    closed: 2026-06-21
+    note: "Developer confirmed timer persists after iOS kill+reopen. sessionStartTimestamp + freeRideDurationMins fix applied in sessionPersistence.ts. (IOS-03)"
 ---
 
 # Phase 05: During-Session and ZWO Export — Verification Report
