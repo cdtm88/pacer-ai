@@ -19,8 +19,10 @@ Additional helper:
 """
 
 import asyncio
+import datetime as _dt
 import logging
 import os
+from datetime import timedelta
 from typing import Optional
 
 from api.db import get_async_supabase as _get_async_supabase
@@ -111,11 +113,17 @@ def _build_event_body(session: dict) -> dict:
     if duration_min:
         description_parts.append(f"Duration: {duration_min} min")
 
+    sched_str = str(scheduled_date)
+    try:
+        end_date = (_dt.date.fromisoformat(sched_str) + timedelta(days=1)).isoformat()
+    except ValueError:
+        end_date = sched_str  # fall back on unparseable value
+
     return {
         "summary": f"PacerAI: {objective}",
         "description": "\n".join(description_parts),
-        "start": {"date": str(scheduled_date)},
-        "end": {"date": str(scheduled_date)},
+        "start": {"date": sched_str},
+        "end": {"date": end_date},
     }
 
 
