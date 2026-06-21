@@ -11,14 +11,26 @@ export function useAuth() {
   const { session, user, isLoading, setAuth } = useAuthStore()
 
   useEffect(() => {
-    // onAuthStateChange fires INITIAL_SESSION once Supabase has fully determined
-    // the session — including parsing magic-link tokens from the URL hash.
-    // Using getSession() here races against that hash parsing and can resolve
-    // null before the token is extracted, causing AuthGate to redirect to /login
-    // and discard the hash before onAuthStateChange fires.
+    let active = true
+
+    // Seed the store with the persisted session immediately on mount so
+    // AuthGate sees a valid session before onAuthStateChange fires.
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      if (!active) return
+      setAuth({
+        session: initialSession,
+        user: initialSession?.user ?? null,
+        isLoading: false,
+      })
+    })
+
+    // onAuthStateChange keeps the store in sync after the initial seed.
+    // Guard against transient null events (e.g. INITIAL_SESSION races) clobbering
+    // a valid session — only SIGNED_OUT is allowed to clear it.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    } = supabase.auth.onAuthStateChange((event, newSession) => {
+      if (newSession === null && event !== 'SIGNED_OUT') return
       setAuth({
         session: newSession,
         user: newSession?.user ?? null,
@@ -27,6 +39,7 @@ export function useAuth() {
     })
 
     return () => {
+      active = false
       subscription.unsubscribe()
     }
   }, [setAuth])
