@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Agent Core** - Agent loop, tool registry, SSE streaming, and trust-model enforcement proven end-to-end (completed 2026-06-20)
 - [x] **Phase 3: Coaching Loop** - FIT ingestion, plan generation, onboarding interview, and adaptive re-planning (completed 2026-06-20)
 - [x] **Phase 4: UI and Calendar** - React PWA, all screens, Google Calendar integration, Vercel deployment (completed 2026-06-20)
-- [ ] **Phase 5: During-Session and ZWO Export** - iOS-safe session stepper with wake lock, ZWO file generator with Zwift acceptance test
+- [x] **Phase 5: During-Session and ZWO Export** - iOS-safe session stepper with wake lock, ZWO file generator with Zwift acceptance test (completed 2026-06-21)
 
 ## Phase Details
 
@@ -163,7 +163,7 @@ Plans:
   3. A planned structured session exports as a valid .zwo file; Power values are FTP fractions between 0.0 and 2.0; pre-FTP sessions use a conservative assumed FTP with RPE text segments; `<sportType>bike</sportType>` is present; Cadence is omitted when not specified
   4. The generated .zwo file imports cleanly in Zwift; the acceptance test against a real Zwift import passes before ZWO export is considered production-ready
 
-**Plans**: 4/5 plans executed
+**Plans**: 5/5 plans complete
 
 Plans:
 **Wave 1** *(backend + hooks, parallel)*
@@ -178,7 +178,7 @@ Plans:
 
 **Wave 3** *(manual acceptance, blocking)*
 
-- [ ] 05-05-PLAN.md — Human checkpoints: real Zwift import (ZWO-05) + physical iOS Safari timer/wake-lock verification (IOS-03)
+- [x] 05-05-PLAN.md — Human checkpoints: real Zwift import (ZWO-05) + physical iOS Safari timer/wake-lock verification (IOS-03)
 
 **UI hint**: yes
 
@@ -190,4 +190,4 @@ Plans:
 | 2. Agent Core | 6/6 | Complete    | 2026-06-20 |
 | 3. Coaching Loop | 5/5 | Complete    | 2026-06-20 |
 | 4. UI and Calendar | 11/11 | Complete    | 2026-06-20 |
-| 5. During-Session and ZWO Export | 4/5 | In Progress|  |
+| 5. During-Session and ZWO Export | 5/5 | Complete   | 2026-06-21 |

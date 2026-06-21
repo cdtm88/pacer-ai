@@ -106,7 +106,7 @@
 
 - [x] **IOS-01**: Screen wake lock uses the Wake Lock API with a NoSleep.js fallback for iOS versions before 18.4 (wake lock was broken in installed PWAs before iOS 18.4)
 - [x] **IOS-02**: Session timer uses `Date.now()` deltas, not `setInterval` counts; a `visibilitychange` event listener resyncs the timer when the user returns from a background tab
-- [ ] **IOS-03**: The during-session view is tested and functional on iOS Safari (not only Chromium)
+- [x] **IOS-03**: The during-session view is tested and functional on iOS Safari (not only Chromium)
 
 ### Capability-Gap Logging
 
@@ -219,7 +219,7 @@
 | ZWO-05 | Phase 5 | Complete |
 | IOS-01 | Phase 5 | Complete |
 | IOS-02 | Phase 5 | Complete |
-| IOS-03 | Phase 5 | Pending |
+| IOS-03 | Phase 5 | Complete |
 
 **Coverage:**
 
