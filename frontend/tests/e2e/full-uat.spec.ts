@@ -409,21 +409,13 @@ test.describe('Today Screen — Desktop', () => {
 // ─── Mark Missed — Full confirm flow ─────────────────────────────────────────
 
 test.describe('Mark Missed — Confirm Flow', () => {
-  test('Yes mark missed closes dialog and fires PATCH (mobile)', async ({ page }) => {
+  test('Yes mark missed closes dialog and fires POST to adaptations endpoint (mobile)', async ({ page }) => {
     await page.setViewportSize(MOBILE)
-    let patchCalled = false
+    let missedCalled = false
     await setupAuthenticated(page)
 
-    await page.route(/\/sessions\/session-today-id/, (route) => {
-      if (route.request().method() === 'PATCH') {
-        patchCalled = true
-        route.fulfill({ status: 200, contentType: 'application/json', body: '{"status":"missed"}' })
-      } else {
-        route.continue()
-      }
-    })
-
     await page.route(/\/adaptations\/sessions\/session-today-id\/missed/, (route) => {
+      missedCalled = true
       route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
     })
 
@@ -437,7 +429,7 @@ test.describe('Mark Missed — Confirm Flow', () => {
     // Dialog should close
     await page.waitForTimeout(600)
     await expect(page.getByText('Mark this session as missed?')).not.toBeVisible()
-    expect(patchCalled).toBe(true)
+    expect(missedCalled).toBe(true)
   })
 
   test('dialog copy has no em dashes', async ({ page }) => {
