@@ -118,13 +118,24 @@ Plans:
   4. Calendar sync failures surface gracefully to the user without disrupting the plan or chat
   5. The app is installable as a PWA on iOS and Android; it works offline for the during-session view; the iOS install instructional banner appears on first visit; light mode only with no pure blacks and no em dashes in any copy
 
-**Plans**: 11/11 plans complete
+**Plans**: 11/16 plans complete (5 gap-closure plans added from UAT)
 
 Plans:
 
 - [x] 04-09-PLAN.md
 - [x] 04-10-PLAN.md — Commit E2E test fixes and verify 34/34 Playwright tests pass
 - [x] 04-11-PLAN.md — Human confirmation: Google Cloud OAuth consent screen published (CAL-03)
+
+**Wave 6** *(UAT gap closure, parallel)*
+
+- [ ] 04-12-PLAN.md — Onboarding loop fix: call save_messages so multi-turn context persists (UAT GAP 6)
+- [ ] 04-14-PLAN.md — Auth redirect loop fix: persist Supabase session, seed from getSession (UAT GAP 1)
+- [ ] 04-16-PLAN.md — FIT upload 422 fix: accurate duration parse + surfaced error reason (UAT GAP 4)
+
+**Wave 7** *(UAT gap closure, depends on Wave 6)*
+
+- [ ] 04-13-PLAN.md — Chat no-response fix: read message param + persist turns (UAT GAP 5)
+- [ ] 04-15-PLAN.md — Session actions fix: Mark Done / Mark Missed diagnosis + visible failures (UAT GAPs 2, 3)
 
 **Wave 1** *(foundation, parallel)*
 
@@ -190,4 +201,4 @@ Plans:
 | 2. Agent Core | 6/6 | Complete    | 2026-06-20 |
 | 3. Coaching Loop | 5/5 | Complete    | 2026-06-20 |
 | 4. UI and Calendar | 11/11 | Complete    | 2026-06-20 |
-| 5. During-Session and ZWO Export | 5/5 | Complete   | 2026-06-21 |
+| 5. During-Session and ZWO Export | 5/5 | Complete    | 2026-06-21 |
