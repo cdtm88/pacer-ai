@@ -1,7 +1,7 @@
 ---
 phase: 5
 slug: during-session-and-zwo-export
-status: draft
+status: approved
 shadcn_initialized: true
 preset: "new-york / neutral / css-variables / lucide"
 created: 2026-06-21
@@ -56,13 +56,12 @@ All sizes apply to the Inter font family at line-heights specified below. No new
 
 | Role | Size | Weight | Line Height | Color Token | Usage |
 |------|------|--------|-------------|-------------|-------|
-| Display / Current Step | 40px | 700 (bold) | 1.1 | `--color-ink` | Current session step label (SessionStepList — existing) |
-| Timer | 32px | 700 (bold) | 1.0 | `--color-ink` | Countdown timer display (tabular-nums, letter-spacing 0.05em — existing) |
-| Heading / Next Step | 20px | 600 (semibold) | 1.3 | `--color-ink-2` | "Next: [step label]" in step list (existing) |
-| Body / Remaining Steps | 16px | 400 (regular) | 1.5 | `--color-ink-3` | Remaining step labels, modal body text, toast messages |
-| Label / Secondary | 14px | 400 (regular) | 1.5 | `--color-ink-3` | Step subtext, countdown warning label, modal captions |
+| Display / Current Step + Timer | 40px | 700 (bold) | 1.1 | `--color-ink` | Current step label AND countdown timer (tabular-nums, letter-spacing 0.05em); "Session complete" heading |
+| Heading / Next Step | 20px | 700 (bold) | 1.3 | `--color-ink-2` | "Next: [step label]" in step list; modal titles |
+| Body / Remaining Steps | 16px | 400 (regular) | 1.5 | `--color-ink-3` | Remaining step labels, modal body text, toast messages, "Session complete" subtext |
+| Label / Secondary | 14px | 400 (regular) | 1.5 | `--color-ink-3` | Step subtext, countdown warning label, modal captions, unit suffixes |
 
-Maximum type sizes used: 5 (display/timer/heading/body/label). Only 2 weights: 400 regular + 600/700 bold (executor: treat 700 bold as the "bold" weight; 600 semibold is the single "medium" weight).
+Maximum type sizes used: 4 (display+timer / heading / body / label). Only 2 weights: 400 regular + 700 bold. The timer shares the 40px/700 Display slot (differentiated by tabular-nums and letter-spacing, not a separate size).
 
 ---
 
@@ -74,7 +73,7 @@ All tokens defined in `frontend/src/index.css`. No new tokens introduced in Phas
 |------|-------|-----|-------|
 | Dominant (60%) | `--color-bg-2` | #F6F6F7 | Full-screen background for DuringSessionScreen and "Session complete" overlay |
 | Secondary (30%) | `--color-surface` | #FFFFFF | ZWO export modal background, duration picker modal background, step card surfaces |
-| Accent (10%) | `--color-blue-6` | #228BE6 | Primary action buttons only: "Start timer" (if shown), "Download" in ZWO modal, "Done" on complete screen |
+| Accent (10%) | `--color-blue-6` | #228BE6 | Primary action buttons only: "Download .zwo" in ZWO modal, "Back to today" on complete screen |
 | Accent small text | `--color-blue-7` | #1B73C0 | No small blue text introduced in Phase 5 |
 | Destructive | `--color-bad` | #C0341D | "End session" button text and border (outline variant — existing) |
 | Muted text | `--color-ink-3` | #888C93 | Step subtext, countdown warning label, timer sublabel |
@@ -93,7 +92,7 @@ Zone accent tokens (existing, reused on step zone strip):
 | Threshold | `--color-zone-threshold` | #E8590C |
 | VO2 | `--color-zone-vo2` | #C92A2A |
 
-Accent reserved for: primary action buttons ("Download", "Done"), active timer progress indicator (if any visual fill is added). Never applied to: body text, labels, step backgrounds, borders.
+Accent reserved for: primary action buttons ("Download .zwo", "Back to today", "Start session"). Never applied to: body text, labels, step backgrounds, borders.
 
 ---
 
@@ -104,7 +103,7 @@ Accent reserved for: primary action buttons ("Download", "Done"), active timer p
 | Element | Copy |
 |---------|------|
 | Timer format | `MM:SS` — always two digits each (e.g. `05:30`, `00:03`) |
-| Skip button label | `Skip` |
+| Skip button label | `Skip step` |
 | Skip button placement | Trailing (right-aligned) on the current step card, below the zone strip |
 | Countdown warning — 3s | `Starting [step name] in 3...` |
 | Countdown warning — 2s | `Starting [step name] in 2...` |
@@ -121,10 +120,10 @@ Accent reserved for: primary action buttons ("Download", "Done"), active timer p
 | Heading | `Session complete` |
 | Elapsed time label | `Total time: {H}h {M}m` if >= 60 min, else `Total time: {M}m {S}s` |
 | Steps completed label | `{N} steps completed` (e.g. "3 steps completed") |
-| Primary CTA | `Done` |
-| "Done" destination | Navigates to `/` (Today screen) |
+| Primary CTA | `Back to today` |
+| "Back to today" destination | Navigates to `/` (Today screen) |
 | Overlay background | `--color-bg-2` full-screen, same as session screen — not a new route |
-| Heading size | 28px, weight 700, `--color-ink` |
+| Heading size | 40px, weight 700, `--color-ink` (uses Display slot — no new size) |
 | Subtext size | 16px, weight 400, `--color-ink-2` |
 
 ### ZWO Export Modal
@@ -138,7 +137,7 @@ Accent reserved for: primary action buttons ("Download", "Done"), active timer p
 | Step summary header | `Workout` |
 | Step summary format | `Warmup — {N} min`, `Main set — {N} min`, `Cool-down — {N} min` (one line per segment) |
 | Download button label | `Download .zwo` |
-| Cancel button label | `Cancel` |
+| Close button label | `Close` |
 | Error toast (generation failure) | `Export failed. Try again or contact support if the problem continues.` |
 | Error toast (session not found) | `Session not found. Refresh the page and try again.` |
 | Error behavior | Modal stays open on error; user can retry by tapping "Download .zwo" again |
@@ -157,7 +156,7 @@ Accent reserved for: primary action buttons ("Download", "Done"), active timer p
 | Custom input placeholder | `e.g. 75` (minutes) |
 | Custom input unit label | `min` (trailing suffix, 14px muted) |
 | Start button label | `Start session` |
-| Cancel button label | `Cancel` |
+| Cancel button label | `Never mind` |
 | Free-ride step labels | `Warm-up`, `Free ride`, `Cool-down` |
 | Free-ride step structure | Warmup 10% / Main 80% / Cooldown 10% of total, rounded to nearest minute, min 3 min per segment |
 
@@ -172,6 +171,10 @@ No other destructive actions in Phase 5.
 ---
 
 ## Interaction Contracts
+
+### Visual Hierarchy — DuringSessionScreen
+
+Primary focal point: the current step label (40px bold, `--color-ink`) is the dominant visual anchor. The timer (40px bold, tabular-nums) is the secondary focal point, positioned below the step label. "Next:" (20px bold, `--color-ink-2`) is tertiary. "Skip step" button and remaining steps are subordinate chrome. This stacking order governs layout priority on all viewport sizes.
 
 ### Timer Auto-Advance
 
@@ -193,7 +196,7 @@ No other destructive actions in Phase 5.
 1. "Export to Zwift" button (Today screen) opens a shadcn Dialog modal.
 2. Modal fetches session metadata from already-cached TanStack Query data — no extra request to open modal.
 3. "Download .zwo" button triggers `GET /sessions/{id}/export.zwo` via `apiFetch` with `Accept: application/octet-stream`. On success, creates a blob URL and triggers browser download. On failure, shows sonner error toast; modal stays open.
-4. Modal closes on "Cancel" or after successful download.
+4. Modal closes on "Close" button or after successful download.
 
 ### Duration Picker Modal
 
@@ -242,11 +245,11 @@ No third-party shadcn registries declared. Registry vetting gate: not applicable
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved 2026-06-21
