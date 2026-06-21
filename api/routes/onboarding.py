@@ -265,8 +265,30 @@ async def onboarding_start(
         # Send conversation_id to the client so it can pass it back on subsequent turns.
         if conversation_id:
             yield f"event: metadata\ndata: {json.dumps({'conversation_id': conversation_id})}\n\n"
-        async for chunk in sse_generator(messages, model, system_prompt=ONBOARDING_SYSTEM_PROMPT, _run_turn=run_turn):
+        # Sink to capture the full assistant reply after the stream completes (04-12: UAT GAP 6).
+        assistant_sink: list[str] = []
+        async for chunk in sse_generator(
+            messages,
+            model,
+            system_prompt=ONBOARDING_SYSTEM_PROMPT,
+            _run_turn=run_turn,
+            assistant_sink=assistant_sink,
+        ):
             yield chunk
+        # Persist the new turns after the stream is done (best-effort; must not break the response).
+        try:
+            if conversation_id is not None:
+                new_turns: list[dict] = []
+                # Persist the incoming user message only when it is a non-empty string.
+                if body.message:
+                    new_turns.append({"role": "user", "content": body.message})
+                # Persist the assistant reply only when the sink captured non-empty text.
+                if assistant_sink and assistant_sink[0]:
+                    new_turns.append({"role": "assistant", "content": assistant_sink[0]})
+                if new_turns:
+                    await save_messages(conversation_id, user_id, new_turns)
+        except Exception:
+            pass  # best-effort; a persistence failure must never surface on the already-completed stream
 
     return StreamingResponse(
         _stream_with_metadata(),
