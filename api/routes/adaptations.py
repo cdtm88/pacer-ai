@@ -369,6 +369,7 @@ async def apply_micro_adjustment(user_id: str, signal: dict) -> dict:
         await supabase.table("sessions").update({
             "tss_target": new_tss,
             "duration_minutes": new_dur,
+            "duration_mins": new_dur,  # keep legacy column in sync
         }).eq("id", session["id"]).execute()
 
         after_sessions.append({
