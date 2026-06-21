@@ -20,6 +20,7 @@ so each handler path below is the final URL.
 import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 
 from api.auth import get_current_user
 from api.db import get_async_supabase as _get_async_supabase
@@ -258,3 +259,86 @@ async def update_session(
         )
 
     return result.data[0]
+
+
+# ---------------------------------------------------------------------------
+# GET /sessions/{session_id}/export.zwo
+# ---------------------------------------------------------------------------
+
+
+@router.get("/sessions/{session_id}/export.zwo")
+async def export_session_zwo(
+    session_id: str,
+    current_user: dict = Depends(get_current_user),
+) -> Response:
+    """
+    GET /sessions/{session_id}/export.zwo
+
+    Returns a Zwift .zwo structured workout file for the authenticated user's
+    session (ZWO-01, D-06).
+
+    Security controls:
+    - user_id is sourced from the verified JWT sub claim (T-05-05).
+    - validate_uuid() is called before any DB access to reject malformed IDs
+      (T-05-02, V5).
+    - Sessions table is queried with dual filter on id AND user_id; a session
+      belonging to another user returns 404, never that user's data (T-05-01,
+      IDOR mitigation mirrors the PATCH handler pattern).
+
+    Power values in the generated XML come exclusively from POWER_BY_SEGMENT
+    constants or the profile ftp field (D-06, trust model). The LLM never
+    supplies power values.
+
+    Returns an application/xml attachment with Content-Disposition filename
+    formatted as {YYYY-MM-DD}-{type}.zwo (D-05).
+    """
+    user_id = current_user["user_id"]
+
+    # V5: validate UUID format before any DB call (T-05-02)
+    validate_uuid(session_id, "session_id")
+
+    supabase = await _get_async_supabase()
+
+    # IDOR guard: dual-filter on id AND user_id (T-05-01)
+    result = await (
+        supabase.table("sessions")
+        .select(_SESSION_COLUMNS)
+        .eq("id", session_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+
+    if not result.data:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "session_not_found",
+                "detail": "No session found for this user with the given id",
+            },
+        )
+
+    session = result.data[0]
+
+    # Fetch profile FTP; None when not yet established (ZWO-03 path)
+    profile_result = await (
+        supabase.table("profiles")
+        .select("ftp")
+        .eq("user_id", user_id)
+        .execute()
+    )
+    ftp = profile_result.data[0]["ftp"] if profile_result.data else None
+
+    # Local import keeps module-level coupling minimal
+    from api.sports_science.zwo import generate_zwo  # noqa: PLC0415
+
+    xml_bytes = generate_zwo(session, ftp)
+
+    # D-05: filename format {YYYY-MM-DD}-{type}.zwo
+    session_type = (session.get("type") or "workout").lower()
+    filename = f"{session.get('scheduled_date', '')}-{session_type}.zwo"
+
+    return Response(
+        content=xml_bytes,
+        media_type="application/xml",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
