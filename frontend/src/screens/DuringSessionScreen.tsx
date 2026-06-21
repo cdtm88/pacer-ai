@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router'
-import { useQuery } from '@tanstack/react-query'
-import { getSessionToday, getProfileMe } from '@/lib/api'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { getSessionToday, getProfileMe, markSessionDone } from '@/lib/api'
 import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { useUiStore } from '@/stores/uiStore'
@@ -126,12 +126,24 @@ function SessionRunner({
   steps,
   ftp,
   freeRideDurationMins,
+  sessionId,
 }: {
   steps: SessionStep[]
   ftp: number | null
   freeRideDurationMins: number | null
+  sessionId: string | null
 }) {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+
+  const finishSession = useCallback(async () => {
+    clearSession()
+    if (sessionId) {
+      try { await markSessionDone(sessionId) } catch { /* navigate anyway */ }
+    }
+    await queryClient.invalidateQueries({ queryKey: ['session', 'today'] })
+    navigate('/')
+  }, [sessionId, queryClient, navigate])
 
   const restoredRef = useRef<RestoredState | null>(null)
   if (restoredRef.current === null) {
@@ -238,7 +250,7 @@ function SessionRunner({
           {steps.length} steps finished
         </p>
         <button
-          onClick={() => { clearSession(); navigate('/') }}
+          onClick={() => { void finishSession() }}
           style={{
             backgroundColor: 'var(--color-ink)',
             color: 'var(--color-surface)',
@@ -388,7 +400,7 @@ function SessionRunner({
 
         {/* End session */}
         <button
-          onClick={() => { clearSession(); navigate('/') }}
+          onClick={() => { void finishSession() }}
           style={{
             background: 'none',
             border: 'none',
@@ -495,5 +507,5 @@ export function DuringSessionScreen() {
     )
   }
 
-  return <SessionRunner steps={steps} ftp={ftp} freeRideDurationMins={freeRideDurationMins} />
+  return <SessionRunner steps={steps} ftp={ftp} freeRideDurationMins={freeRideDurationMins} sessionId={session?.id ?? null} />
 }
