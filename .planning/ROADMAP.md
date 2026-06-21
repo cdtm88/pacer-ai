@@ -118,7 +118,7 @@ Plans:
   4. Calendar sync failures surface gracefully to the user without disrupting the plan or chat
   5. The app is installable as a PWA on iOS and Android; it works offline for the during-session view; the iOS install instructional banner appears on first visit; light mode only with no pure blacks and no em dashes in any copy
 
-**Plans**: 20/21 plans executed
+**Plans**: 21/21 plans complete
 
 Plans:
 
@@ -142,7 +142,7 @@ Plans:
 - [x] 04-17-PLAN.md — Auth callback race fix: skip null getSession seed on /auth/callback (UAT GAP 1)
 - [x] 04-18-PLAN.md — Mark Missed dialog: replace inline block with shadcn AlertDialog (UAT GAP 2)
 - [x] 04-19-PLAN.md — Mark Done .select() fix + onboarding save_messages verify (UAT GAPs 3, 6)
-- [ ] 04-20-PLAN.md — Chat fix: map conversation_id to id + sseUrl query-string join (UAT GAP 5)
+- [x] 04-20-PLAN.md — Chat fix: map conversation_id to id + sseUrl query-string join (UAT GAP 5)
 - [x] 04-21-PLAN.md — FIT upload e2e LIFO fix: register /rides/ before /rides/upload (UAT GAP 4)
 
 **Wave 1** *(foundation, parallel)*
@@ -208,5 +208,5 @@ Plans:
 | 1. Sports-Science Foundation | 5/5 | Complete   | 2026-06-19 |
 | 2. Agent Core | 6/6 | Complete    | 2026-06-20 |
 | 3. Coaching Loop | 5/5 | Complete    | 2026-06-20 |
-| 4. UI and Calendar | 20/21 | In Progress|  |
+| 4. UI and Calendar | 21/21 | Complete   | 2026-06-21 |
 | 5. During-Session and ZWO Export | 5/5 | Complete    | 2026-06-21 |
