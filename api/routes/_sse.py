@@ -27,8 +27,8 @@ import json
 
 import anthropic
 
-from agent.loop import run_turn as _default_run_turn
-from agent.trust import scan_buffer
+from api.agent.loop import run_turn as _default_run_turn
+from api.agent.trust import scan_buffer
 
 
 async def sse_generator(

@@ -1,9 +1,9 @@
 # tests/sports_science/test_pmc.py
 import math
 import pytest
-from sports_science.pmc import update_pmc, CTL_ALPHA, ATL_ALPHA
-from sports_science.types import ToolResult
-from sports_science.constants import CTL_TC, ATL_TC, PMC_MIN_DAYS
+from api.sports_science.pmc import update_pmc, CTL_ALPHA, ATL_ALPHA
+from api.sports_science.types import ToolResult
+from api.sports_science.constants import CTL_TC, ATL_TC, PMC_MIN_DAYS
 
 
 class TestEWMAValues:

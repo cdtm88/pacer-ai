@@ -1,7 +1,7 @@
 # tests/sports_science/test_ftp.py
 import pytest
-from sports_science.ftp import estimate_ftp_from_rides
-from sports_science.types import ToolResult
+from api.sports_science.ftp import estimate_ftp_from_rides
+from api.sports_science.types import ToolResult
 
 
 # --------------------------------------------------------------------------- #

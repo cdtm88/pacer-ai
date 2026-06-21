@@ -1,7 +1,7 @@
 # tests/sports_science/test_types.py
 import pytest
 from pydantic import ValidationError
-from sports_science.types import ToolResult
+from api.sports_science.types import ToolResult
 
 
 def test_toolresult_constructs():

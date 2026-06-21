@@ -264,7 +264,7 @@ async def test_back_status_constraint(monkeypatch):
     Calls save_profile directly with a mocked _get_async_supabase that captures
     the upsert payload.
     """
-    import sports_science.profile as profile_module
+    import api.sports_science.profile as profile_module
 
     # Track captured upsert payload
     captured_payload = {}
@@ -285,7 +285,7 @@ async def test_back_status_constraint(monkeypatch):
 
     monkeypatch.setattr(profile_module, "_supabase_client", mock_client)
 
-    from sports_science.profile import save_profile
+    from api.sports_science.profile import save_profile
 
     result = await save_profile(
         user_id=TEST_USER_ID,
@@ -313,7 +313,7 @@ async def test_profile_persisted(monkeypatch):
     Monkeypatches _supabase_client directly (bypasses _get_async_supabase) so
     the mock is used without live Supabase.
     """
-    import sports_science.profile as profile_module
+    import api.sports_science.profile as profile_module
 
     execute_result = MagicMock()
     execute_result.data = [{"id": "profile-uuid-003"}]
@@ -325,7 +325,7 @@ async def test_profile_persisted(monkeypatch):
 
     monkeypatch.setattr(profile_module, "_supabase_client", mock_client)
 
-    from sports_science.profile import save_profile
+    from api.sports_science.profile import save_profile
 
     result = await save_profile(
         user_id=TEST_USER_ID,

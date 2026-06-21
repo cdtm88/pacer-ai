@@ -229,7 +229,7 @@ async def test_intensity_from_tools(monkeypatch):
     underperformance. The compliance decision comes from the tool, not a literal.
     """
     import api.routes.adaptations as adapt_module
-    from sports_science.compliance import validate_session_vs_actual
+    from api.sports_science.compliance import validate_session_vs_actual
 
     today = datetime.date.today()
     yesterday = (today - datetime.timedelta(days=1)).isoformat()

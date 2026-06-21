@@ -1,7 +1,7 @@
 # tests/sports_science/test_compliance.py
 import pytest
-from sports_science.compliance import validate_session_vs_actual
-from sports_science.types import ToolResult
+from api.sports_science.compliance import validate_session_vs_actual
+from api.sports_science.types import ToolResult
 
 
 # --------------------------------------------------------------------------- #

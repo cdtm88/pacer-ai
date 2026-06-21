@@ -42,8 +42,8 @@ from api.auth import get_current_user
 from api.calendar_sync import delete_calendar_event, update_calendar_event
 from api.db import get_async_supabase as _get_async_supabase
 from api.utils import validate_uuid
-from sports_science.compliance import validate_session_vs_actual
-from sports_science.load import progress_load
+from api.sports_science.compliance import validate_session_vs_actual
+from api.sports_science.load import progress_load
 
 
 # ---------------------------------------------------------------------------

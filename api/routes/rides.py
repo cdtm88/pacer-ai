@@ -40,10 +40,10 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Up
 from api.auth import get_current_user
 from api.db import get_async_supabase as _get_async_supabase
 from api.utils import validate_uuid
-from sports_science.compliance import validate_session_vs_actual
-from sports_science.ftp import estimate_ftp_from_rides
-from sports_science.metrics import compute_tss
-from sports_science.pmc import update_pmc
+from api.sports_science.compliance import validate_session_vs_actual
+from api.sports_science.ftp import estimate_ftp_from_rides
+from api.sports_science.metrics import compute_tss
+from api.sports_science.pmc import update_pmc
 
 logger = logging.getLogger(__name__)
 

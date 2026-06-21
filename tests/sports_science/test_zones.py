@@ -1,7 +1,7 @@
 # tests/sports_science/test_zones.py
 import pytest
-from sports_science.zones import calculate_power_zones, calculate_hr_zones
-from sports_science.types import ToolResult
+from api.sports_science.zones import calculate_power_zones, calculate_hr_zones
+from api.sports_science.types import ToolResult
 
 
 def test_power_zones_ftp200():

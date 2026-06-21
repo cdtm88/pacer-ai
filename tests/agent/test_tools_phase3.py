@@ -23,7 +23,7 @@ def test_trust02_still_passes_after_new_tools():
     TRUST-02: TOOL_REGISTRY and TOOL_SCHEMAS must have exactly the same names.
     After Wave 1, both must have 10 entries: 8 original + save_profile + generate_plan.
     """
-    from agent.tools import TOOL_REGISTRY, TOOL_SCHEMAS
+    from api.agent.tools import TOOL_REGISTRY, TOOL_SCHEMAS
 
     schema_names = {s["name"] for s in TOOL_SCHEMAS}
     registry_names = set(TOOL_REGISTRY)
@@ -48,7 +48,7 @@ def test_trust02_still_passes_after_new_tools():
 
 def test_generate_plan():
     """Basic generate_plan call returns 4-week mesocycle with correct shape."""
-    from sports_science.plan import generate_plan
+    from api.sports_science.plan import generate_plan
 
     result = generate_plan(
         user_id="u1",
@@ -71,7 +71,7 @@ def test_generate_plan():
 
 def test_cold_start_hr_only():
     """Cold-start plan (ftp_confidence=insufficient_data) has no power targets and uses HR zones."""
-    from sports_science.plan import generate_plan
+    from api.sports_science.plan import generate_plan
 
     result = generate_plan(
         user_id="u1",
@@ -92,7 +92,7 @@ def test_cold_start_hr_only():
 
 def test_power_targets_cold_start():
     """All sessions in a cold-start plan have power_targets == None (D-07)."""
-    from sports_science.plan import generate_plan
+    from api.sports_science.plan import generate_plan
 
     result = generate_plan(
         user_id="u1",
@@ -114,7 +114,7 @@ def test_power_targets_cold_start():
 
 def test_session_schema():
     """Each session has the required keys: week, day, type, objective, duration_minutes, structure, zone_targets, power_targets, rpe_target."""
-    from sports_science.plan import generate_plan
+    from api.sports_science.plan import generate_plan
 
     result = generate_plan(
         user_id="u1",
@@ -146,7 +146,7 @@ def test_back_constraints():
     - Weeks 1-2: duration_minutes <= 30
     - Week 1: no session with type == 'strength'
     """
-    from sports_science.plan import generate_plan
+    from api.sports_science.plan import generate_plan
 
     result = generate_plan(
         user_id="u1",
@@ -193,7 +193,7 @@ async def test_save_profile_upserts(monkeypatch):
     save_profile upserts to the profiles table and returns ToolResult with saved=True.
     Supabase client is mocked -- no real DB connection.
     """
-    import sports_science.profile as profile_module
+    import api.sports_science.profile as profile_module
 
     mock_client = MagicMock()
     mock_client.table.return_value.upsert.return_value.execute = AsyncMock(
@@ -201,7 +201,7 @@ async def test_save_profile_upserts(monkeypatch):
     )
     monkeypatch.setattr(profile_module, "_supabase_client", mock_client)
 
-    from sports_science.profile import save_profile
+    from api.sports_science.profile import save_profile
 
     result = await save_profile(
         user_id="u1",
@@ -224,7 +224,7 @@ async def test_save_profile_moderate_back_constraints(monkeypatch):
     save_profile with back_status='moderate' passes the correct constraints JSONB
     to the Supabase upsert.
     """
-    import sports_science.profile as profile_module
+    import api.sports_science.profile as profile_module
 
     upsert_calls = []
 
@@ -240,7 +240,7 @@ async def test_save_profile_moderate_back_constraints(monkeypatch):
     mock_client.table.return_value = _MockTable()
     monkeypatch.setattr(profile_module, "_supabase_client", mock_client)
 
-    from sports_science.profile import save_profile
+    from api.sports_science.profile import save_profile
 
     result = await save_profile(
         user_id="u2",

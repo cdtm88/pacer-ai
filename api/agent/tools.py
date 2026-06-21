@@ -23,7 +23,7 @@ import asyncio
 import hashlib
 import json
 
-from sports_science import (
+from api.sports_science import (
     calculate_power_zones,
     calculate_hr_zones,
     estimate_ftp_from_rides,
@@ -33,9 +33,9 @@ from sports_science import (
     validate_session_vs_actual,
     log_capability_gap,
 )
-from sports_science.types import ToolResult  # noqa: F401 – referenced in type hints below
-from sports_science.profile import save_profile
-from sports_science.plan import generate_plan
+from api.sports_science.types import ToolResult  # noqa: F401 – referenced in type hints below
+from api.sports_science.profile import save_profile
+from api.sports_science.plan import generate_plan
 
 # ---------------------------------------------------------------------------
 # Tool Registry

@@ -1,7 +1,7 @@
 # tests/sports_science/test_load.py
 import pytest
-from sports_science.load import progress_load, CTL_RAMP_CEILING_PER_WEEK
-from sports_science.types import ToolResult
+from api.sports_science.load import progress_load, CTL_RAMP_CEILING_PER_WEEK
+from api.sports_science.types import ToolResult
 
 
 # --------------------------------------------------------------------------- #

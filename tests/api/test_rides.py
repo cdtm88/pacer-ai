@@ -449,7 +449,7 @@ async def test_fit_upload_integration(monkeypatch):
     assert body.get("status") == "processing", f"Expected status='processing': {body}"
 
     # Drive TSS computation directly from the captured parsed dict (FIT-06 core assertion)
-    from sports_science.metrics import compute_tss
+    from api.sports_science.metrics import compute_tss
 
     assert "parsed" in bg_args, "Background task was not invoked with parsed FIT data"
     parsed = bg_args["parsed"]

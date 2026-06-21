@@ -38,8 +38,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel as _PydanticBaseModel
 
-from agent.loop import run_turn  # noqa: F401 -- module-scope import for test monkeypatching
-from agent.trust import scan_buffer
+from api.agent.loop import run_turn  # noqa: F401 -- module-scope import for test monkeypatching
+from api.agent.trust import scan_buffer
 from api.auth import get_current_user
 from api.calendar_sync import push_all_sessions_to_calendar
 from api.db import get_async_supabase as _get_async_supabase

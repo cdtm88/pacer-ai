@@ -47,7 +47,7 @@ from fastapi.responses import StreamingResponse
 
 # run_turn is imported at module scope so tests can monkeypatch chat_module.run_turn.
 # Passing run_turn to sse_generator as _run_turn keeps the monkeypatch effective.
-from agent.loop import run_turn  # noqa: F401 (passed to sse_generator for test compat)
+from api.agent.loop import run_turn  # noqa: F401 (passed to sse_generator for test compat)
 from api.auth import get_current_user
 from api.routes._sse import sse_generator
 from api.routes.onboarding import create_conversation, load_conversation

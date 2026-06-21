@@ -125,6 +125,8 @@ async def test_auth_uses_prompt_consent(monkeypatch):
     fake_flow = MagicMock()
     fake_flow.authorization_url.side_effect = fake_authorization_url
 
+    import api.routes.calendar as cal_mod
+
     # Mock supabase to handle oauth_states upsert.
     mock_sb = mock_supabase_factory([{"user_id": TEST_USER_ID}])
     monkeypatch.setattr(cal_mod, "_get_async_supabase", mock_sb)
