@@ -1,6 +1,9 @@
 import { supabase } from './supabase'
 
 const BASE = import.meta.env.VITE_API_URL
+if (!BASE) {
+  throw new Error('VITE_API_URL is not set. Add it to .env.local.')
+}
 
 // ---------------------------------------------------------------------------
 // Core fetch wrapper: reads current Supabase session and injects JWT
