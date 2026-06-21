@@ -137,6 +137,14 @@ Plans:
 - [x] 04-13-PLAN.md — Chat no-response fix: read message param + persist turns (UAT GAP 5)
 - [x] 04-15-PLAN.md — Session actions fix: Mark Done / Mark Missed diagnosis + visible failures (UAT GAPs 2, 3)
 
+**Wave 8** *(UAT gap closure round 2, parallel — re-run UAT still failing)*
+
+- [ ] 04-17-PLAN.md — Auth callback race fix: skip null getSession seed on /auth/callback (UAT GAP 1)
+- [ ] 04-18-PLAN.md — Mark Missed dialog: replace inline block with shadcn AlertDialog (UAT GAP 2)
+- [ ] 04-19-PLAN.md — Mark Done .select() fix + onboarding save_messages verify (UAT GAPs 3, 6)
+- [ ] 04-20-PLAN.md — Chat fix: map conversation_id to id + sseUrl query-string join (UAT GAP 5)
+- [ ] 04-21-PLAN.md — FIT upload e2e LIFO fix: register /rides/ before /rides/upload (UAT GAP 4)
+
 **Wave 1** *(foundation, parallel)*
 
 - [x] 04-02-PLAN.md — api/auth.py JWT dependency + JWT middleware across all existing routes + auth tests
