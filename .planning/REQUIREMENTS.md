@@ -87,7 +87,7 @@
 - [x] **ZWO-02**: Power targets in the .zwo file are expressed as FTP fractions (0.75 = 75% FTP), not watts; all Power values are validated to be between 0.0 and 2.0 before export
 - [x] **ZWO-03**: Pre-FTP sessions use a conservative assumed FTP with RPE text segments in the .zwo structure
 - [x] **ZWO-04**: The .zwo file includes `<sportType>bike</sportType>`; Cadence is omitted rather than set to 0 when not specified
-- [ ] **ZWO-05**: A generated .zwo file is validated against a real Zwift import as an acceptance criterion before ZWO export is considered production-ready
+- [x] **ZWO-05**: A generated .zwo file is validated against a real Zwift import as an acceptance criterion before ZWO export is considered production-ready
 
 ### Web UI
 
@@ -216,7 +216,7 @@
 | ZWO-02 | Phase 5 | Complete |
 | ZWO-03 | Phase 5 | Complete |
 | ZWO-04 | Phase 5 | Complete |
-| ZWO-05 | Phase 5 | Pending |
+| ZWO-05 | Phase 5 | Complete |
 | IOS-01 | Phase 5 | Complete |
 | IOS-02 | Phase 5 | Complete |
 | IOS-03 | Phase 5 | Pending |
