@@ -24,10 +24,6 @@ export function AuthCallbackScreen() {
     const search = window.location.search
     const hash = window.location.hash
 
-    // Debug: log what the callback received so we can see which flow is active
-    console.log('[AuthCallback] search:', search)
-    console.log('[AuthCallback] hash:', hash)
-
     const code = new URLSearchParams(search).get('code')
 
     if (code) {
@@ -36,7 +32,6 @@ export function AuthCallbackScreen() {
         .exchangeCodeForSession(code)
         .then(({ data, error }) => {
           if (error) {
-            console.error('[AuthCallback] PKCE exchange failed:', error.message)
             navigate('/login', { replace: true })
           } else {
             // GoTrue fires SIGNED_IN via setTimeout(0) — deferred past this .then().
@@ -60,7 +55,6 @@ export function AuthCallbackScreen() {
     if (hasImplicitTokens) {
       supabase.auth.getSession().then(({ data: { session }, error }) => {
         if (error) {
-          console.error('[AuthCallback] Implicit session failed:', error.message)
           navigate('/login', { replace: true })
         } else if (session) {
           useAuthStore.getState().setAuth({
@@ -70,7 +64,6 @@ export function AuthCallbackScreen() {
           })
           navigate('/', { replace: true })
         } else {
-          console.warn('[AuthCallback] Implicit flow detected but getSession() returned null')
           navigate('/login', { replace: true })
         }
       })
@@ -78,7 +71,6 @@ export function AuthCallbackScreen() {
     }
 
     // No code, no hash tokens — nothing to exchange.
-    console.warn('[AuthCallback] No code or access_token found in callback URL')
     navigate('/login', { replace: true })
   }, [navigate])
 
