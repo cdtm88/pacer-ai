@@ -684,6 +684,7 @@ async def mark_session_missed(
     # Errors here must not 500 the response — the miss was already recorded.
     signals: list = []
     result = None
+    scope = None
     try:
         signals = await detect_signals(user_id)
         scope = decide_scope(signals)
