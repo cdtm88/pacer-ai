@@ -247,6 +247,7 @@ async def update_session(
         .update({"status": "completed"})
         .eq("id", session_id)
         .eq("user_id", user_id)
+        .select(_SESSION_COLUMNS)
         .execute()
     )
 
