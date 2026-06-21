@@ -1,47 +1,89 @@
 import { useState } from 'react'
-import { toast } from 'sonner'
+import { useNavigate } from 'react-router'
 import { supabase } from '../lib/supabase'
+import { useAuthStore } from '../stores/authStore'
 
-function isValidEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
-}
+type Mode = 'signin' | 'signup'
 
 export function LoginScreen() {
+  const navigate = useNavigate()
+  const [mode, setMode] = useState<Mode>('signin')
   const [email, setEmail] = useState('')
-  const [emailError, setEmailError] = useState('')
-  const [submitted, setSubmitted] = useState(false)
-  const [sentEmail, setSentEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false)
+
+  function clearError() {
+    if (error) setError('')
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    setError('')
 
-    // Inline validation
-    if (!email.trim()) {
-      setEmailError('Enter your email address')
-      return
-    }
-    if (!isValidEmail(email.trim())) {
-      setEmailError('Enter a valid email address')
-      return
-    }
-
-    setEmailError('')
-
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
-    })
-
-    if (error) {
-      toast.error('Could not send magic link. Try again.')
+    if (!email.trim()) { setError('Enter your email address'); return }
+    if (!password) { setError('Enter your password'); return }
+    if (mode === 'signup' && password.length < 6) {
+      setError('Password must be at least 6 characters')
       return
     }
 
-    setSentEmail(email.trim())
-    setSubmitted(true)
+    setLoading(true)
+
+    if (mode === 'signin') {
+      const { data, error: err } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      })
+      setLoading(false)
+
+      if (err) {
+        setError(
+          err.message === 'Invalid login credentials'
+            ? 'Incorrect email or password.'
+            : err.message,
+        )
+        return
+      }
+
+      useAuthStore.getState().setAuth({
+        session: data.session,
+        user: data.user,
+        isLoading: false,
+      })
+      navigate('/', { replace: true })
+    } else {
+      const { data, error: err } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
+      setLoading(false)
+
+      if (err) {
+        setError(err.message)
+        return
+      }
+
+      if (data.session) {
+        // Email confirmation disabled — session is immediate
+        useAuthStore.getState().setAuth({
+          session: data.session,
+          user: data.user!,
+          isLoading: false,
+        })
+        navigate('/', { replace: true })
+      } else {
+        // Email confirmation required — wait for user to click link
+        setAwaitingConfirmation(true)
+      }
+    }
   }
 
-  if (submitted) {
+  if (awaitingConfirmation) {
     return (
       <div
         className="min-h-screen flex items-center justify-center px-4"
@@ -51,18 +93,19 @@ export function LoginScreen() {
           className="w-full max-w-[400px] rounded-2xl p-8 shadow-sm border"
           style={{ borderColor: 'var(--color-line)', backgroundColor: 'var(--color-surface)' }}
         >
-          <h1
-            className="text-2xl font-semibold mb-3"
-            style={{ color: 'var(--color-ink)' }}
-          >
+          <h1 className="text-2xl font-semibold mb-3" style={{ color: 'var(--color-ink)' }}>
             Check your email
           </h1>
-          <p
-            className="text-base"
-            style={{ color: 'var(--color-ink-2)' }}
-          >
-            We sent a link to {sentEmail}. Click it to sign in.
+          <p className="text-base" style={{ color: 'var(--color-ink-2)' }}>
+            We sent a confirmation link to {email}. Click it to activate your account, then sign in.
           </p>
+          <button
+            className="mt-6 text-sm font-medium"
+            style={{ color: 'var(--color-blue-6)' }}
+            onClick={() => { setAwaitingConfirmation(false); setMode('signin') }}
+          >
+            Back to sign in
+          </button>
         </div>
       </div>
     )
@@ -77,21 +120,30 @@ export function LoginScreen() {
         className="w-full max-w-[400px] rounded-2xl p-8 shadow-sm border"
         style={{ borderColor: 'var(--color-line)', backgroundColor: 'var(--color-surface)' }}
       >
-        {/* Logotype */}
-        <h1
-          className="text-2xl font-bold mb-1"
-          style={{ color: 'var(--color-ink)' }}
-        >
+        <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--color-ink)' }}>
           PacerAI
         </h1>
-
-        {/* Descriptor */}
-        <p
-          className="text-sm mb-8"
-          style={{ color: 'var(--color-ink-2)' }}
-        >
+        <p className="text-sm mb-6" style={{ color: 'var(--color-ink-2)' }}>
           Your adaptive cycling coach.
         </p>
+
+        {/* Mode tabs */}
+        <div className="flex mb-6 border-b" style={{ borderColor: 'var(--color-line)' }}>
+          {(['signin', 'signup'] as Mode[]).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => { setMode(m); setError('') }}
+              className="pb-2 mr-5 text-sm font-medium border-b-2 -mb-px transition-colors"
+              style={{
+                borderColor: mode === m ? 'var(--color-blue-6)' : 'transparent',
+                color: mode === m ? 'var(--color-blue-6)' : 'var(--color-ink-2)',
+              }}
+            >
+              {m === 'signin' ? 'Sign in' : 'Create account'}
+            </button>
+          ))}
+        </div>
 
         <form onSubmit={handleSubmit} noValidate>
           <div className="mb-4">
@@ -106,39 +158,59 @@ export function LoginScreen() {
               id="email"
               type="email"
               value={email}
-              onChange={(e) => {
-                setEmail(e.target.value)
-                if (emailError) setEmailError('')
-              }}
+              onChange={(e) => { setEmail(e.target.value); clearError() }}
               placeholder="you@example.com"
               autoComplete="email"
               className="w-full rounded-lg px-3 py-2.5 text-sm border outline-none transition-colors"
               style={{
-                borderColor: emailError ? 'var(--color-bad)' : 'var(--color-line)',
+                borderColor: 'var(--color-line)',
                 color: 'var(--color-ink)',
                 backgroundColor: 'var(--color-surface)',
               }}
-              aria-describedby={emailError ? 'email-error' : undefined}
-              aria-invalid={!!emailError}
             />
-            {emailError && (
-              <p
-                id="email-error"
-                className="mt-1.5 text-xs"
-                style={{ color: 'var(--color-bad)' }}
-                role="alert"
-              >
-                {emailError}
-              </p>
-            )}
           </div>
+
+          <div className="mb-6">
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium mb-1.5"
+              style={{ color: 'var(--color-ink)' }}
+            >
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => { setPassword(e.target.value); clearError() }}
+              placeholder={mode === 'signup' ? 'At least 6 characters' : ''}
+              autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+              className="w-full rounded-lg px-3 py-2.5 text-sm border outline-none transition-colors"
+              style={{
+                borderColor: 'var(--color-line)',
+                color: 'var(--color-ink)',
+                backgroundColor: 'var(--color-surface)',
+              }}
+            />
+          </div>
+
+          {error && (
+            <p
+              className="mb-4 text-sm"
+              style={{ color: 'var(--color-bad)' }}
+              role="alert"
+            >
+              {error}
+            </p>
+          )}
 
           <button
             type="submit"
-            className="w-full rounded-lg py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 active:opacity-80"
+            disabled={loading}
+            className="w-full rounded-lg py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-50"
             style={{ backgroundColor: 'var(--color-blue-6)' }}
           >
-            Send magic link
+            {loading ? 'Please wait...' : mode === 'signin' ? 'Sign in' : 'Create account'}
           </button>
         </form>
       </div>
