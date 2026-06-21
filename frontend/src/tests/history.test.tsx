@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { HistoryScreen } from '../screens/HistoryScreen'
 import { CtlSparkline } from '../components/history/CtlSparkline'
 import * as api from '../lib/api'
-import type { Ride, PmcEntry } from '../lib/api'
+import type { PmcEntry, UploadRideResponse } from '../lib/api'
 
 // ---------------------------------------------------------------------------
 // Mock dependencies
@@ -108,20 +108,11 @@ describe('FitUploadZone upload', () => {
   })
 
   it('calls uploadRide on file select and shows success toast', async () => {
-    const mockRide: Ride = {
-      id: 'ride-1',
-      user_id: 'user-1',
-      session_id: null,
-      file_name: 'test.fit',
-      ride_date: '2026-06-20',
-      duration_seconds: 3600,
-      distance_m: 30000,
-      np_watts: 180,
-      tss: 65,
-      avg_power_watts: 165,
-      created_at: '2026-06-20T10:00:00Z',
+    const mockUploadResponse: UploadRideResponse = {
+      ride_id: 'ride-1',
+      status: 'processing',
     }
-    vi.mocked(api.uploadRide).mockResolvedValue(mockRide)
+    vi.mocked(api.uploadRide).mockResolvedValue(mockUploadResponse)
     const { toast } = await import('sonner')
 
     renderWithQuery(<HistoryScreen />)

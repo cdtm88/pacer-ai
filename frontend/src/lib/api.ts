@@ -222,21 +222,39 @@ export async function exportSessionZwo(sessionId: string): Promise<void> {
     const err = await res.json().catch(() => ({})) as { error?: string }
     throw new Error(err?.error ?? `export failed ${res.status}`)
   }
-  const blob = await res.blob()
+  const disposition = res.headers.get('Content-Disposition') ?? ''
+  const filenameMatch = disposition.match(/filename="?([^";\s]+)"?/)
+  const filename = filenameMatch?.[1] ?? 'workout.zwo'
+
+  const blob = new Blob([await res.blob()], { type: 'application/octet-stream' })
   const url = URL.createObjectURL(blob)
+
+  // iOS Safari ignores <a download> for blob URLs — open in new tab so user
+  // can Share → "Open in Zwift" from the iOS share sheet.
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent)
+  if (isIOS) {
+    window.open(url, '_blank')
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    return
+  }
+
   const a = document.createElement('a')
   a.href = url
-  // Use empty string so the browser picks up the Content-Disposition filename
-  // from the backend response header.
-  a.download = ''
+  a.download = filename
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
 }
 
+// Shape returned by POST /rides/upload (not a full Ride object)
+export interface UploadRideResponse {
+  ride_id: string
+  status: string
+}
+
 // POST /rides/upload — multipart upload; do NOT set Content-Type (browser sets multipart boundary)
-export async function uploadRide(file: File): Promise<Ride> {
+export async function uploadRide(file: File): Promise<UploadRideResponse> {
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token ?? ''
 
@@ -252,8 +270,22 @@ export async function uploadRide(file: File): Promise<Ride> {
     },
     body: formData,
   })
-  if (!res.ok) throw new Error(`uploadRide failed: ${res.status}`)
-  return res.json() as Promise<Ride>
+  if (!res.ok) {
+    // Surface the backend's structured error detail to the user rather than a bare status code.
+    // Backend error shape: {detail: {error: string, detail: string}}
+    let reason = `uploadRide failed: ${res.status}`
+    try {
+      const body = await res.json()
+      const backendDetail = body?.detail?.detail
+      if (typeof backendDetail === 'string' && backendDetail.length > 0) {
+        reason = backendDetail
+      }
+    } catch {
+      // JSON parse failed — keep the status-code fallback
+    }
+    throw new Error(reason)
+  }
+  return res.json() as Promise<UploadRideResponse>
 }
 
 // GET /calendar/settings
