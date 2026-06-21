@@ -51,6 +51,17 @@ export interface Profile {
   updated_at: string
 }
 
+export interface SessionStructureSegment {
+  duration_minutes: number
+  description: string
+}
+
+export interface SessionStructure {
+  warmup?: SessionStructureSegment
+  main_set?: SessionStructureSegment
+  cooldown?: SessionStructureSegment
+}
+
 export interface Session {
   id: string
   user_id: string
@@ -60,6 +71,8 @@ export interface Session {
   planned_tss: number | null
   actual_tss: number | null
   notes: string | null
+  structure: SessionStructure | null
+  scheduled_date: string
 }
 
 export interface Ride {
@@ -195,6 +208,31 @@ export async function markSessionDone(sessionId: string): Promise<void> {
     body: JSON.stringify({ status: 'completed' }),
   })
   if (!res.ok) throw new Error(`markSessionDone failed: ${res.status}`)
+}
+
+// GET /sessions/{id}/export.zwo — downloads the ZWO workout file as a blob
+// Throws a structured Error (carrying the backend error code) on failure so the
+// modal can branch on the code for the correct toast copy (D-07).
+// Uses a hidden anchor + object URL (not window.open) to avoid popup blockers (T-05-13).
+export async function exportSessionZwo(sessionId: string): Promise<void> {
+  const res = await apiFetch(`/sessions/${sessionId}/export.zwo`, {
+    headers: { Accept: 'application/xml' },
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { error?: string }
+    throw new Error(err?.error ?? `export failed ${res.status}`)
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  // Use empty string so the browser picks up the Content-Disposition filename
+  // from the backend response header.
+  a.download = ''
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 
 // POST /rides/upload — multipart upload; do NOT set Content-Type (browser sets multipart boundary)
