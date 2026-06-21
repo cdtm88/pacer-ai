@@ -94,15 +94,17 @@ interface RestoredState {
   stepIndex: number
   completedDurationSecs: number
   stepStartEpoch: number
+  sessionStartTimestamp: number
 }
 
 function computeRestoredState(saved: PersistedSession | null, steps: SessionStep[]): RestoredState {
+  const now = Date.now()
   if (!saved || saved.stepIndex >= steps.length) {
-    return { stepIndex: 0, completedDurationSecs: 0, stepStartEpoch: Date.now() }
+    return { stepIndex: 0, completedDurationSecs: 0, stepStartEpoch: now, sessionStartTimestamp: now }
   }
   let stepIndex = saved.stepIndex
   let completedDurationSecs = saved.completedDurationSecs
-  let elapsedInStepMs = Date.now() - saved.stepStartEpoch
+  let elapsedInStepMs = now - saved.stepStartEpoch
   while (stepIndex < steps.length) {
     const stepTotalMs = steps[stepIndex].duration * 60 * 1000
     if (elapsedInStepMs < stepTotalMs) break
@@ -110,14 +112,25 @@ function computeRestoredState(saved: PersistedSession | null, steps: SessionStep
     elapsedInStepMs -= stepTotalMs
     stepIndex++
   }
-  return { stepIndex, completedDurationSecs, stepStartEpoch: Date.now() - elapsedInStepMs }
+  // Preserve the original sessionStartTimestamp so total elapsed is always
+  // computed from Date.now() - sessionStartTimestamp, not re-anchored on restore.
+  const sessionStartTimestamp = saved.sessionStartTimestamp ?? now - (completedDurationSecs * 1000) - elapsedInStepMs
+  return { stepIndex, completedDurationSecs, stepStartEpoch: now - elapsedInStepMs, sessionStartTimestamp }
 }
 
 // ---------------------------------------------------------------------------
 // SessionRunner
 // ---------------------------------------------------------------------------
 
-function SessionRunner({ steps, ftp }: { steps: SessionStep[]; ftp: number | null }) {
+function SessionRunner({
+  steps,
+  ftp,
+  freeRideDurationMins,
+}: {
+  steps: SessionStep[]
+  ftp: number | null
+  freeRideDurationMins: number | null
+}) {
   const navigate = useNavigate()
 
   const restoredRef = useRef<RestoredState | null>(null)
@@ -128,11 +141,24 @@ function SessionRunner({ steps, ftp }: { steps: SessionStep[]; ftp: number | nul
   const [currentIndex, setCurrentIndex] = useState(restoredRef.current.stepIndex)
   const [completedDurationSecs, setCompletedDurationSecs] = useState(restoredRef.current.completedDurationSecs)
   const [stepStartEpoch, setStepStartEpoch] = useState(restoredRef.current.stepStartEpoch)
+  // sessionStartTimestamp is the wall-clock epoch when this session started.
+  // It never changes after first mount — used as the absolute anchor for total elapsed time.
+  const sessionStartTimestampRef = useRef(restoredRef.current.sessionStartTimestamp)
 
   const isDone = currentIndex >= steps.length
   const currentStep = steps[currentIndex]
   const stepDuration = currentStep ? currentStep.duration * 60 : 0
   const { secondsLeft } = useSessionTimer(stepDuration, stepStartEpoch)
+
+  // Build the persisted payload from current state.
+  // freeRideDurationMins is included so iOS kill+reopen can reconstruct free-ride steps.
+  const buildPayload = useCallback(() => ({
+    stepIndex: currentIndex,
+    completedDurationSecs,
+    stepStartEpoch,
+    sessionStartTimestamp: sessionStartTimestampRef.current,
+    ...(freeRideDurationMins != null ? { freeRideDurationMins } : {}),
+  }), [currentIndex, completedDurationSecs, stepStartEpoch, freeRideDurationMins])
 
   const goNext = useCallback(() => {
     if (currentIndex >= steps.length) return
@@ -142,36 +168,39 @@ function SessionRunner({ steps, ftp }: { steps: SessionStep[]; ftp: number | nul
     setCurrentIndex(nextIndex)
     setCompletedDurationSecs(nextCompleted)
     setStepStartEpoch(nextEpoch)
-    saveSession({ stepIndex: nextIndex, completedDurationSecs: nextCompleted, stepStartEpoch: nextEpoch })
-  }, [currentIndex, completedDurationSecs, steps])
+    saveSession({
+      stepIndex: nextIndex,
+      completedDurationSecs: nextCompleted,
+      stepStartEpoch: nextEpoch,
+      sessionStartTimestamp: sessionStartTimestampRef.current,
+      ...(freeRideDurationMins != null ? { freeRideDurationMins } : {}),
+    })
+  }, [currentIndex, completedDurationSecs, steps, freeRideDurationMins])
 
-  // Save on mount
+  // Save on mount — synchronous within the effect, fires before any background suspension.
   useEffect(() => {
-    if (!isDone) saveSession({ stepIndex: currentIndex, completedDurationSecs, stepStartEpoch })
+    if (!isDone) saveSession(buildPayload())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 1s interval save
+  // 1s interval save — keeps localStorage fresh so iOS kill never loses more than 1s.
   useEffect(() => {
     if (isDone) return
-    const id = setInterval(() => {
-      saveSession({ stepIndex: currentIndex, completedDurationSecs, stepStartEpoch })
-    }, 1000)
+    const id = setInterval(() => saveSession(buildPayload()), 1000)
     return () => clearInterval(id)
-  }, [currentIndex, completedDurationSecs, stepStartEpoch, isDone])
+  }, [buildPayload, isDone])
 
-  // visibilitychange + pagehide save
+  // visibilitychange + pagehide: save immediately on every visibility transition.
+  // These fire before iOS suspends JS — most reliable save opportunity.
   useEffect(() => {
-    const save = () => {
-      if (!isDone) saveSession({ stepIndex: currentIndex, completedDurationSecs, stepStartEpoch })
-    }
+    const save = () => { if (!isDone) saveSession(buildPayload()) }
     document.addEventListener('visibilitychange', save)
     window.addEventListener('pagehide', save)
     return () => {
       document.removeEventListener('visibilitychange', save)
       window.removeEventListener('pagehide', save)
     }
-  }, [currentIndex, completedDurationSecs, stepStartEpoch, isDone])
+  }, [buildPayload, isDone])
 
   useEffect(() => { if (isDone) clearSession() }, [isDone])
 
@@ -384,7 +413,7 @@ function SessionRunner({ steps, ftp }: { steps: SessionStep[]; ftp: number | nul
 // ---------------------------------------------------------------------------
 
 export function DuringSessionScreen() {
-  const freeRideDurationMins = useUiStore(s => s.freeRideDurationMins)
+  const freeRideDurationMinsFromStore = useUiStore(s => s.freeRideDurationMins)
   const setFreeRideDurationMins = useUiStore(s => s.setFreeRideDurationMins)
 
   useWakeLock()
@@ -393,17 +422,52 @@ export function DuringSessionScreen() {
     return () => { setFreeRideDurationMins(null) }
   }, [setFreeRideDurationMins])
 
-  const { data: session } = useQuery({
+  const { data: session, isLoading: sessionLoading } = useQuery({
     queryKey: ['session', 'today'],
     queryFn: getSessionToday,
     staleTime: Infinity,
   })
 
-  const { data: profile } = useQuery({
+  const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ['profile', 'me'],
     queryFn: getProfileMe,
     staleTime: Infinity,
   })
+
+  // On iOS PWA kill+reopen, Zustand state is wiped — freeRideDurationMins becomes null.
+  // Fall back to the value persisted in localStorage so free-ride sessions can restore.
+  const persistedSession = loadSession()
+  const freeRideDurationMins =
+    freeRideDurationMinsFromStore ??
+    persistedSession?.freeRideDurationMins ??
+    null
+
+  // For free-ride sessions, steps are known immediately (no API needed).
+  // For structured sessions, wait for session + profile before mounting SessionRunner
+  // so it never mounts with stale/empty steps and immediately remounts with real data.
+  const isFreeRide = freeRideDurationMins != null
+  const isDataReady = isFreeRide || (!sessionLoading && !profileLoading)
+
+  if (!isDataReady) {
+    return (
+      <div style={{
+        minHeight: '100dvh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'var(--color-surface)',
+      }}>
+        <div
+          className="animate-spin"
+          style={{
+            width: 32, height: 32, borderRadius: '50%',
+            border: '2px solid var(--color-blue-6)',
+            borderTopColor: 'transparent',
+          }}
+        />
+      </div>
+    )
+  }
 
   const ftp = profile?.ftp ?? null
 
@@ -431,5 +495,5 @@ export function DuringSessionScreen() {
     )
   }
 
-  return <SessionRunner steps={steps} ftp={ftp} />
+  return <SessionRunner steps={steps} ftp={ftp} freeRideDurationMins={freeRideDurationMins} />
 }
