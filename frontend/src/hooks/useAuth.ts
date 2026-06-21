@@ -16,7 +16,7 @@ export function useAuth() {
     // On /auth/callback, AuthCallbackScreen owns session population via the PKCE
     // code exchange. Reading window.location.pathname once here is safe — the
     // effect fires synchronously on mount, before any navigation occurs.
-    const onAuthCallback = window.location.pathname.includes('/auth/callback')
+    const onAuthCallback = window.location.pathname === '/auth/callback'
 
     // Seed the store with the persisted session immediately on mount so
     // AuthGate sees a valid session before onAuthStateChange fires.
