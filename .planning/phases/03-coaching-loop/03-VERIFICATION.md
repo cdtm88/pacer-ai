@@ -1,27 +1,23 @@
 ---
 phase: 03-coaching-loop
-verified: 2026-06-20T10:00:00Z
-status: human_needed
-score: 22/23
-behavior_unverified: 1
+verified: 2026-06-21T00:00:00Z
+status: verified
+score: 23/23
+behavior_unverified: 0
 overrides_applied: 0
-human_verification:
+human_verification_completed:
   - test: "Drive the live onboarding SSE stream to completion: POST /onboarding/start, carry out the 6-field interview, verify the agent presents 'Here is what I have' summary and WAITS for explicit user approval before emitting a save_profile tool call"
     expected: "save_profile never appears before an approval token in the streamed event sequence when run against the real Anthropic API"
-    why_human: "test_confirmation_gate asserts a structural mock sequence, not live LLM behaviour. LLM adherence to the D-03 gate is a prompt-compliance invariant that grep/unit tests cannot exercise."
-behavior_unverified_items:
-  - truth: "ONBD-04: The user sees a confirmation summary and must explicitly approve before save_profile is called"
-    test: "Run the full onboarding SSE stream against the real Claude model; reach the end of 6-field collection; observe the streamed output"
-    expected: "A 'Here is what I have' summary appears in the stream BEFORE any tool_use block with name save_profile"
-    why_human: "ONBOARDING_SYSTEM_PROMPT instructs the gate but LLM prompt-adherence cannot be proven by code inspection or mocked unit tests alone — only a live run exercises the invariant"
+    result: "passed"
+    verified_via: "03-UAT.md test 1 — ONBD-04 Confirmation Gate (Live LLM Adherence), 2026-06-20"
 ---
 
 # Phase 03: Coaching Loop — Verification Report
 
 **Phase Goal:** Build the end-to-end coaching loop — onboarding interview, FIT file ingestion with TSS/PMC pipeline, and adaptive re-planning — so a new user with no FTP and no fitness history can complete an interview, receive a structured periodised plan, upload .FIT rides, and see the plan adapt automatically.
-**Verified:** 2026-06-20T10:00:00Z
-**Status:** human_needed
-**Re-verification:** No — initial verification
+**Verified:** 2026-06-21T00:00:00Z
+**Status:** verified (23/23)
+**Re-verification:** Yes — human verification completed 2026-06-21 via 03-UAT.md
 
 ## Goal Achievement
 
@@ -51,9 +47,9 @@ behavior_unverified_items:
 | 20 | Missed-session and underperformance signals detected; micro (1 signal) vs macro (2+) scope decision | VERIFIED | api/routes/adaptations.py 728 lines; def detect_signals, decide_scope, apply_micro_adjustment, apply_macro_replan all present; validate_session_vs_actual called 6 times; test_missed_detection and test_micro_macro_branch in test_adaptations.py (no skips) |
 | 21 | 30% shift guard blocks silent over-shifting; macro replan returns needs_confirmation | VERIFIED | check_shift_limit at line 237 in adaptations.py; test_shift_limit asserts >30% case returns requires_user_confirmation=True and <30% returns False; no skip marker |
 | 22 | POST /adaptations/check runs weekly check independently of uploads; GET /adaptations returns readable log | VERIFIED | adaptations_router appears 2 times in api/main.py; test_weekly_check and test_get_adaptations in test_adaptations.py (no skips) |
-| 23 | ONBD-04: User sees confirmation summary and must explicitly approve before save_profile is called | PRESENT_BEHAVIOR_UNVERIFIED | ONBOARDING_SYSTEM_PROMPT contains "Here is what I have" gate instruction and save_profile deferred to post-approval; test_confirmation_gate asserts mock sequence structural contract only — live LLM prompt adherence not exercised by any test |
+| 23 | ONBD-04: User sees confirmation summary and must explicitly approve before save_profile is called | VERIFIED | 03-UAT.md test 1 passed: live run against real Claude API confirmed "Here is what I have" summary emitted before any save_profile tool_use block; human-run 2026-06-20 |
 
-**Score:** 22/23 truths verified (1 present, behavior-unverified)
+**Score:** 23/23 truths verified
 
 ### Required Artifacts
 
@@ -118,7 +114,7 @@ All TODO markers reference "Phase 4" or "(phase-4-auth)" — each has a formal f
 | ONBD-01 | 03-03 | Conversational interview establishing baseline, injury, equipment, schedule, goals | SATISFIED | POST /onboarding/start with ONBOARDING_SYSTEM_PROMPT naming all 6 fields; test_onboarding_returns_sse passes |
 | ONBD-02 | 03-03 | Injury/back status persisted and applied as back-protective constraints | SATISFIED | save_profile maps back_status to constraints JSONB; test_back_status_constraint asserts moderate -> {back_issues: True, load_ramp_flag_threshold_pct: 10} |
 | ONBD-03 | 03-03 | Interview output persisted as structured user profile in DB | SATISFIED | save_profile async upsert on profiles table; test_profile_persisted asserts upsert called |
-| ONBD-04 | 03-03 | Confirmation summary shown before plan generated; explicit approval required | PRESENT_BEHAVIOR_UNVERIFIED | Prompt contains gate instruction; structural mock test passes; live LLM adherence unverified |
+| ONBD-04 | 03-03 | Confirmation summary shown before plan generated; explicit approval required | SATISFIED | 03-UAT.md test 1: live LLM run confirmed gate holds; "Here is what I have" appears before save_profile tool_use |
 | PLAN-01 | 03-02 | Structured periodised plan for returning beginner | SATISFIED | generate_plan produces 4-week mesocycle with week1 endurance-only policy |
 | PLAN-02 | 03-02 | Cold-start: RPE and HR targets, not power | SATISFIED | ftp_confidence=insufficient_data -> all power_targets=None; test_cold_start_hr_only passes |
 | PLAN-03 | 03-02 | Power targets introduced only at medium FTP confidence | SATISFIED | generate_plan gates power_targets on ftp_confidence; test_power_targets_cold_start passes |
@@ -142,15 +138,15 @@ All TODO markers reference "Phase 4" or "(phase-4-auth)" — each has a formal f
 
 **All 24 requirement IDs from plan frontmatter accounted for. No orphaned requirements.**
 
-### Human Verification Required
+### Human Verification Completed
 
 #### 1. ONBD-04 Confirmation Gate — Live LLM Adherence
 
-**Test:** Start the dev server, POST to /onboarding/start, conduct a full 6-field interview against the real Claude API, reach the point where all fields are collected, then observe the SSE stream.
-**Expected:** The assistant emits a plain-text "Here is what I have" summary message listing all 6 collected values, then pauses. Only after an explicit user approval message does the agent emit a `tool_use` block with `name: "save_profile"`. No `save_profile` tool call should appear before user approval.
-**Why human:** `test_confirmation_gate` validates the structural contract using a mocked `run_turn` sequence. It cannot exercise actual Claude model behaviour against the system prompt. Prompt-adherence for a safety gate (D-03) requires a live run to be considered verified.
+**Status:** VERIFIED (2026-06-20)
+**Evidence:** 03-UAT.md test 1 — human ran full live onboarding SSE stream against real Claude API; confirmed "Here is what I have" summary appeared in stream before any `save_profile` tool_use block; explicit approval required before plan generation.
 
 ---
 
-_Verified: 2026-06-20T10:00:00Z_
-_Verifier: Claude (gsd-verifier)_
+_Initially verified: 2026-06-20T10:00:00Z_
+_Human verification completed: 2026-06-21T00:00:00Z_
+_Verifier: Claude (gsd-verifier) + human UAT_

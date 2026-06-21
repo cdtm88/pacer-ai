@@ -63,13 +63,13 @@ Build the full coaching loop: conversational onboarding interview that persists 
 </decisions>
 
 <open_questions>
-## Open Questions for Researcher
+## Open Questions — RESOLVED (answered during implementation)
 
-1. **fitdecode async pattern** — what is the correct way to run `FitReader` inside `asyncio.to_thread` without holding the GIL across the full file? Any chunking needed for large files?
-2. **Supabase real-time for ride triggers** — does `supabase-py-async` support listening to INSERT events on `rides` table to trigger the adaptation background task, or do we use FastAPI BackgroundTasks instead?
-3. **Zwift .FIT power stream field name** — confirm the exact fitdecode field for power (`power` vs `enhanced_speed` etc.) in Zwift exports. Need a real file to verify.
-4. **`generate_plan` tool complexity** — is a single tool call sufficient, or does plan generation need to be split into multiple tools (e.g., `compute_weekly_targets` → `assign_sessions`)? Researcher should check Phase 1 `progress_load` output shape.
-5. **Conversation history truncation** — 20-message window may be insufficient for a full onboarding interview. Consider token-count-based truncation instead.
+1. **fitdecode async pattern** — RESOLVED: `parse_fit_file` runs synchronously under `asyncio.to_thread`; no chunking needed for typical Zwift ride sizes (03-04-SUMMARY.md).
+2. **Supabase real-time for ride triggers** — RESOLVED: FastAPI `BackgroundTasks` used; supabase-py-async real-time not required (03-04-SUMMARY.md).
+3. **Zwift .FIT power stream field name** — RESOLVED: `get_value('power', fallback=None)` confirmed against real Zwift fixture (sample_zwift.fit, 8228 bytes, 900s); first-record field logging added as debug aid (03-04-SUMMARY.md).
+4. **`generate_plan` tool complexity** — RESOLVED: single `generate_plan` tool sufficient; `progress_load` output feeds TSS targets inline (03-02-SUMMARY.md).
+5. **Conversation history truncation** — DEFERRED: token-count truncation deferred to Phase 4 TODO in `load_conversation` docstring (03-03-SUMMARY.md).
 </open_questions>
 
 <phase_summary>
