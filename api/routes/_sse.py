@@ -36,6 +36,7 @@ async def sse_generator(
     model: str,
     system_prompt: str | None = None,
     _run_turn=None,
+    assistant_sink: list | None = None,
 ):
     """
     Async generator that drives run_turn and formats each event as an SSE frame.
@@ -51,6 +52,12 @@ async def sse_generator(
                         onboarding.py) pass their own module-level run_turn
                         reference so monkeypatching the caller module's
                         run_turn attribute is effective (test_sse.py pattern).
+        assistant_sink: Optional mutable list. When provided, the fully
+                        accumulated assistant text (concatenated from all
+                        "token" events) is appended as a single string after
+                        the stream completes successfully. Nothing is appended
+                        on the error path. Existing callers that omit this
+                        parameter (e.g. chat.py) are unaffected.
 
     Frame format per D-07:
       event: <event_type>\\ndata: <json>\\n\\n
@@ -66,6 +73,8 @@ async def sse_generator(
     # Use the caller-supplied run_turn (for monkeypatching) or the default import.
     fn = _run_turn if _run_turn is not None else _default_run_turn
 
+    accumulated_text: str = ""
+
     try:
         kwargs: dict = {}
         if system_prompt is not None:
@@ -75,6 +84,14 @@ async def sse_generator(
             event_type = event["event"]
             data = json.dumps(event["data"])
             yield f"event: {event_type}\ndata: {data}\n\n"
+            # Accumulate assistant text from token events for the sink.
+            if event_type == "token":
+                accumulated_text += event["data"].get("text", "")
+
+        # Stream completed successfully — publish to sink if provided.
+        if assistant_sink is not None:
+            assistant_sink.append(accumulated_text)
     except Exception as exc:  # noqa: BLE001
         error_data = json.dumps({"code": "server_error", "message": str(exc)})
         yield f"event: error\ndata: {error_data}\n\n"
+        # Do NOT append to assistant_sink on the error path.
