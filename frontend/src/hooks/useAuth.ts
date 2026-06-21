@@ -13,10 +13,24 @@ export function useAuth() {
   useEffect(() => {
     let active = true
 
+    // On /auth/callback, AuthCallbackScreen owns session population via the PKCE
+    // code exchange. Reading window.location.pathname once here is safe — the
+    // effect fires synchronously on mount, before any navigation occurs.
+    const onAuthCallback = window.location.pathname.includes('/auth/callback')
+
     // Seed the store with the persisted session immediately on mount so
     // AuthGate sees a valid session before onAuthStateChange fires.
     supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
       if (!active) return
+
+      // Skip the null seed on /auth/callback: if the session is null here it
+      // means the PKCE exchange has not completed yet. Writing
+      // {session: null, isLoading: false} would cause AuthGate to bounce the
+      // user to /login before AuthCallbackScreen can finish the exchange.
+      // A non-null session (detectSessionInUrl already resolved) is always
+      // written — real sessions are never withheld.
+      if (onAuthCallback && initialSession === null) return
+
       setAuth({
         session: initialSession,
         user: initialSession?.user ?? null,
