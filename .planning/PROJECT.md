@@ -27,24 +27,23 @@ The LLM owns judgement; a validated tool library owns numbers.
 
 ### Validated
 
-- Sports-science tool library: calculate_power_zones, calculate_hr_zones, estimate_ftp_from_rides, compute_tss, update_pmc, progress_load, validate_session_vs_actual — Validated in Phase 01 (64 tests)
-- Agent trust-model enforcement: all physiological numbers traceable to tool-library calls — Validated in Phase 02 (trust scanner, attribution, corpus proof)
-- Runtime capability-gap logging when a needed calculation has no tool — Validated in Phase 02 (handle_violation + async Supabase write)
+- Sports-science tool library: calculate_power_zones, calculate_hr_zones, estimate_ftp_from_rides, compute_tss, update_pmc, progress_load, validate_session_vs_actual — Phase 01 (64 tests)
+- Agent trust-model enforcement: all physiological numbers traceable to tool-library calls — Phase 02 (trust scanner, attribution, corpus proof)
+- Runtime capability-gap logging when a needed calculation has no tool — Phase 02 (handle_violation + async Supabase write)
+- Conversational LLM-led onboarding interview producing a persisted user profile — Phase 03
+- Cold-start handling: sessions prescribed by RPE/HR with no FTP; FTP estimated passively from ride data — Phase 03
+- Structured, periodised plan generation (aerobic-base emphasis, back-protective constraints) — Phase 03
+- Manual .FIT file ingestion: parse power/HR/cadence/duration, compute TSS/IF/NP, update PMC — Phase 03 (Zwift .FIT acceptance test)
+- Adaptive re-planning based on missed sessions, holidays, actual performance, and training load — Phase 03 (micro/macro distinction, 30% guard)
+- Adaptation transparency: agent explains every re-plan in chat with data and principle cited; changes logged — Phase 03
+- Google Calendar integration: push and sync planned sessions as calendar events — Phase 04 (development OAuth only; production app verification pending)
+- Web UI: onboarding, Today/Home, Agenda, History, Chat screens and during-session scaffold; mobile bottom tabs / desktop sidebar — Phase 04
+- ZWO export: export structured session as valid .zwo file for Zwift import — Phase 05 (Zwift acceptance test passed)
+- During-session stepper: iOS-safe timer with wake lock, auto-advance, free-ride path — Phase 05 (IOS-03 kill-to-root fix committed; physical device retest pending)
 
 ### Active
 
-- [ ] Conversational LLM-led onboarding interview producing a persisted user profile
-- [ ] Cold-start handling: sessions prescribed by RPE/HR with no FTP; FTP estimated passively from ride data
-- [ ] Structured, periodised plan generation (aerobic-base emphasis, back-protective constraints)
-- [ ] Sports-science tool library: calculate_power_zones, calculate_hr_zones, estimate_ftp_from_rides, compute_tss, update_pmc, progress_load, validate_session_vs_actual
-- [ ] Agent trust-model enforcement: all physiological numbers traceable to tool-library calls
-- [ ] Runtime capability-gap logging when a needed calculation has no tool
-- [ ] Manual .FIT file ingestion: parse power/HR/cadence/duration, compute TSS/IF/NP, update PMC
-- [ ] Adaptive re-planning based on missed sessions, holidays, actual performance, and training load
-- [ ] Adaptation transparency: agent explains every re-plan in chat with data and principle cited; changes logged
-- [ ] Google Calendar integration: push and sync planned sessions as calendar events
-- [ ] ZWO export: export structured session as valid .zwo file for Zwift import
-- [ ] Web UI: onboarding, Today/Home, Agenda, History, During-session, Chat screens; mobile bottom tabs / desktop sidebar
+None. All v1.0 requirements shipped.
 
 ### Out of Scope
 
@@ -67,7 +66,7 @@ The LLM owns judgement; a validated tool library owns numbers.
 ## Constraints
 
 - **Architecture**: LLM never emits physiological numbers directly — tool library is the only authoritative source for all sports-science calculations. Enforced at code level, verifiable in logs.
-- **Tech Stack**: React + Vite + Tailwind (frontend), Python FastAPI (backend), Anthropic API with native tool use, Postgres/Supabase, fitparse/fitdecode for FIT parsing, Vercel (frontend) + Railway (API/DB)
+- **Tech Stack**: React + Vite + Tailwind (frontend), Python FastAPI (backend), Anthropic API with native tool use, Postgres/Supabase, fitdecode for FIT parsing, Vercel (frontend) + Railway (API/DB)
 - **PWA**: Web-first, mobile-responsive; During-session view must work on iOS Safari
 - **Light mode only**: No pure blacks anywhere for MVP; design system from PRD applies
 - **No em dashes**: In any generated content or copy — use commas, semicolons, colons, or separate sentences
@@ -77,11 +76,14 @@ The LLM owns judgement; a validated tool library owns numbers.
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Sports-science tool library built first | Trust anchor — all other phases depend on verified calculations | — Pending |
-| FastAPI over Node backend | Eases FIT parsing (fitparse) and sports-science maths (numpy/scipy) | — Pending |
-| Supabase for Postgres | Managed Postgres with auth, storage, and real-time; simplifies hosting | — Pending |
-| Passive FTP estimation, no forced test | Cold-start reality: beginner cannot do a 20-min test; CP modelling from ride data | — Pending |
-| LLM capability-gap log is a runtime artefact | Distinct from GSD build planning; application logs gaps it cannot compute | — Pending |
+| Sports-science tool library built first | Trust anchor; all other phases depend on verified calculations | Validated Phase 01: 64 unit tests, zero downstream defects traced to bad calculations |
+| FastAPI over Node backend | Eases FIT parsing (fitdecode) and sports-science maths (numpy/scipy) | Validated Phase 03: fitdecode pipeline and PMC calculations all Python-native, no cross-process friction |
+| Supabase for Postgres | Managed Postgres with auth, storage, and real-time; simplifies hosting | Validated Phase 01: schema migrations, JWT auth, and storage all used without issue |
+| Passive FTP estimation, no forced test | Cold-start reality: beginner cannot do a 20-min test; CP modelling from ride data | Validated Phase 03: RPE/HR sessions for cold-start, FTP estimate emerges after 4+ quality efforts |
+| LLM capability-gap log is a runtime artefact | Distinct from GSD build planning; application logs gaps it cannot compute | Validated Phase 02: log entries appear in capability_gaps table, trust scanner intercepts violations before frontend |
+| Raw anthropic SDK, not claude-agent-sdk | Agent SDK executes tools autonomously, violating trust model | Validated Phase 02: tool dispatch is explicitly controlled, LLM cannot self-execute physiological calculations |
+| ZWO generated server-side only | Frontend must never build XML with unsourced power fractions | Validated Phase 05: POWER_BY_SEGMENT constants are the only source, LLM never touches power values |
+| Date.now() delta timer, not tick counter | visibilitychange on iOS resets the interval; only wall-clock diff survives backgrounding | Phase 05: IOS-03 kill-to-root fix committed; physical device retest pending |
 
 ## Evolution
 
@@ -101,4 +103,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-20 — Phase 02 (agent-core) complete: FastAPI backend, agent loop, tool registry, SSE streaming, trust enforcement all shipped and verified (159 tests)*
+*Last updated: 2026-06-21. Milestone v1.0: all 5 phases shipped. Full coaching loop with ZWO export, Google Calendar sync (development OAuth), during-session stepper, and trust-model enforcement.*

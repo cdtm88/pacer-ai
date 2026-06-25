@@ -1,8 +1,10 @@
 import { supabase } from './supabase'
 
-const BASE = import.meta.env.VITE_API_URL
-if (!BASE) {
-  throw new Error('VITE_API_URL is not set. Add it to .env.local.')
+// In dev, BASE is empty and the Vite proxy routes API paths to localhost:8000.
+// In production (Vercel), VITE_API_URL must be set to the Railway backend URL.
+const BASE = import.meta.env.VITE_API_URL ?? ''
+if (!BASE && import.meta.env.PROD) {
+  console.error('VITE_API_URL is not set. API calls will fail in production.')
 }
 
 // ---------------------------------------------------------------------------

@@ -11,7 +11,7 @@ PacerAI is an evidence-based, adaptive AI cycling coach for a beginner returning
 ### Constraints
 
 - **Architecture**: LLM never emits physiological numbers directly — tool library is the only authoritative source for all sports-science calculations. Enforced at code level, verifiable in logs.
-- **Tech Stack**: React + Vite + Tailwind (frontend), Python FastAPI (backend), Anthropic API with native tool use, Postgres/Supabase, fitparse/fitdecode for FIT parsing, Vercel (frontend) + Railway (API/DB)
+- **Tech Stack**: React + Vite + Tailwind (frontend), Python FastAPI (backend), Anthropic API with native tool use, Postgres/Supabase, fitdecode for FIT parsing, Vercel (frontend) + Railway (API/DB)
 - **PWA**: Web-first, mobile-responsive; During-session view must work on iOS Safari
 - **Light mode only**: No pure blacks anywhere for MVP; design system from PRD applies
 - **No em dashes**: In any generated content or copy — use commas, semicolons, colons, or separate sentences
