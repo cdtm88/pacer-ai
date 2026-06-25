@@ -1,10 +1,13 @@
 import { supabase } from './supabase'
 
-// In dev, BASE is empty and the Vite proxy routes API paths to localhost:8000.
-// In production (Vercel), VITE_API_URL must be set to the Railway backend URL.
+// In dev the Vite proxy routes all API paths to localhost:8000, so BASE='' is safe.
+// In production (Vercel), VITE_API_URL must point to the Railway backend.
+// Failing hard here prevents JWTs from being sent to the wrong origin.
 const BASE = import.meta.env.VITE_API_URL ?? ''
 if (!BASE && import.meta.env.PROD) {
-  console.error('VITE_API_URL is not set. API calls will fail in production.')
+  throw new Error(
+    'VITE_API_URL is not set. Requests would leak JWT credentials to the frontend origin. Set it to the Railway backend URL.'
+  )
 }
 
 // ---------------------------------------------------------------------------
