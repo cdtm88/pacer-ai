@@ -1,0 +1,40 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-06-26T03:04:46.667Z",
+  "phase": null,
+  "phase_name": "post-milestone-maintenance",
+  "phase_dir": null,
+  "plan": null,
+  "task": null,
+  "total_tasks": null,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": 1, "name": "Code review (38-agent workflow) + fix PROJECT.md doc accuracy", "status": "done", "commit": "f2bb5ff"},
+    {"id": 2, "name": "Fix vercel.json: replace broken @vercel/python config with Vite/React SPA config", "status": "done", "commit": "f2bb5ff"},
+    {"id": 3, "name": "Fix api.ts module-level throw causing blank page in dev", "status": "done", "commit": "f2bb5ff"},
+    {"id": 4, "name": "Security fix: restore fail-hard JWT guard in production for api.ts", "status": "done", "commit": "16ab6fa"},
+    {"id": 5, "name": "Create README.md with app overview, tech stack, architecture, dev setup, deployment", "status": "done", "commit": "f2bb5ff"},
+    {"id": 6, "name": "Verified chat works end-to-end in Chrome (Playwright)", "status": "done", "commit": null},
+    {"id": 7, "name": "Full chat test pack: useSSEStream (12) + ChatScreen/ChatBubble/ChatInput (20) = 32 new tests", "status": "done", "commit": "777a2c0"},
+    {"id": 8, "name": "Fix .claude/CLAUDE.md: fitparse -> fitdecode in Constraints", "status": "done", "commit": "f2bb5ff"}
+  ],
+  "remaining_tasks": [
+    {"id": 9, "name": "IOS-03: retest timer persistence on physical iPhone after kill-to-root fix", "status": "not_started"},
+    {"id": 10, "name": "Google Calendar production OAuth verification (logo, privacy policy, ToS, Google review)", "status": "not_started"},
+    {"id": 11, "name": "Update STATE.md to reflect post-milestone state (currently stale: says 'executing phase 04')", "status": "not_started"}
+  ],
+  "blockers": [],
+  "async_jobs": [],
+  "human_actions_pending": [
+    {"action": "Retest IOS-03 timer persistence on a physical iPhone", "context": "Kill-to-root fix committed but never retested on device. Memory file records this as unresolved.", "blocking": false},
+    {"action": "Complete Google Calendar OAuth app verification with Google", "context": "Calendar works in dev but production requires Google app review (logo, privacy policy, ToS). MEMORY.md records this as deferred.", "blocking": false}
+  ],
+  "decisions": [
+    {"decision": "api.ts: allow BASE='' in dev (Vite proxy handles it), throw in PROD only", "rationale": "Module-level throw crashed React before mount in dev; empty BASE in production would leak JWTs to wrong origin", "phase": "maintenance"},
+    {"decision": "vercel.json: deploy frontend (Vite/React) not backend (FastAPI goes to Railway)", "rationale": "Previous config pointed to non-existent index.py Python handler", "phase": "maintenance"},
+    {"decision": "Chat test approach: mock @/lib/api and global EventSource, test full SSE flow via component integration", "rationale": "Gives coverage of the real useSSEStream hook without needing a live backend", "phase": "maintenance"}
+  ],
+  "uncommitted_files": [".planning/STATE.md (stale, needs update)"],
+  "next_action": "Update STATE.md to post-milestone state, then plan Phase 2 items (Telegram bot, PMC chart, dark mode) or handle remaining human actions (iOS retest, GCal OAuth verification)",
+  "context_notes": "Milestone v1.0 is fully shipped. All 5 phases complete, 79 tests passing, deployed on Vercel + Railway (pending). The session was maintenance: code review fixes, deployment config correction, blank-page bug fix, security hardening, README, and chat test coverage."
+}
