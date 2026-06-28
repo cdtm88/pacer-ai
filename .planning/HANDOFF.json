@@ -1,40 +1,38 @@
 {
   "version": "1.0",
-  "timestamp": "2026-06-26T03:04:46.667Z",
+  "timestamp": "2026-06-28T21:14:28.656Z",
   "phase": null,
-  "phase_name": "post-milestone-maintenance",
+  "phase_name": "post-milestone-vercel-deploy",
   "phase_dir": null,
   "plan": null,
   "task": null,
   "total_tasks": null,
   "status": "paused",
   "completed_tasks": [
-    {"id": 1, "name": "Code review (38-agent workflow) + fix PROJECT.md doc accuracy", "status": "done", "commit": "f2bb5ff"},
-    {"id": 2, "name": "Fix vercel.json: replace broken @vercel/python config with Vite/React SPA config", "status": "done", "commit": "f2bb5ff"},
-    {"id": 3, "name": "Fix api.ts module-level throw causing blank page in dev", "status": "done", "commit": "f2bb5ff"},
-    {"id": 4, "name": "Security fix: restore fail-hard JWT guard in production for api.ts", "status": "done", "commit": "16ab6fa"},
-    {"id": 5, "name": "Create README.md with app overview, tech stack, architecture, dev setup, deployment", "status": "done", "commit": "f2bb5ff"},
-    {"id": 6, "name": "Verified chat works end-to-end in Chrome (Playwright)", "status": "done", "commit": null},
-    {"id": 7, "name": "Full chat test pack: useSSEStream (12) + ChatScreen/ChatBubble/ChatInput (20) = 32 new tests", "status": "done", "commit": "777a2c0"},
-    {"id": 8, "name": "Fix .claude/CLAUDE.md: fitparse -> fitdecode in Constraints", "status": "done", "commit": "f2bb5ff"}
+    {"id": 1, "name": "Refactor: rename api/ → backend/, add /api prefix to all routes + frontend paths (168 imports)", "status": "done", "commit": "57ddf24"},
+    {"id": 2, "name": "Fix Vercel entry point: api/index.py zero-config Python detection (mount wrapper at /api)", "status": "done", "commit": "7d877a4"},
+    {"id": 3, "name": "Fix TypeScript build: exclude src/tests from tsconfig.app.json", "status": "done", "commit": "02b2c00"},
+    {"id": 4, "name": "Set all 6 Vercel env vars (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY, FRONTEND_URL)", "status": "done", "commit": null},
+    {"id": 5, "name": "Live deploy to https://www.pacer.moorelabs.uk — /api/health confirmed {status: ok}", "status": "done", "commit": null}
   ],
   "remaining_tasks": [
-    {"id": 9, "name": "IOS-03: retest timer persistence on physical iPhone after kill-to-root fix", "status": "not_started"},
-    {"id": 10, "name": "Google Calendar production OAuth verification (logo, privacy policy, ToS, Google review)", "status": "not_started"},
-    {"id": 11, "name": "Update STATE.md to reflect post-milestone state (currently stale: says 'executing phase 04')", "status": "not_started"}
+    {"id": 6, "name": "End-to-end browser test: sign up → onboarding → plan → chat SSE streaming", "status": "not_started"},
+    {"id": 7, "name": "IOS-03: retest timer persistence on physical iPhone", "status": "not_started"},
+    {"id": 8, "name": "Google Calendar OAuth production verification (logo, privacy policy, ToS, Google review)", "status": "not_started"}
   ],
   "blockers": [],
   "async_jobs": [],
   "human_actions_pending": [
-    {"action": "Retest IOS-03 timer persistence on a physical iPhone", "context": "Kill-to-root fix committed but never retested on device. Memory file records this as unresolved.", "blocking": false},
-    {"action": "Complete Google Calendar OAuth app verification with Google", "context": "Calendar works in dev but production requires Google app review (logo, privacy policy, ToS). MEMORY.md records this as deferred.", "blocking": false}
+    {"action": "Open https://www.pacer.moorelabs.uk and test the full onboarding + chat flow end-to-end", "context": "First live deployment. /api/health returns 200 but auth, SSE streaming, and DB writes not yet verified in production.", "blocking": true},
+    {"action": "Retest IOS-03 timer persistence on a physical iPhone", "context": "Kill-to-root fix committed but never physically retested on device.", "blocking": false},
+    {"action": "Complete Google Calendar OAuth app verification with Google", "context": "Production users hit 'app not verified' screen. Requires logo, privacy policy, ToS submission to Google.", "blocking": false}
   ],
   "decisions": [
-    {"decision": "api.ts: allow BASE='' in dev (Vite proxy handles it), throw in PROD only", "rationale": "Module-level throw crashed React before mount in dev; empty BASE in production would leak JWTs to wrong origin", "phase": "maintenance"},
-    {"decision": "vercel.json: deploy frontend (Vite/React) not backend (FastAPI goes to Railway)", "rationale": "Previous config pointed to non-existent index.py Python handler", "phase": "maintenance"},
-    {"decision": "Chat test approach: mock @/lib/api and global EventSource, test full SSE flow via component integration", "rationale": "Gives coverage of the real useSSEStream hook without needing a live backend", "phase": "maintenance"}
+    {"decision": "Vercel-only deployment (no Railway) — frontend + backend on single platform", "rationale": "Required: rename api/ → backend/ (Vercel api/ dir convention conflict), add /api prefix to all routes, move entry point to api/index.py for zero-config Python detection.", "phase": "deploy"},
+    {"decision": "api/index.py wraps backend via FastAPI mount at /api", "rationale": "Vercel zero-config detects api/ as functions dir. Mount strips /api prefix before delegating to backend.main:app so internal routes stay unchanged.", "phase": "deploy"},
+    {"decision": "Vite proxy uses path-stripping rewrite (/api prefix stripped before forwarding)", "rationale": "Keeps backend dev server prefix-free (uvicorn backend.main:app). 10-path proxy collapsed to single /api entry.", "phase": "deploy"}
   ],
-  "uncommitted_files": [".planning/STATE.md (stale, needs update)"],
-  "next_action": "Update STATE.md to post-milestone state, then plan Phase 2 items (Telegram bot, PMC chart, dark mode) or handle remaining human actions (iOS retest, GCal OAuth verification)",
-  "context_notes": "Milestone v1.0 is fully shipped. All 5 phases complete, 79 tests passing, deployed on Vercel + Railway (pending). The session was maintenance: code review fixes, deployment config correction, blank-page bug fix, security hardening, README, and chat test coverage."
+  "uncommitted_files": [".gitignore (Vercel added .env.local entry)", ".planning/STATE.md (stale)", ".planning/PROJECT.md (minor)"],
+  "next_action": "Open https://www.pacer.moorelabs.uk in a browser. Sign up, complete onboarding, verify a training plan is generated, send a chat message and confirm SSE streaming works. Fix any production issues found.",
+  "context_notes": "PacerAI v1.0 is fully live on Vercel at pacer.moorelabs.uk. Frontend (static) + FastAPI backend (Vercel Python function via api/index.py) both served from same domain. All env vars confirmed set. No Railway needed. The /api/health endpoint is live. Production E2E test is the only blocking remaining item."
 }
