@@ -15,7 +15,7 @@ log_capability_gap call.
 
 import pytest
 
-from api.agent.trust import scan_buffer
+from backend.agent.trust import scan_buffer
 from tests.agent.fixtures.trust_corpus import ATTRIBUTED, QUALITATIVE, VIOLATIONS
 
 

@@ -30,8 +30,8 @@ import secrets
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 
-from api.auth import get_current_user
-from api.db import get_async_supabase as _get_async_supabase
+from backend.auth import get_current_user
+from backend.db import get_async_supabase as _get_async_supabase
 
 logger = logging.getLogger(__name__)
 
@@ -175,7 +175,12 @@ async def calendar_auth_redirect_url(
         {"url": <google_oauth_url>}
     """
     user_id = current_user["user_id"]
-    backend_base = os.environ.get("BACKEND_BASE_URL", "http://localhost:8000")
+    backend_base = os.environ.get("BACKEND_BASE_URL")
+    if not backend_base:
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "server_misconfigured", "detail": "BACKEND_BASE_URL must be set"},
+        )
     redirect_uri = f"{backend_base}/calendar/callback"
 
     flow = _build_flow(redirect_uri)
@@ -223,7 +228,12 @@ async def calendar_auth(
       - scope: calendar.events only (least privilege, T-04-24)
     """
     user_id = current_user["user_id"]
-    backend_base = os.environ.get("BACKEND_BASE_URL", "http://localhost:8000")
+    backend_base = os.environ.get("BACKEND_BASE_URL")
+    if not backend_base:
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "server_misconfigured", "detail": "BACKEND_BASE_URL must be set"},
+        )
     redirect_uri = f"{backend_base}/calendar/callback"
 
     flow = _build_flow(redirect_uri)
@@ -266,8 +276,16 @@ async def calendar_callback(
     encrypts the credentials with Fernet, and upserts into users.google_tokens.
     Tokens are never logged (CAL-03, T-04-22).
     """
-    frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:5173")
-    backend_base = os.environ.get("BACKEND_BASE_URL", "http://localhost:8000")
+    frontend_url = os.environ.get("FRONTEND_URL")
+    backend_base = os.environ.get("BACKEND_BASE_URL")
+    if not frontend_url or not backend_base:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "server_misconfigured",
+                "detail": "FRONTEND_URL and BACKEND_BASE_URL must be set",
+            },
+        )
     redirect_uri = f"{backend_base}/calendar/callback"
 
     # --- CSRF state verification with HMAC binding (CR-007, T-04-21) ---

@@ -29,8 +29,8 @@ import asyncio
 import json
 from typing import AsyncIterator
 
-from api.agent.tools import TOOL_SCHEMAS, dedup_key, dispatch_tool
-from api.agent.trust import handle_violation
+from backend.agent.tools import TOOL_SCHEMAS, dedup_key, dispatch_tool
+from backend.agent.trust import handle_violation
 
 MAX_RETRIES: int = 3
 MAX_TOOL_TURNS: int = 10

@@ -55,7 +55,7 @@ async def test_stop_reason_end_turn(mock_stream_end_turn, no_op_scanner):
     AGENT-01: when stop_reason == "end_turn", run_turn yields a done event
     and terminates immediately (no tool dispatch).
     """
-    from api.agent.loop import run_turn
+    from backend.agent.loop import run_turn
 
     client = build_fake_client(mock_stream_end_turn)
     messages = [{"role": "user", "content": "Hello"}]
@@ -78,7 +78,7 @@ async def test_stop_reason_tool_use(
     yields tool_start + tool_result events, then loops back. The follow-up
     end_turn stream triggers the done event.
     """
-    from api.agent.loop import run_turn
+    from backend.agent.loop import run_turn
 
     client = build_fake_client(mock_stream_with_tool_use, mock_stream_end_turn)
     messages = [{"role": "user", "content": "What are my power zones?"}]
@@ -109,7 +109,7 @@ async def test_parallel_tool_dispatch(
     AGENT-02: two distinct tool_use blocks -> both dispatched -> audit_log length 2.
     Parallel dispatch via asyncio.gather means both complete before the loop continues.
     """
-    from api.agent.loop import run_turn
+    from backend.agent.loop import run_turn
 
     client = build_fake_client(mock_stream_two_distinct, mock_stream_end_turn)
     messages = [{"role": "user", "content": "Give me both power and HR zones."}]
@@ -140,7 +140,7 @@ async def test_tool_deduplication(
     AGENT-04: two identical tool_use blocks (same name + inputs) -> dispatch
     exactly once -> audit_log length 1.
     """
-    from api.agent.loop import run_turn
+    from backend.agent.loop import run_turn
 
     client = build_fake_client(mock_stream_two_identical, mock_stream_end_turn)
     messages = [{"role": "user", "content": "Calculate my zones twice."}]
@@ -169,8 +169,8 @@ async def test_retry_limit(always_violating_scanner):
     after MAX_RETRIES with a final error event code "max_retries".
     Retries must never exceed 3 (MAX_RETRIES).
     """
-    from api.agent.loop import run_turn, MAX_RETRIES
-    from api.agent.trust import TrustViolation
+    from backend.agent.loop import run_turn, MAX_RETRIES
+    from backend.agent.trust import TrustViolation
 
     # Build a stream that always returns end_turn but with violating text
     # (the always_violating_scanner ignores the text and always returns a violation)
@@ -222,7 +222,7 @@ async def test_failed_tool_surfaced(no_op_scanner):
     AGENT-03: an unknown/raising tool name results in is_error=True in the
     tool_result event and an error entry in the audit_log (not swallowed).
     """
-    from api.agent.loop import run_turn
+    from backend.agent.loop import run_turn
     from tests.agent.conftest import _build_stream, _tool_block, _final_msg
     from unittest.mock import MagicMock
 
@@ -265,7 +265,7 @@ async def test_audit_log(mock_stream_with_tool_use, mock_stream_end_turn, no_op_
     TRUST-04: after a successful tool dispatch, the audit_log entry contains
     tool_use_id, name, and the tool result (not an error entry).
     """
-    from api.agent.loop import run_turn
+    from backend.agent.loop import run_turn
 
     client = build_fake_client(mock_stream_with_tool_use, mock_stream_end_turn)
     messages = [{"role": "user", "content": "Calculate my power zones with FTP 200."}]

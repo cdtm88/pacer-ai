@@ -50,7 +50,7 @@ async def client(monkeypatch):
     fernet_key = Fernet.generate_key().decode()
     monkeypatch.setenv("CALENDAR_FERNET_KEY", fernet_key)
 
-    from api.main import app
+    from backend.main import app
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac, fernet_key
 
@@ -67,7 +67,7 @@ async def test_token_stored_as_ciphertext(monkeypatch):
     ciphertext, not the plaintext credentials JSON (CAL-03, T-04-22).
     """
     from cryptography.fernet import Fernet
-    import api.routes.calendar as cal_mod
+    import backend.routes.calendar as cal_mod
 
     fernet_key = Fernet.generate_key()
     monkeypatch.setenv("CALENDAR_FERNET_KEY", fernet_key.decode())
@@ -125,14 +125,14 @@ async def test_auth_uses_prompt_consent(monkeypatch):
     fake_flow = MagicMock()
     fake_flow.authorization_url.side_effect = fake_authorization_url
 
-    import api.routes.calendar as cal_mod
+    import backend.routes.calendar as cal_mod
 
     # Mock supabase to handle oauth_states upsert.
     mock_sb = mock_supabase_factory([{"user_id": TEST_USER_ID}])
     monkeypatch.setattr(cal_mod, "_get_async_supabase", mock_sb)
     monkeypatch.setattr(cal_mod, "_build_flow", lambda redirect_uri: fake_flow)
 
-    from api.main import app
+    from backend.main import app
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         response = await ac.get(
             "/calendar/auth",
@@ -169,14 +169,14 @@ async def test_callback_rejects_state_mismatch(monkeypatch):
     from cryptography.fernet import Fernet
     monkeypatch.setenv("CALENDAR_FERNET_KEY", Fernet.generate_key().decode())
 
-    import api.routes.calendar as cal_mod
+    import backend.routes.calendar as cal_mod
     cal_mod._supabase_client = None
 
     # Supabase returns no rows -- state not found (simulates CSRF / bad state).
     mock_sb = mock_supabase_factory([])
     monkeypatch.setattr(cal_mod, "_get_async_supabase", mock_sb)
 
-    from api.main import app
+    from backend.main import app
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         response = await ac.get(
             "/calendar/callback",
@@ -200,10 +200,10 @@ async def test_calendar_sync_failure_is_graceful():
     A push/update helper that raises internally must NOT propagate -- the
     adaptation endpoint returns 200 even when calendar sync fails (CAL-04, T-04-23).
     """
-    from api.calendar_sync import push_session_to_calendar, update_calendar_event, delete_calendar_event
+    from backend.calendar_sync import push_session_to_calendar, update_calendar_event, delete_calendar_event
 
     # Patch _load_credentials to raise -- simulates any credential/network error.
-    with patch("api.calendar_sync._load_credentials", side_effect=Exception("network error")):
+    with patch("backend.calendar_sync._load_credentials", side_effect=Exception("network error")):
         # push_session_to_calendar must return None, not raise.
         result = await push_session_to_calendar(TEST_USER_ID, {"id": "s1", "scheduled_date": "2025-01-01"})
         assert result is None, "push_session_to_calendar should return None on failure"

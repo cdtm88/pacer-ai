@@ -26,11 +26,11 @@ def _make_mock_async_supabase():
     return client
 
 
-@patch("api.sports_science.capability_gap.acreate_client", new_callable=AsyncMock)
+@patch("backend.sports_science.capability_gap.acreate_client", new_callable=AsyncMock)
 async def test_user_message_no_method_name(mock_acreate_client):
     """GAP-03: user-facing message must NOT contain the internal method name."""
     mock_acreate_client.return_value = _make_mock_async_supabase()
-    from api.sports_science.capability_gap import log_capability_gap
+    from backend.sports_science.capability_gap import log_capability_gap
 
     result = await log_capability_gap("estimate_vo2max", {"foo": "bar"})
     message = result.value["message"]
@@ -40,12 +40,12 @@ async def test_user_message_no_method_name(mock_acreate_client):
     )
 
 
-@patch("api.sports_science.capability_gap.acreate_client", new_callable=AsyncMock)
+@patch("backend.sports_science.capability_gap.acreate_client", new_callable=AsyncMock)
 async def test_returns_tool_result(mock_acreate_client):
     """TOOL-09: log_capability_gap returns a ToolResult with all required keys."""
     mock_acreate_client.return_value = _make_mock_async_supabase()
-    from api.sports_science.capability_gap import log_capability_gap
-    from api.sports_science.types import ToolResult
+    from backend.sports_science.capability_gap import log_capability_gap
+    from backend.sports_science.types import ToolResult
 
     result = await log_capability_gap("some_method", {"key": "value"})
 
@@ -58,11 +58,11 @@ async def test_returns_tool_result(mock_acreate_client):
     assert "message" in result.value
 
 
-@patch("api.sports_science.capability_gap.acreate_client", new_callable=AsyncMock)
+@patch("backend.sports_science.capability_gap.acreate_client", new_callable=AsyncMock)
 async def test_inputs_no_secret(mock_acreate_client):
     """Security: inputs must contain only context_keys (key names), not values or secrets."""
     mock_acreate_client.return_value = _make_mock_async_supabase()
-    from api.sports_science.capability_gap import log_capability_gap
+    from backend.sports_science.capability_gap import log_capability_gap
 
     context = {"athlete_weight": 72, "power_data": [100, 200, 300]}
     result = await log_capability_gap("secret_method", context, user_id="user-123")
@@ -74,14 +74,14 @@ async def test_inputs_no_secret(mock_acreate_client):
     assert "service_role" not in str(inputs)
 
 
-@patch("api.sports_science.capability_gap.acreate_client", new_callable=AsyncMock)
+@patch("backend.sports_science.capability_gap.acreate_client", new_callable=AsyncMock)
 async def test_supabase_insert_called_with_correct_fields(mock_acreate_client, monkeypatch):
     """GAP-01: structured row inserted with method_name, description, context."""
     monkeypatch.setenv("SUPABASE_URL", "http://test-url")
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-service-key")
     mock_client = _make_mock_async_supabase()
     mock_acreate_client.return_value = mock_client
-    from api.sports_science.capability_gap import log_capability_gap
+    from backend.sports_science.capability_gap import log_capability_gap
 
     await log_capability_gap("missing_tool", {"a": 1}, user_id="uid-abc")
 
@@ -94,11 +94,11 @@ async def test_supabase_insert_called_with_correct_fields(mock_acreate_client, m
     assert call_args["user_id"] == "uid-abc"
 
 
-@patch("api.sports_science.capability_gap.acreate_client", new_callable=AsyncMock)
+@patch("backend.sports_science.capability_gap.acreate_client", new_callable=AsyncMock)
 async def test_never_computes_physiological_number(mock_acreate_client):
     """GAP-02: log_capability_gap must not return a physiological number."""
     mock_acreate_client.return_value = _make_mock_async_supabase()
-    from api.sports_science.capability_gap import log_capability_gap
+    from backend.sports_science.capability_gap import log_capability_gap
 
     result = await log_capability_gap("estimate_ftp", {"rides": [{"tss": 50}]})
 
@@ -107,17 +107,17 @@ async def test_never_computes_physiological_number(mock_acreate_client):
     assert "capability_gap" in result.methodology
 
 
-@patch("api.sports_science.capability_gap.acreate_client", new_callable=AsyncMock)
+@patch("backend.sports_science.capability_gap.acreate_client", new_callable=AsyncMock)
 async def test_methodology_is_capability_gap_log(mock_acreate_client):
     """Methodology field must equal 'capability_gap_log'."""
     mock_acreate_client.return_value = _make_mock_async_supabase()
-    from api.sports_science.capability_gap import log_capability_gap
+    from backend.sports_science.capability_gap import log_capability_gap
 
     result = await log_capability_gap("some_tool", {"x": 1})
     assert result.methodology == "capability_gap_log"
 
 
-@patch("api.sports_science.capability_gap.acreate_client", new_callable=AsyncMock)
+@patch("backend.sports_science.capability_gap.acreate_client", new_callable=AsyncMock)
 async def test_db_error_returns_fallback_tool_result(mock_acreate_client, monkeypatch):
     """GAP-02: DB insert failure must not prevent returning the fallback ToolResult."""
     monkeypatch.setenv("SUPABASE_URL", "http://test-url")
@@ -130,8 +130,8 @@ async def test_db_error_returns_fallback_tool_result(mock_acreate_client, monkey
     mock_client = MagicMock()
     mock_client.table.return_value = table_mock
     mock_acreate_client.return_value = mock_client
-    from api.sports_science.capability_gap import log_capability_gap
-    from api.sports_science.types import ToolResult
+    from backend.sports_science.capability_gap import log_capability_gap
+    from backend.sports_science.types import ToolResult
 
     # Should not raise even when DB fails
     result = await log_capability_gap("some_tool", {"key": "val"})
@@ -141,7 +141,7 @@ async def test_db_error_returns_fallback_tool_result(mock_acreate_client, monkey
 
 def test_log_capability_gap_is_coroutine():
     """log_capability_gap must be an async coroutine function."""
-    from api.sports_science.capability_gap import log_capability_gap
+    from backend.sports_science.capability_gap import log_capability_gap
     assert asyncio.iscoroutinefunction(log_capability_gap), (
         "log_capability_gap must be async def"
     )

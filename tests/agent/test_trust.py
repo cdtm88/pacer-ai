@@ -14,7 +14,7 @@ class TestScanBuffer:
 
     def test_unsourced_ftp_watts_is_violation(self):
         """Basic case: assistant emits FTP in watts with no tool attribution."""
-        from api.agent.trust import scan_buffer
+        from backend.agent.trust import scan_buffer
 
         violation = scan_buffer("Your FTP is 250 watts based on your history.", set())
         assert violation is not None
@@ -22,7 +22,7 @@ class TestScanBuffer:
 
     def test_attributed_number_is_not_violation(self):
         """TRUST-04: number present verbatim in a tool_result value is attributed."""
-        from api.agent.trust import scan_buffer
+        from backend.agent.trust import scan_buffer
 
         # "250 watts" appears in a tool result, so it's attributed
         violation = scan_buffer("Your FTP is 250 watts.", {"250 watts"})
@@ -30,7 +30,7 @@ class TestScanBuffer:
 
     def test_qualitative_text_is_not_violation(self):
         """Qualitative text without numeric+unit patterns must not fire."""
-        from api.agent.trust import scan_buffer
+        from backend.agent.trust import scan_buffer
 
         violation = scan_buffer(
             "Ride comfortably and keep it conversational today.", set()
@@ -39,7 +39,7 @@ class TestScanBuffer:
 
     def test_ride_easy_text_is_not_violation(self):
         """Plan acceptance criteria: ride easy text returns None."""
-        from api.agent.trust import scan_buffer
+        from backend.agent.trust import scan_buffer
 
         assert (
             scan_buffer(
@@ -50,35 +50,35 @@ class TestScanBuffer:
 
     def test_tss_value_unsourced_is_violation(self):
         """TSS is a physiological unit -- unsourced TSS triggers violation."""
-        from api.agent.trust import scan_buffer
+        from backend.agent.trust import scan_buffer
 
         violation = scan_buffer("Your TSS for today should be 85.", set())
         assert violation is not None
 
     def test_tss_attributed_is_not_violation(self):
         """TSS value present in tool result is attributed."""
-        from api.agent.trust import scan_buffer
+        from backend.agent.trust import scan_buffer
 
         violation = scan_buffer("Your TSS for today should be 85.", {"85 TSS"})
         assert violation is None
 
     def test_bpm_unsourced_is_violation(self):
         """Heart rate in bpm without tool attribution is a violation."""
-        from api.agent.trust import scan_buffer
+        from backend.agent.trust import scan_buffer
 
         violation = scan_buffer("Keep your heart rate at 145 bpm.", set())
         assert violation is not None
 
     def test_zone_reference_unsourced_is_violation(self):
         """Zone N reference is physiological; unsourced is a violation."""
-        from api.agent.trust import scan_buffer
+        from backend.agent.trust import scan_buffer
 
         violation = scan_buffer("Stay in Zone 3 for 20 minutes.", set())
         assert violation is not None
 
     def test_only_first_match_returned(self):
         """scan_buffer returns first violation; check it's non-None and has matched_text."""
-        from api.agent.trust import scan_buffer
+        from backend.agent.trust import scan_buffer
 
         violation = scan_buffer("FTP 200 watts and 85 TSS today.", set())
         assert violation is not None
@@ -86,7 +86,7 @@ class TestScanBuffer:
 
     def test_partial_attribution_still_flags(self):
         """If only one of two physio numbers is attributed, violation is still raised."""
-        from api.agent.trust import scan_buffer
+        from backend.agent.trust import scan_buffer
 
         # 250 watts is attributed; 85 TSS is not
         violation = scan_buffer(
@@ -96,7 +96,7 @@ class TestScanBuffer:
 
     def test_trust_violation_carries_pattern(self):
         """TrustViolation.pattern is set and non-empty."""
-        from api.agent.trust import scan_buffer
+        from backend.agent.trust import scan_buffer
 
         violation = scan_buffer("FTP is 200 W.", set())
         assert violation is not None
@@ -104,13 +104,13 @@ class TestScanBuffer:
 
     def test_returns_none_for_empty_text(self):
         """Empty string should return None (no numbers to scan)."""
-        from api.agent.trust import scan_buffer
+        from backend.agent.trust import scan_buffer
 
         assert scan_buffer("", set()) is None
 
     def test_ctl_atl_tsb_unsourced_are_violations(self):
         """CTL, ATL, TSB are physiological metrics; unsourced triggers violation."""
-        from api.agent.trust import scan_buffer
+        from backend.agent.trust import scan_buffer
 
         assert scan_buffer("Your CTL is 42.", set()) is not None
         assert scan_buffer("ATL is 55.", set()) is not None
@@ -118,14 +118,14 @@ class TestScanBuffer:
 
     def test_rpm_unsourced_is_violation(self):
         """rpm (cadence) is a physiological unit."""
-        from api.agent.trust import scan_buffer
+        from backend.agent.trust import scan_buffer
 
         violation = scan_buffer("Aim for 90 rpm today.", set())
         assert violation is not None
 
     def test_attribution_substring_match(self):
         """Attribution check uses substring containment, not equality."""
-        from api.agent.trust import scan_buffer
+        from backend.agent.trust import scan_buffer
 
         # The tool result value is a longer JSON string containing "250 watts"
         tool_values = {'{"ftp": 250, "unit": "watts", "zones": [...]}'}
@@ -141,19 +141,19 @@ class TestTrustViolationDataclass:
     """TrustViolation dataclass properties."""
 
     def test_trust_violation_has_matched_text(self):
-        from api.agent.trust import TrustViolation
+        from backend.agent.trust import TrustViolation
 
         tv = TrustViolation(matched_text="250 watts", pattern=r"\d+\s*watts")
         assert tv.matched_text == "250 watts"
 
     def test_trust_violation_has_pattern(self):
-        from api.agent.trust import TrustViolation
+        from backend.agent.trust import TrustViolation
 
         tv = TrustViolation(matched_text="250 watts", pattern=r"\d+\s*watts")
         assert tv.pattern == r"\d+\s*watts"
 
     def test_trust_violation_str(self):
-        from api.agent.trust import TrustViolation
+        from backend.agent.trust import TrustViolation
 
         tv = TrustViolation(matched_text="250 watts", pattern="x")
         assert "250 watts" in str(tv)
@@ -163,42 +163,42 @@ class TestPhysioPattern:
     """PHYSIO_PATTERN regex sanity checks."""
 
     def test_physio_pattern_exists(self):
-        from api.agent.trust import PHYSIO_PATTERN
+        from backend.agent.trust import PHYSIO_PATTERN
 
         assert PHYSIO_PATTERN is not None
 
     def test_physio_pattern_matches_watts(self):
-        from api.agent.trust import PHYSIO_PATTERN
+        from backend.agent.trust import PHYSIO_PATTERN
 
         assert PHYSIO_PATTERN.search("250 watts")
 
     def test_physio_pattern_matches_w(self):
-        from api.agent.trust import PHYSIO_PATTERN
+        from backend.agent.trust import PHYSIO_PATTERN
 
         assert PHYSIO_PATTERN.search("200W")
 
     def test_physio_pattern_matches_bpm(self):
-        from api.agent.trust import PHYSIO_PATTERN
+        from backend.agent.trust import PHYSIO_PATTERN
 
         assert PHYSIO_PATTERN.search("145 bpm")
 
     def test_physio_pattern_matches_zone(self):
-        from api.agent.trust import PHYSIO_PATTERN
+        from backend.agent.trust import PHYSIO_PATTERN
 
         assert PHYSIO_PATTERN.search("Zone 4")
 
     def test_physio_pattern_matches_ftp(self):
-        from api.agent.trust import PHYSIO_PATTERN
+        from backend.agent.trust import PHYSIO_PATTERN
 
         assert PHYSIO_PATTERN.search("FTP 250")
 
     def test_physio_pattern_no_match_qualitative(self):
-        from api.agent.trust import PHYSIO_PATTERN
+        from backend.agent.trust import PHYSIO_PATTERN
 
         assert not PHYSIO_PATTERN.search("Ride easy and enjoy the morning air.")
 
     def test_physio_pattern_case_insensitive(self):
-        from api.agent.trust import PHYSIO_PATTERN
+        from backend.agent.trust import PHYSIO_PATTERN
 
         assert PHYSIO_PATTERN.search("250 WATTS")
         assert PHYSIO_PATTERN.search("Zone 2")
@@ -209,20 +209,20 @@ class TestHandleViolation:
 
     async def test_handle_violation_calls_log_capability_gap(self, monkeypatch):
         """handle_violation awaits log_capability_gap with expected args."""
-        from api.agent.trust import TrustViolation
+        from backend.agent.trust import TrustViolation
 
         calls = []
 
         async def mock_log(method_name, context, **kwargs):
             calls.append({"method_name": method_name, "context": context})
-            from api.sports_science.types import ToolResult
+            from backend.sports_science.types import ToolResult
             return ToolResult(value={}, unit="", methodology="capability_gap_log", inputs={})
 
         monkeypatch.setattr(
-            "api.agent.trust.log_capability_gap", mock_log
+            "backend.agent.trust.log_capability_gap", mock_log
         )
 
-        from api.agent.trust import handle_violation
+        from backend.agent.trust import handle_violation
 
         violation = TrustViolation(matched_text="250 watts", pattern="x")
         await handle_violation(violation)
@@ -234,10 +234,10 @@ class TestHandleViolation:
 
     async def test_handle_violation_does_not_expose_method_name_in_result(self, monkeypatch):
         """The method_name used in log_capability_gap is not echoed to the user."""
-        from api.agent.trust import TrustViolation
+        from backend.agent.trust import TrustViolation
 
         async def mock_log(method_name, context, **kwargs):
-            from api.sports_science.types import ToolResult
+            from backend.sports_science.types import ToolResult
             return ToolResult(
                 value={"status": "logged", "message": "qualitative fallback"},
                 unit="",
@@ -245,9 +245,9 @@ class TestHandleViolation:
                 inputs={},
             )
 
-        monkeypatch.setattr("api.agent.trust.log_capability_gap", mock_log)
+        monkeypatch.setattr("backend.agent.trust.log_capability_gap", mock_log)
 
-        from api.agent.trust import handle_violation
+        from backend.agent.trust import handle_violation
 
         violation = TrustViolation(matched_text="85 TSS", pattern="x")
         # Should not raise, and should not surface method_name
@@ -275,8 +275,8 @@ class TestTrustLoopCompliance:
         3. Emits an error event with code "trust_violation".
         4. Never forwards the violating number in a token or done frame.
         """
-        from api.agent.loop import run_turn
-        from api.agent.trust import scan_buffer
+        from backend.agent.loop import run_turn
+        from backend.agent.trust import scan_buffer
         from tests.agent.conftest import build_fake_client, _build_stream, _delta_event, _final_msg
         from unittest.mock import MagicMock
 
@@ -342,7 +342,7 @@ class TestTrustLoopCompliance:
         TRUST-03: a number present verbatim in a tool_result value this turn
         does NOT trigger a violation in scan_buffer.
         """
-        from api.agent.trust import scan_buffer
+        from backend.agent.trust import scan_buffer
 
         # A number echoed from a tool result is attributed
         tool_result_str = "250 watts"
@@ -358,13 +358,13 @@ class TestTrustLoopCompliance:
         2. The user-facing surface never contains the internal method_name
            "unsourced_physiological_number".
         """
-        from api.agent.trust import TrustViolation, handle_violation
+        from backend.agent.trust import TrustViolation, handle_violation
 
         gap_calls = []
 
         async def mock_log_capability_gap(method_name, context, **kwargs):
             gap_calls.append({"method_name": method_name, "context": context})
-            from api.sports_science.types import ToolResult
+            from backend.sports_science.types import ToolResult
             return ToolResult(
                 value={"status": "logged", "message": "I'll describe this qualitatively."},
                 unit="",
@@ -372,7 +372,7 @@ class TestTrustLoopCompliance:
                 inputs={},
             )
 
-        monkeypatch.setattr("api.agent.trust.log_capability_gap", mock_log_capability_gap)
+        monkeypatch.setattr("backend.agent.trust.log_capability_gap", mock_log_capability_gap)
 
         violation = TrustViolation(matched_text="250 watts", pattern="test")
         result = await handle_violation(violation)

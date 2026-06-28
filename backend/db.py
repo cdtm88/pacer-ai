@@ -9,7 +9,7 @@ initialisation logic (pool limits, lifespan, service-role key rotation)
 now only needs to be made here.
 
 Test monkeypatching:
-    import api.db as db_module
+    import backend.db as db_module
     db_module._supabase_client = my_mock_client
 """
 

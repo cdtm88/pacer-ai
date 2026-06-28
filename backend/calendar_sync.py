@@ -25,7 +25,7 @@ import os
 from datetime import timedelta
 from typing import Optional
 
-from api.db import get_async_supabase as _get_async_supabase
+from backend.db import get_async_supabase as _get_async_supabase
 
 logger = logging.getLogger(__name__)
 

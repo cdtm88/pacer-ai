@@ -55,7 +55,7 @@ def mock_supabase_factory_extended(return_rows: list):
 
 def _get_app():
     """Import app after fixtures are configured to avoid import-time env checks."""
-    from api.main import app
+    from backend.main import app
     return app
 
 
@@ -68,7 +68,7 @@ async def test_sessions_today_returns_row(monkeypatch):
     """
     GET /sessions/today returns today's session row for the authenticated user.
     """
-    import api.routes.sessions as sessions_module
+    import backend.routes.sessions as sessions_module
 
     today = datetime.date.today().isoformat()
     session_row = {
@@ -110,7 +110,7 @@ async def test_sessions_today_returns_404_when_no_session(monkeypatch):
     """
     GET /sessions/today returns 404 when no planned session is scheduled today.
     """
-    import api.routes.sessions as sessions_module
+    import backend.routes.sessions as sessions_module
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
     monkeypatch.setattr(
@@ -136,7 +136,7 @@ async def test_sessions_upcoming_returns_list(monkeypatch):
     """
     GET /sessions/upcoming returns the planned sessions list for the user.
     """
-    import api.routes.sessions as sessions_module
+    import backend.routes.sessions as sessions_module
 
     today = datetime.date.today()
     sessions_data = [
@@ -202,7 +202,7 @@ async def test_pmc_latest_returns_tss_display_ready(monkeypatch):
     """
     GET /pmc_history/latest returns the most recent PMC row including tss_display_ready.
     """
-    import api.routes.sessions as sessions_module
+    import backend.routes.sessions as sessions_module
 
     pmc_row = {
         "id": "pmc-001",
@@ -238,7 +238,7 @@ async def test_pmc_latest_returns_empty_when_no_data(monkeypatch):
     """
     GET /pmc_history/latest returns {} when no PMC data exists (cold-start).
     """
-    import api.routes.sessions as sessions_module
+    import backend.routes.sessions as sessions_module
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
     monkeypatch.setattr(
@@ -265,7 +265,7 @@ async def test_profile_me_returns_404_when_no_profile(monkeypatch):
     """
     GET /profiles/me returns 404 with structured error when no profile row exists.
     """
-    import api.routes.sessions as sessions_module
+    import backend.routes.sessions as sessions_module
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
     monkeypatch.setattr(
@@ -288,7 +288,7 @@ async def test_profile_me_returns_profile_row(monkeypatch):
     """
     GET /profiles/me returns the profile row for the authenticated user.
     """
-    import api.routes.sessions as sessions_module
+    import backend.routes.sessions as sessions_module
 
     profile_row = {
         "id": "prof-001",
@@ -402,8 +402,8 @@ async def test_create_conversation_returns_id(monkeypatch):
     """
     POST /conversations/ creates a coaching conversation and returns its id.
     """
-    import api.routes.chat as chat_module
-    import api.routes.onboarding as onboarding_module
+    import backend.routes.chat as chat_module
+    import backend.routes.onboarding as onboarding_module
 
     conversation_id = "conv-00000000-0001"
 

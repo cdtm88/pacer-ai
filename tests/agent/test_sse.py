@@ -111,8 +111,8 @@ class TestSSEEventSequence:
         """
         AGENT-05: GET /chat/stream returns Content-Type: text/event-stream.
         """
-        from api.main import app
-        import api.routes.chat as chat_module
+        from backend.main import app
+        import backend.routes.chat as chat_module
 
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_text_only)
 
@@ -132,8 +132,8 @@ class TestSSEEventSequence:
         """
         AGENT-05: SSE frames are well-formed: event: <type>\\ndata: <json>\\n\\n
         """
-        from api.main import app
-        import api.routes.chat as chat_module
+        from backend.main import app
+        import backend.routes.chat as chat_module
 
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_text_only)
 
@@ -162,8 +162,8 @@ class TestSSEEventSequence:
         """
         AGENT-05: text-only turn yields token events then done -- in order.
         """
-        from api.main import app
-        import api.routes.chat as chat_module
+        from backend.main import app
+        import backend.routes.chat as chat_module
 
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_text_only)
 
@@ -191,8 +191,8 @@ class TestSSEEventSequence:
         AGENT-05: turn with tool use yields events in order:
         token..., tool_start, tool_result, done
         """
-        from api.main import app
-        import api.routes.chat as chat_module
+        from backend.main import app
+        import backend.routes.chat as chat_module
 
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_with_tools)
 
@@ -221,8 +221,8 @@ class TestSSEEventSequence:
 
     async def test_sse_token_data_has_text_field(self, monkeypatch):
         """Token events carry a 'text' field in their data payload."""
-        from api.main import app
-        import api.routes.chat as chat_module
+        from backend.main import app
+        import backend.routes.chat as chat_module
 
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_text_only)
 
@@ -242,8 +242,8 @@ class TestSSEEventSequence:
 
     async def test_sse_done_data_is_empty_object(self, monkeypatch):
         """Done event data is an empty object {}."""
-        from api.main import app
-        import api.routes.chat as chat_module
+        from backend.main import app
+        import backend.routes.chat as chat_module
 
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_text_only)
 
@@ -265,8 +265,8 @@ class TestSSEEventSequence:
         This is guaranteed by patching run_turn -- the real AsyncAnthropic
         client in sse_generator is never invoked when run_turn is mocked.
         """
-        from api.main import app
-        import api.routes.chat as chat_module
+        from backend.main import app
+        import backend.routes.chat as chat_module
 
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_text_only)
 
@@ -293,8 +293,8 @@ class TestSSEEventSequence:
         T-02-09: conversation_id is required. Missing param returns 422 (FastAPI
         validation error), not a 500 or empty stream.
         """
-        from api.main import app
-        import api.routes.chat as chat_module
+        from backend.main import app
+        import backend.routes.chat as chat_module
 
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_text_only)
 

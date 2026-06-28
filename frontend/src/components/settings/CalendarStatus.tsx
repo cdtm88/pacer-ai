@@ -24,7 +24,7 @@ export function CalendarStatus() {
   async function handleConnect() {
     // Fetch the OAuth redirect URL with the JWT in the Authorization header
     // (safe) rather than embedding the token in a browser URL (CR-002).
-    const res = await apiFetch('/calendar/auth-redirect-url')
+    const res = await apiFetch('/api/calendar/auth-redirect-url')
     if (res.ok) {
       const { url } = await res.json() as { url: string }
       window.location.href = url

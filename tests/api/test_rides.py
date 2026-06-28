@@ -110,8 +110,8 @@ async def test_upload_returns_200(monkeypatch):
     Background task is mocked to avoid live DB calls.
     Phase 4: request requires a valid JWT; user_id is no longer a form field.
     """
-    from api.main import app
-    import api.routes.rides as rides_module
+    from backend.main import app
+    import backend.routes.rides as rides_module
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
     client_mock, _ = _make_rides_mock()
@@ -151,7 +151,7 @@ def test_fit_parse_warn():
     FIT-02: parse_fit_file on the real .FIT fixture returns a non-empty power_array
     and does not raise (ErrorHandling.WARN swallows bad frames).
     """
-    from api.routes.rides import parse_fit_file
+    from backend.routes.rides import parse_fit_file
 
     assert FIXTURE_PATH.exists(), f"Test fixture missing: {FIXTURE_PATH}"
     file_bytes = FIXTURE_PATH.read_bytes()
@@ -178,7 +178,7 @@ def test_missing_fields():
     parse_fit_file returns avg_hr=None and avg_cadence=None without raising.
     """
     import fitdecode
-    from api.routes.rides import parse_fit_file
+    from backend.routes.rides import parse_fit_file
 
     assert FIXTURE_PATH.exists(), f"Test fixture missing: {FIXTURE_PATH}"
     file_bytes = FIXTURE_PATH.read_bytes()
@@ -216,7 +216,7 @@ async def test_tss_computed():
     FIT-04: process_ride_background computes TSS and fires a rides UPDATE
     with tss > 0 when given a valid parsed dict from the real fixture.
     """
-    from api.routes.rides import parse_fit_file, process_ride_background
+    from backend.routes.rides import parse_fit_file, process_ride_background
 
     assert FIXTURE_PATH.exists(), f"Test fixture missing: {FIXTURE_PATH}"
     file_bytes = FIXTURE_PATH.read_bytes()
@@ -259,7 +259,7 @@ async def test_tss_computed():
     client_mock.table.return_value = chain_mock
     client_mock.storage = MagicMock()
 
-    import api.routes.rides as rides_module
+    import backend.routes.rides as rides_module
     original_get = rides_module._get_async_supabase
 
     async def mock_get_supabase():
@@ -309,7 +309,7 @@ async def test_session_compliance():
     calls validate_session_vs_actual and its compliance_pct is included in the
     rides UPDATE payload.
     """
-    from api.routes.rides import parse_fit_file, process_ride_background
+    from backend.routes.rides import parse_fit_file, process_ride_background
 
     assert FIXTURE_PATH.exists(), f"Test fixture missing: {FIXTURE_PATH}"
     file_bytes = FIXTURE_PATH.read_bytes()
@@ -362,7 +362,7 @@ async def test_session_compliance():
     client_mock.table.return_value = chain_mock
     client_mock.storage = MagicMock()
 
-    import api.routes.rides as rides_module
+    import backend.routes.rides as rides_module
     original_get = rides_module._get_async_supabase
 
     async def mock_get_supabase():
@@ -404,8 +404,8 @@ async def test_fit_upload_integration(monkeypatch):
 
     DB is mocked to avoid live Supabase connections.
     """
-    from api.main import app
-    import api.routes.rides as rides_module
+    from backend.main import app
+    import backend.routes.rides as rides_module
 
     assert FIXTURE_PATH.exists(), (
         f"Real Zwift .FIT fixture missing at {FIXTURE_PATH}. "
@@ -449,7 +449,7 @@ async def test_fit_upload_integration(monkeypatch):
     assert body.get("status") == "processing", f"Expected status='processing': {body}"
 
     # Drive TSS computation directly from the captured parsed dict (FIT-06 core assertion)
-    from api.sports_science.metrics import compute_tss
+    from backend.sports_science.metrics import compute_tss
 
     assert "parsed" in bg_args, "Background task was not invoked with parsed FIT data"
     parsed = bg_args["parsed"]
@@ -479,8 +479,8 @@ async def test_corrupt_fit_returns_422(monkeypatch):
     Phase 4: a valid JWT is required; auth runs before file parsing so we must
     include the Authorization header to exercise the 422 parse-error path.
     """
-    from api.main import app
-    import api.routes.rides as rides_module
+    from backend.main import app
+    import backend.routes.rides as rides_module
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 

@@ -1,9 +1,9 @@
 # tests/sports_science/test_metrics.py
 import math
 import pytest
-from api.sports_science.metrics import compute_tss, _compute_np
-from api.sports_science.types import ToolResult
-from api.sports_science.constants import NP_SPIKE_MULTIPLIER, NP_MIN_DURATION_SECS
+from backend.sports_science.metrics import compute_tss, _compute_np
+from backend.sports_science.types import ToolResult
+from backend.sports_science.constants import NP_SPIKE_MULTIPLIER, NP_MIN_DURATION_SECS
 
 
 class TestNPIncludesZeros:

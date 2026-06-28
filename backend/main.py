@@ -23,12 +23,12 @@ from fastapi import FastAPI
 load_dotenv()
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes.adaptations import router as adaptations_router
-from api.routes.calendar import router as calendar_router
-from api.routes.chat import conversations_router, router as chat_router
-from api.routes.onboarding import router as onboarding_router
-from api.routes.rides import router as rides_router
-from api.routes.sessions import router as sessions_router
+from backend.routes.adaptations import router as adaptations_router
+from backend.routes.calendar import router as calendar_router
+from backend.routes.chat import conversations_router, router as chat_router
+from backend.routes.onboarding import router as onboarding_router
+from backend.routes.rides import router as rides_router
+from backend.routes.sessions import router as sessions_router
 
 app = FastAPI(
     title="PacerAI",
@@ -39,9 +39,12 @@ app = FastAPI(
     version="0.1.0",
 )
 
+_frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+_allowed_origins = [o.strip() for o in _frontend_url.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.environ.get("FRONTEND_URL", "http://localhost:5173")],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

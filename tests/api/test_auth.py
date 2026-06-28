@@ -55,8 +55,8 @@ async def test_missing_token_raises_401(monkeypatch):
     AUTH-01: GET /adaptations/ with no Authorization header and no ?token= returns 401.
     Tests the HTTP-level behavior against the FastAPI app.
     """
-    from api.main import app
-    import api.routes.adaptations as adapt_module
+    from backend.main import app
+    import backend.routes.adaptations as adapt_module
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
     monkeypatch.setattr(adapt_module, "_get_async_supabase", mock_supabase_factory([]))
@@ -85,8 +85,8 @@ async def test_garbage_token_raises_401(monkeypatch):
     """
     AUTH-02: A request with a malformed/garbage bearer token returns 401.
     """
-    from api.main import app
-    import api.routes.adaptations as adapt_module
+    from backend.main import app
+    import backend.routes.adaptations as adapt_module
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
     monkeypatch.setattr(adapt_module, "_get_async_supabase", mock_supabase_factory([]))
@@ -118,8 +118,8 @@ async def test_wrong_secret_token_raises_401(monkeypatch):
     """
     AUTH-03: A token signed by a different secret returns 401 (signature mismatch).
     """
-    from api.main import app
-    import api.routes.adaptations as adapt_module
+    from backend.main import app
+    import backend.routes.adaptations as adapt_module
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
     monkeypatch.setattr(adapt_module, "_get_async_supabase", mock_supabase_factory([]))
@@ -157,7 +157,7 @@ async def test_valid_token_resolves_user_id(monkeypatch):
     This tests the dependency function in isolation without an HTTP request.
     """
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
-    from api.auth import get_current_user
+    from backend.auth import get_current_user
 
     token = make_test_token(user_id=TEST_USER_ID, email="test@example.com")
     cred = _make_bearer_cred(token)
@@ -185,7 +185,7 @@ async def test_valid_token_via_query_param(monkeypatch):
     a valid token in the query param position.
     """
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
-    from api.auth import get_current_user
+    from backend.auth import get_current_user
 
     token = make_test_token(user_id=TEST_USER_ID)
 
@@ -210,7 +210,7 @@ async def test_wrong_audience_raises_401(monkeypatch):
     (e.g., a service-role token or a token from a different provider) must fail.
     """
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
-    from api.auth import get_current_user
+    from backend.auth import get_current_user
 
     # Encode a token with wrong audience
     wrong_aud_token = jwt.encode(
@@ -239,8 +239,8 @@ async def test_valid_token_full_http_path(monkeypatch):
     AUTH-07: A valid JWT in the Authorization header reaches the endpoint handler
     and returns 200 with expected data (proves auth does not block valid requests).
     """
-    from api.main import app
-    import api.routes.adaptations as adapt_module
+    from backend.main import app
+    import backend.routes.adaptations as adapt_module
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 

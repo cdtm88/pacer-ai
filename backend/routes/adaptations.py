@@ -39,12 +39,12 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Path
 from pydantic import BaseModel
 
-from api.auth import get_current_user
-from api.calendar_sync import delete_calendar_event, update_calendar_event
-from api.db import get_async_supabase as _get_async_supabase
-from api.utils import validate_uuid
-from api.sports_science.compliance import validate_session_vs_actual
-from api.sports_science.load import progress_load
+from backend.auth import get_current_user
+from backend.calendar_sync import delete_calendar_event, update_calendar_event
+from backend.db import get_async_supabase as _get_async_supabase
+from backend.utils import validate_uuid
+from backend.sports_science.compliance import validate_session_vs_actual
+from backend.sports_science.load import progress_load
 
 logger = logging.getLogger(__name__)
 

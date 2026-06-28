@@ -232,7 +232,7 @@ def no_op_scanner():
 @pytest.fixture
 def always_violating_scanner():
     """A trust scanner that always returns a TrustViolation (for retry-cap tests)."""
-    from api.agent.trust import TrustViolation
+    from backend.agent.trust import TrustViolation
 
     def _scanner(text, tool_result_values):
         return TrustViolation(

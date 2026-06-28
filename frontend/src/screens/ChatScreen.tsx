@@ -122,7 +122,7 @@ export function ChatScreen() {
 
       // Build SSE stream URL with conversation_id and JWT via sseUrl helper
       const url = await sseUrl(
-        `/chat/stream?conversation_id=${encodeURIComponent(conversation.id)}&message=${encodeURIComponent(text)}`
+        `/api/chat/stream?conversation_id=${encodeURIComponent(conversation.id)}&message=${encodeURIComponent(text)}`
       )
       setActiveStreamUrl(url)
     },

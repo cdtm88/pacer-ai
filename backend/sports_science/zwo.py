@@ -7,7 +7,7 @@ All physiological numbers come exclusively from POWER_BY_SEGMENT constants or th
 caller-supplied ftp_watts argument (trust model). The LLM never supplies power values.
 
 Usage:
-    from api.sports_science.zwo import generate_zwo
+    from backend.sports_science.zwo import generate_zwo
     xml_bytes = generate_zwo(session_dict, ftp_watts=200)
     xml_bytes = generate_zwo(session_dict, ftp_watts=None)  # pre-FTP: FreeRide blocks
 """

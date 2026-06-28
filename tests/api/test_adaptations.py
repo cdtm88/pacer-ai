@@ -48,7 +48,7 @@ async def test_missed_detection(monkeypatch):
     ADAPT-01: detect_signals identifies a missed session when a past-due planned
     session has no matching ride within +/-1 day.
     """
-    import api.routes.adaptations as adapt_module
+    import backend.routes.adaptations as adapt_module
 
     today = datetime.date.today()
     yesterday = (today - datetime.timedelta(days=2)).isoformat()
@@ -99,7 +99,7 @@ def test_micro_macro_branch():
     """
     ADAPT-02: decide_scope returns correct scope for 0, 1, and 2+ signals.
     """
-    from api.routes.adaptations import decide_scope
+    from backend.routes.adaptations import decide_scope
 
     assert decide_scope([]) is None
     assert decide_scope([_sig()]) == "micro"
@@ -120,7 +120,7 @@ def test_shift_limit():
     Case 1: >30% of sessions shift by >1 day -> requires_user_confirmation True.
     Case 2: <=30% shift -> requires_user_confirmation False.
     """
-    from api.routes.adaptations import check_shift_limit
+    from backend.routes.adaptations import check_shift_limit
 
     # Case 1: 2 of 3 sessions (67%) shift by more than 1 day.
     before = [
@@ -178,8 +178,8 @@ async def test_weekly_check(monkeypatch):
     When no signals are detected, response is {"signals": [], "scope": None, "result": None}.
     Phase 4: request requires a valid JWT in the Authorization: Bearer header.
     """
-    from api.main import app
-    import api.routes.adaptations as adapt_module
+    from backend.main import app
+    import backend.routes.adaptations as adapt_module
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
@@ -228,8 +228,8 @@ async def test_intensity_from_tools(monkeypatch):
     ADAPT-05: detect_signals invokes validate_session_vs_actual to determine
     underperformance. The compliance decision comes from the tool, not a literal.
     """
-    import api.routes.adaptations as adapt_module
-    from api.sports_science.compliance import validate_session_vs_actual
+    import backend.routes.adaptations as adapt_module
+    from backend.sports_science.compliance import validate_session_vs_actual
 
     today = datetime.date.today()
     yesterday = (today - datetime.timedelta(days=1)).isoformat()
@@ -295,7 +295,7 @@ async def test_log_persisted(monkeypatch):
     TRANSP-02: log_adaptation inserts a row into the adaptations table with
     required fields: trigger, scope, explanation_text (and before/after snapshots).
     """
-    import api.routes.adaptations as adapt_module
+    import backend.routes.adaptations as adapt_module
 
     inserted_rows: list[dict] = []
 
@@ -348,8 +348,8 @@ async def test_get_adaptations(monkeypatch):
     TRANSP-03: GET /adaptations/ returns a list of adaptation records for the authenticated user.
     Phase 4: user_id comes from the JWT; no user_id query param needed.
     """
-    from api.main import app
-    import api.routes.adaptations as adapt_module
+    from backend.main import app
+    import backend.routes.adaptations as adapt_module
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
@@ -390,7 +390,7 @@ async def test_get_adaptations_requires_auth():
     TRANSP-03 (Phase 4): GET /adaptations/ without a JWT returns 401.
     Previously tested for 422 (missing user_id query param); now tests for 401 (no auth).
     """
-    from api.main import app
+    from backend.main import app
 
     async with httpx.AsyncClient(
         transport=ASGITransport(app=app),

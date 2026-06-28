@@ -37,13 +37,13 @@ import fitdecode
 import numpy as np
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 
-from api.auth import get_current_user
-from api.db import get_async_supabase as _get_async_supabase
-from api.utils import validate_uuid
-from api.sports_science.compliance import validate_session_vs_actual
-from api.sports_science.ftp import estimate_ftp_from_rides
-from api.sports_science.metrics import compute_tss
-from api.sports_science.pmc import update_pmc
+from backend.auth import get_current_user
+from backend.db import get_async_supabase as _get_async_supabase
+from backend.utils import validate_uuid
+from backend.sports_science.compliance import validate_session_vs_actual
+from backend.sports_science.ftp import estimate_ftp_from_rides
+from backend.sports_science.metrics import compute_tss
+from backend.sports_science.pmc import update_pmc
 
 logger = logging.getLogger(__name__)
 

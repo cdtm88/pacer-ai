@@ -7,7 +7,7 @@ Plain pytest functions, no asyncio marker -- matches test_zones.py style.
 
 import xml.etree.ElementTree as ET
 
-from api.sports_science.zwo import generate_zwo
+from backend.sports_science.zwo import generate_zwo
 
 
 # ---------------------------------------------------------------------------

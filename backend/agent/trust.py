@@ -28,7 +28,7 @@ import re
 from dataclasses import dataclass
 from typing import Optional, Any
 
-from api.sports_science.capability_gap import log_capability_gap
+from backend.sports_science.capability_gap import log_capability_gap
 
 
 # ---------------------------------------------------------------------------

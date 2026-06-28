@@ -135,8 +135,8 @@ async def test_onboarding_returns_sse(monkeypatch):
     """
     import httpx
     from httpx import ASGITransport
-    from api.main import app
-    import api.routes.onboarding as onboarding_module
+    from backend.main import app
+    import backend.routes.onboarding as onboarding_module
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
@@ -185,8 +185,8 @@ async def test_confirmation_gate(monkeypatch):
     """
     import httpx
     from httpx import ASGITransport
-    from api.main import app
-    import api.routes.onboarding as onboarding_module
+    from backend.main import app
+    import backend.routes.onboarding as onboarding_module
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
@@ -264,7 +264,7 @@ async def test_back_status_constraint(monkeypatch):
     Calls save_profile directly with a mocked _get_async_supabase that captures
     the upsert payload.
     """
-    import api.sports_science.profile as profile_module
+    import backend.sports_science.profile as profile_module
 
     # Track captured upsert payload
     captured_payload = {}
@@ -285,7 +285,7 @@ async def test_back_status_constraint(monkeypatch):
 
     monkeypatch.setattr(profile_module, "_supabase_client", mock_client)
 
-    from api.sports_science.profile import save_profile
+    from backend.sports_science.profile import save_profile
 
     result = await save_profile(
         user_id=TEST_USER_ID,
@@ -313,7 +313,7 @@ async def test_profile_persisted(monkeypatch):
     Monkeypatches _supabase_client directly (bypasses _get_async_supabase) so
     the mock is used without live Supabase.
     """
-    import api.sports_science.profile as profile_module
+    import backend.sports_science.profile as profile_module
 
     execute_result = MagicMock()
     execute_result.data = [{"id": "profile-uuid-003"}]
@@ -325,7 +325,7 @@ async def test_profile_persisted(monkeypatch):
 
     monkeypatch.setattr(profile_module, "_supabase_client", mock_client)
 
-    from api.sports_science.profile import save_profile
+    from backend.sports_science.profile import save_profile
 
     result = await save_profile(
         user_id=TEST_USER_ID,

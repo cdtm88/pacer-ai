@@ -18,7 +18,7 @@ Security requirements enforced:
   - Valid token returns {"user_id": payload["sub"], "email": payload.get("email")}
 
 Usage:
-    from api.auth import get_current_user
+    from backend.auth import get_current_user
     from fastapi import Depends
 
     @router.get("/")

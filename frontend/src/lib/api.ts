@@ -1,14 +1,9 @@
 import { supabase } from './supabase'
 
-// In dev the Vite proxy routes all API paths to localhost:8000, so BASE='' is safe.
-// In production (Vercel), VITE_API_URL must point to the Railway backend.
-// Failing hard here prevents JWTs from being sent to the wrong origin.
-const BASE = import.meta.env.VITE_API_URL ?? ''
-if (!BASE && import.meta.env.PROD) {
-  throw new Error(
-    'VITE_API_URL is not set. Requests would leak JWT credentials to the frontend origin. Set it to the Railway backend URL.'
-  )
-}
+// In production on Vercel the API is served at /api/* on the same origin —
+// BASE is always an empty string (same-origin requests, no CORS).
+// In dev the Vite proxy strips /api and forwards to localhost:8000.
+const BASE = ''
 
 // ---------------------------------------------------------------------------
 // Core fetch wrapper: reads current Supabase session and injects JWT
@@ -133,7 +128,7 @@ export interface CalendarSettings {
 // instead of silently bouncing the user to /login.
 export class AuthError extends Error { status: number; constructor(s: number) { super(`auth error ${s}`); this.status = s } }
 export async function getProfileMe(): Promise<Profile | null> {
-  const res = await apiFetch('/profiles/me')
+  const res = await apiFetch('/api/profiles/me')
   if (res.status === 404) return null
   if (res.status === 401 || res.status === 403) throw new AuthError(res.status)
   if (!res.ok) throw new Error(`getProfileMe failed: ${res.status}`)
@@ -142,7 +137,7 @@ export async function getProfileMe(): Promise<Profile | null> {
 
 // GET /sessions/today
 export async function getSessionToday(): Promise<Session | null> {
-  const res = await apiFetch('/sessions/today')
+  const res = await apiFetch('/api/sessions/today')
   if (res.status === 404) return null
   if (!res.ok) throw new Error(`getSessionToday failed: ${res.status}`)
   return res.json() as Promise<Session>
@@ -150,7 +145,7 @@ export async function getSessionToday(): Promise<Session | null> {
 
 // GET /sessions/upcoming
 export async function getUpcomingSessions(): Promise<Session[]> {
-  const res = await apiFetch('/sessions/upcoming')
+  const res = await apiFetch('/api/sessions/upcoming')
   if (!res.ok) throw new Error(`getUpcomingSessions failed: ${res.status}`)
   const data = await res.json() as { sessions: Session[] }
   return data.sessions ?? []
@@ -158,7 +153,7 @@ export async function getUpcomingSessions(): Promise<Session[]> {
 
 // GET /rides/
 export async function getRides(): Promise<Ride[]> {
-  const res = await apiFetch('/rides/')
+  const res = await apiFetch('/api/rides/')
   if (!res.ok) throw new Error(`getRides failed: ${res.status}`)
   const data = await res.json() as { rides: Ride[] }
   return data.rides ?? []
@@ -166,7 +161,7 @@ export async function getRides(): Promise<Ride[]> {
 
 // GET /pmc_history/latest
 export async function getLatestPmc(): Promise<PmcEntry | null> {
-  const res = await apiFetch('/pmc_history/latest')
+  const res = await apiFetch('/api/pmc_history/latest')
   if (res.status === 404) return null
   if (!res.ok) throw new Error(`getLatestPmc failed: ${res.status}`)
   const data = await res.json() as Record<string, unknown>
@@ -177,7 +172,7 @@ export async function getLatestPmc(): Promise<PmcEntry | null> {
 
 // GET /pmc_history/ — up to 30 rows (ascending) for CTL sparkline
 export async function getPmcHistory(): Promise<PmcEntry[]> {
-  const res = await apiFetch('/pmc_history/')
+  const res = await apiFetch('/api/pmc_history/')
   if (!res.ok) throw new Error(`getPmcHistory failed: ${res.status}`)
   const data = await res.json() as { history: PmcEntry[] }
   return data.history ?? []
@@ -185,7 +180,7 @@ export async function getPmcHistory(): Promise<PmcEntry[]> {
 
 // GET /adaptations/
 export async function getAdaptations(): Promise<Adaptation[]> {
-  const res = await apiFetch('/adaptations/')
+  const res = await apiFetch('/api/adaptations/')
   if (!res.ok) throw new Error(`getAdaptations failed: ${res.status}`)
   return res.json() as Promise<Adaptation[]>
 }
@@ -194,7 +189,7 @@ export async function getAdaptations(): Promise<Adaptation[]> {
 // The backend returns {conversation_id: string}; map it onto the id field so
 // callers reading conversation.id work with the Conversation interface.
 export async function createConversation(title?: string): Promise<Conversation> {
-  const res = await apiFetch('/conversations/', {
+  const res = await apiFetch('/api/conversations/', {
     method: 'POST',
     body: JSON.stringify({ title: title ?? null }),
   })
@@ -207,7 +202,7 @@ export async function createConversation(title?: string): Promise<Conversation> 
 
 // POST /adaptations/sessions/{id}/missed
 export async function markSessionMissed(sessionId: string): Promise<void> {
-  const res = await apiFetch(`/adaptations/sessions/${sessionId}/missed`, {
+  const res = await apiFetch(`/api/adaptations/sessions/${sessionId}/missed`, {
     method: 'POST',
     body: JSON.stringify({}),
   })
@@ -227,7 +222,7 @@ export async function markSessionMissed(sessionId: string): Promise<void> {
 // PATCH /sessions/{id} — set status to 'completed'
 // Note: Mark Done updates session status to 'completed'; endpoint pattern mirrors missed/status.
 export async function markSessionDone(sessionId: string): Promise<void> {
-  const res = await apiFetch(`/sessions/${sessionId}`, {
+  const res = await apiFetch(`/api/sessions/${sessionId}`, {
     method: 'PATCH',
     body: JSON.stringify({ status: 'completed' }),
   })
@@ -249,7 +244,7 @@ export async function markSessionDone(sessionId: string): Promise<void> {
 // modal can branch on the code for the correct toast copy (D-07).
 // Uses a hidden anchor + object URL (not window.open) to avoid popup blockers (T-05-13).
 export async function exportSessionZwo(sessionId: string): Promise<void> {
-  const res = await apiFetch(`/sessions/${sessionId}/export.zwo`, {
+  const res = await apiFetch(`/api/sessions/${sessionId}/export.zwo`, {
     headers: { Accept: 'application/xml' },
   })
   if (!res.ok) {
@@ -297,7 +292,7 @@ export async function uploadRide(file: File): Promise<UploadRideResponse> {
 
   // Deliberately omit Content-Type header so the browser sets the multipart boundary.
   // Do not append user_id — server infers it from the JWT.
-  const res = await fetch(`${BASE}/rides/upload`, {
+  const res = await fetch(`${BASE}/api/rides/upload`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -324,14 +319,14 @@ export async function uploadRide(file: File): Promise<UploadRideResponse> {
 
 // GET /calendar/settings
 export async function getCalendarSettings(): Promise<CalendarSettings> {
-  const res = await apiFetch('/calendar/settings')
+  const res = await apiFetch('/api/calendar/settings')
   if (!res.ok) throw new Error(`getCalendarSettings failed: ${res.status}`)
   return res.json() as Promise<CalendarSettings>
 }
 
 // POST /calendar/disconnect
 export async function disconnectCalendar(): Promise<void> {
-  const res = await apiFetch('/calendar/disconnect', {
+  const res = await apiFetch('/api/calendar/disconnect', {
     method: 'POST',
     body: JSON.stringify({}),
   })

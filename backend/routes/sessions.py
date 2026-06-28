@@ -22,9 +22,9 @@ import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
-from api.auth import get_current_user
-from api.db import get_async_supabase as _get_async_supabase
-from api.utils import validate_uuid
+from backend.auth import get_current_user
+from backend.db import get_async_supabase as _get_async_supabase
+from backend.utils import validate_uuid
 
 
 # ---------------------------------------------------------------------------
@@ -332,7 +332,7 @@ async def export_session_zwo(
     ftp = profile_result.data[0]["ftp"] if profile_result.data else None
 
     # Local import keeps module-level coupling minimal
-    from api.sports_science.zwo import generate_zwo  # noqa: PLC0415
+    from backend.sports_science.zwo import generate_zwo  # noqa: PLC0415
 
     xml_bytes = generate_zwo(session, ftp)
 

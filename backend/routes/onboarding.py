@@ -27,7 +27,7 @@ Architecture notes:
   - Supabase singleton reuses the exact pattern from sports_science/capability_gap.py
     (WR-04: module-level cached client, SERVICE_ROLE_KEY, bypasses RLS).
   - run_turn is imported at module scope so tests can monkeypatch onboarding_module.run_turn.
-  - sse_generator is imported from api.routes._sse (no duplication per key_links).
+  - sse_generator is imported from backend.routes._sse (no duplication per key_links).
 """
 
 import json
@@ -38,12 +38,12 @@ from fastapi import APIRouter, BackgroundTasks, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel as _PydanticBaseModel
 
-from api.agent.loop import run_turn  # noqa: F401 -- module-scope import for test monkeypatching
-from api.agent.trust import scan_buffer
-from api.auth import get_current_user
-from api.calendar_sync import push_all_sessions_to_calendar
-from api.db import get_async_supabase as _get_async_supabase
-from api.routes._sse import sse_generator
+from backend.agent.loop import run_turn  # noqa: F401 -- module-scope import for test monkeypatching
+from backend.agent.trust import scan_buffer
+from backend.auth import get_current_user
+from backend.calendar_sync import push_all_sessions_to_calendar
+from backend.db import get_async_supabase as _get_async_supabase
+from backend.routes._sse import sse_generator
 
 router = APIRouter()
 
