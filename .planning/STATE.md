@@ -6,9 +6,9 @@ current_phase: 04
 current_phase_name: ui-and-calendar
 status: executing
 stopped_at: context exhaustion at 75% (2026-06-28)
-last_updated: "2026-07-02T21:24:00.000Z"
+last_updated: "2026-07-02T21:42:00.000Z"
 last_activity: 2026-07-02
-last_activity_desc: Quick task 260702-ulq — production SPA restored; FastAPI now serves frontend/dist directly under the fastapi Vercel preset
+last_activity_desc: Quick task 260702-v8z — fixed onboarding chat 405 (undefined VITE_API_URL); production E2E test resuming
 progress:
   total_phases: 5
   completed_phases: 5
@@ -142,6 +142,7 @@ None yet.
 |---|-------------|------|--------|-----------|
 | 260702-tth | Fix broken production Vercel routing (partial — /api/health fixed, / still 404, see 260702-ulq) | 2026-07-02 | 54c899b | [260702-tth-fix-broken-production-vercel-routing-rev](./quick/260702-tth-fix-broken-production-vercel-routing-rev/) |
 | 260702-ulq | Production SPA restored — FastAPI serves frontend/dist directly (StaticFiles + SPA-fallback catch-all) under the retained fastapi Vercel preset; also removed a stale duplicate root index.py that Vercel was silently deploying instead of api/index.py | 2026-07-02 | 3fb1da5 | [260702-ulq-fix-production-spa-404-have-fastapi-serv](./quick/260702-ulq-fix-production-spa-404-have-fastapi-serv/) |
+| 260702-v8z | Fixed onboarding chat 405 — OnboardingScreen.tsx referenced unset VITE_API_URL env var (resolved to literal "undefined/onboarding/start"); both SSE POST call sites now use same-origin /api/onboarding/start, found live via Playwright E2E testing | 2026-07-02 | 2a7b196 | [260702-v8z-fix-onboarding-chat-405-in-production-on](./quick/260702-v8z-fix-onboarding-chat-405-in-production-on/) |
 
 ## Deferred Items
 
