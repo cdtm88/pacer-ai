@@ -140,7 +140,7 @@ export function OnboardingScreen() {
         if (conversationIdRef.current) bodyPayload.conversation_id = conversationIdRef.current
         const { data: sessionData } = await supabase.auth.getSession()
         const token = sessionData.session?.access_token ?? ''
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/onboarding/start`, {
+        const res = await fetch('/api/onboarding/start', {
           method: 'POST',
           signal: controller.signal,
           headers: {
@@ -303,7 +303,7 @@ export function OnboardingScreen() {
       if (conversationIdRef.current) confirmBody.conversation_id = conversationIdRef.current
       const { data: confirmSessionData } = await supabase.auth.getSession()
       const confirmToken = confirmSessionData.session?.access_token ?? ''
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/onboarding/start`, {
+      const res = await fetch('/api/onboarding/start', {
         method: 'POST',
         signal: controller.signal,
         headers: {
