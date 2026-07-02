@@ -37,6 +37,7 @@ async def sse_generator(
     system_prompt: str | None = None,
     _run_turn=None,
     assistant_sink: list | None = None,
+    user_id: str | None = None,
 ):
     """
     Async generator that drives run_turn and formats each event as an SSE frame.
@@ -58,6 +59,9 @@ async def sse_generator(
                         the stream completes successfully. Nothing is appended
                         on the error path. Existing callers that omit this
                         parameter (e.g. chat.py) are unaffected.
+        user_id:        Authenticated user's UUID (260702-wev). Forwarded to
+                        run_turn, which injects it server-side into
+                        save_profile/generate_plan tool calls.
 
     Frame format per D-07:
       event: <event_type>\\ndata: <json>\\n\\n
@@ -79,6 +83,8 @@ async def sse_generator(
         kwargs: dict = {}
         if system_prompt is not None:
             kwargs["system"] = system_prompt
+        if user_id is not None:
+            kwargs["user_id"] = user_id
 
         async for event in fn(messages, client, model, scan_buffer, audit_log, **kwargs):
             event_type = event["event"]

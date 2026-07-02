@@ -267,10 +267,6 @@ TOOL_SCHEMAS: list[dict] = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "user_id": {
-                    "type": "string",
-                    "description": "User UUID.",
-                },
                 "fitness_goals": {
                     "type": "string",
                     "description": "User's stated fitness goals (free text).",
@@ -303,7 +299,6 @@ TOOL_SCHEMAS: list[dict] = [
                 },
             },
             "required": [
-                "user_id",
                 "fitness_goals",
                 "weekly_hours",
                 "preferred_days",
@@ -325,10 +320,6 @@ TOOL_SCHEMAS: list[dict] = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "user_id": {
-                    "type": "string",
-                    "description": "User UUID.",
-                },
                 "weekly_hours": {
                     "type": "number",
                     "description": "Available training hours per week.",
@@ -360,7 +351,6 @@ TOOL_SCHEMAS: list[dict] = [
                 },
             },
             "required": [
-                "user_id",
                 "weekly_hours",
                 "back_status",
                 "current_ctl",
@@ -407,7 +397,7 @@ def dedup_key(name: str, inputs: dict) -> tuple:
 # ---------------------------------------------------------------------------
 
 
-async def dispatch_tool(tool_use_block, audit_log: list) -> dict:
+async def dispatch_tool(tool_use_block, audit_log: list, user_id: str | None = None) -> dict:
     """
     Dispatch one tool_use block and return an Anthropic tool_result content block.
 
@@ -416,10 +406,17 @@ async def dispatch_tool(tool_use_block, audit_log: list) -> dict:
     - Async function (log_capability_gap): awaited directly (asyncio.iscoroutinefunction).
     - Exception: appends audit error entry, returns is_error block (D-14: never swallowed).
     - Success: appends audit entry with result.model_dump(), returns is_error=False block.
+    - 260702-wev: user_id, when provided, is injected server-side into save_profile
+      and generate_plan inputs (the only two TOOL_REGISTRY functions with a user_id
+      parameter), overriding any value the LLM supplied. This is the authoritative
+      identity source -- the LLM's tool schemas no longer declare user_id at all.
     """
     name = tool_use_block.name
     inputs = tool_use_block.input
     tool_use_id = tool_use_block.id
+
+    if user_id is not None and name in {"save_profile", "generate_plan"}:
+        inputs = {**inputs, "user_id": user_id}
 
     fn = TOOL_REGISTRY.get(name)
     if fn is None:

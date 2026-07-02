@@ -334,3 +334,71 @@ async def test_tool_result_values_accumulate_across_rounds(mock_stream_with_tool
         f"output), got: {violation_events}"
     )
     assert "done" in [ev["event"] for ev in events]
+
+
+# ---------------------------------------------------------------------------
+# 260702-wev: authenticated user_id must be injected server-side, not
+# supplied by the LLM
+# ---------------------------------------------------------------------------
+
+
+async def test_user_id_injected_server_side_through_run_turn(no_op_scanner):
+    """
+    260702-wev: proves the authenticated user_id reaches the real save_profile
+    function through the full run_turn -> dispatch_tool chain, even though the
+    tool_use block (matching the post-fix schema, which no longer declares
+    user_id) never supplies one. This closes the identity bug where the LLM
+    guessed placeholder UUIDs ("new_user", "user_001", ...) that failed
+    Postgres uuid/foreign-key checks on every production save_profile call.
+    """
+    from backend.agent.loop import run_turn
+    from tests.agent.conftest import _build_stream, _final_msg, _tool_block
+    from backend.sports_science.types import ToolResult
+
+    save_profile_inputs = {
+        "fitness_goals": "weight loss",
+        "weekly_hours": 3.0,
+        "preferred_days": ["Tuesday"],
+        "back_status": "none",
+        "equipment": {},
+        "rpe_baseline": "beginner",
+    }
+    tool_block = _tool_block("toolu_save_001", "save_profile", save_profile_inputs)
+    round1_stream = _build_stream(
+        delta_events=[], final_msg=_final_msg(stop_reason="tool_use", content=[tool_block])
+    )
+    round2_stream = _build_stream(
+        delta_events=[], final_msg=_final_msg(stop_reason="end_turn", content=[])
+    )
+
+    fake_save_profile = MagicMock(
+        return_value=ToolResult(
+            value={"saved": True},
+            unit="",
+            methodology="profile_persistence",
+            inputs={},
+        )
+    )
+
+    client = build_fake_client(round1_stream, round2_stream)
+    messages = [{"role": "user", "content": "Save my profile."}]
+    audit_log = []
+    injected_user_id = "11111111-1111-1111-1111-111111111111"
+
+    with patch.dict("backend.agent.tools.TOOL_REGISTRY", {"save_profile": fake_save_profile}):
+        events = [
+            ev async for ev in run_turn(
+                messages, client, "claude-test", no_op_scanner, audit_log,
+                user_id=injected_user_id,
+            )
+        ]
+
+    assert fake_save_profile.call_count == 1
+    call_kwargs = fake_save_profile.call_args.kwargs
+    assert call_kwargs["user_id"] == injected_user_id, (
+        f"Expected server-injected user_id, got: {call_kwargs.get('user_id')}"
+    )
+    assert call_kwargs["back_status"] == "none", (
+        "Injection must augment, not replace, the LLM-supplied args"
+    )
+    assert "done" in [ev["event"] for ev in events]

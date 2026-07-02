@@ -50,6 +50,7 @@ async def run_turn(
     trust_scanner,  # callable: (str, list[str]) -> TrustViolation | None
     audit_log: list,
     system: str = SYSTEM_PROMPT,  # D-22: injectable system prompt; defaults to module constant
+    user_id: str | None = None,
 ) -> AsyncIterator[dict]:
     """
     Drive a multi-turn Anthropic conversation with tool use.
@@ -69,6 +70,9 @@ async def run_turn(
                        physiological numbers. Returns a violation object (truthy) or
                        None. Injected so tests can pass a no-op lambda.
         audit_log:     List accumulating per-call audit entries (TRUST-04).
+        user_id:       Authenticated user's UUID (260702-wev). When provided, injected
+                       server-side into save_profile/generate_plan tool calls via
+                       dispatch_tool, overriding any LLM-supplied value.
     """
     retries: int = 0
     tool_turns: int = 0
@@ -202,7 +206,7 @@ async def run_turn(
             else:
                 # D-12 / AGENT-02: dispatch unique blocks concurrently
                 result_blocks = await asyncio.gather(
-                    *[dispatch_tool(b, audit_log) for b in unique_blocks]
+                    *[dispatch_tool(b, audit_log, user_id=user_id) for b in unique_blocks]
                 )
 
                 # Yield tool_result events and accumulate values for trust attribution

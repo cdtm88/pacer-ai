@@ -273,6 +273,7 @@ async def onboarding_start(
             system_prompt=ONBOARDING_SYSTEM_PROMPT,
             _run_turn=run_turn,
             assistant_sink=assistant_sink,
+            user_id=user_id,
         ):
             yield chunk
         # Persist the new turns after the stream is done (best-effort; must not break the response).
