@@ -6,9 +6,9 @@ current_phase: 04
 current_phase_name: ui-and-calendar
 status: executing
 stopped_at: context exhaustion at 75% (2026-06-28)
-last_updated: "2026-07-02T21:52:00.000Z"
+last_updated: "2026-07-02T22:05:00.000Z"
 last_activity: 2026-07-02
-last_activity_desc: Quick task 260702-vj2 — added public.users auto-provisioning trigger + backfill; production E2E test resuming
+last_activity_desc: Quick tasks 260702-vs6 + 260702-vsp — fixed save_profile column mismatch and trust-scanner Pattern A false positive; both found via live Playwright E2E onboarding test
 progress:
   total_phases: 5
   completed_phases: 5
@@ -144,6 +144,8 @@ None yet.
 | 260702-ulq | Production SPA restored — FastAPI serves frontend/dist directly (StaticFiles + SPA-fallback catch-all) under the retained fastapi Vercel preset; also removed a stale duplicate root index.py that Vercel was silently deploying instead of api/index.py | 2026-07-02 | 3fb1da5 | [260702-ulq-fix-production-spa-404-have-fastapi-serv](./quick/260702-ulq-fix-production-spa-404-have-fastapi-serv/) |
 | 260702-v8z | Fixed onboarding chat 405 — OnboardingScreen.tsx referenced unset VITE_API_URL env var (resolved to literal "undefined/onboarding/start"); both SSE POST call sites now use same-origin /api/onboarding/start, found live via Playwright E2E testing | 2026-07-02 | 2a7b196 | [260702-v8z-fix-onboarding-chat-405-in-production-on](./quick/260702-v8z-fix-onboarding-chat-405-in-production-on/) |
 | 260702-vj2 | Added public.users auto-provisioning trigger (SECURITY DEFINER, handle_new_user pattern) + backfill for 2 orphaned auth.users rows — fixes silent 409 FK violation on conversations insert that was resetting onboarding to the opening question every turn for new signups; found live via Playwright E2E testing | 2026-07-02 | db81032 | [260702-vj2-add-supabase-trigger-to-auto-provision-p](./quick/260702-vj2-add-supabase-trigger-to-auto-provision-p/) |
+| 260702-vs6 | Fixed save_profile PGRST204 — upsert used nonexistent "fitness_goals" column, real column is "goals"; every onboarding profile save was silently failing in production | 2026-07-02 | b619864 | [260702-vs6-fix-save-profile-column-mismatch-profile](./quick/260702-vs6-fix-save-profile-column-mismatch-profile/) |
+| 260702-vsp | Fixed trust-scanner Pattern A false positive — number+unit attribution (e.g. "134 bpm") required an exact substring match against tool JSON, which never phrases numbers adjacent to units; added bare-number fallback mirroring Pattern B, with regression + safety negative-control tests. Was blocking every onboarding confirmation with trust_violation/max_retries | 2026-07-02 | e1b6d88 | [260702-vsp-fix-trust-scanner-pattern-a-false-positi](./quick/260702-vsp-fix-trust-scanner-pattern-a-false-positi/) |
 
 ## Deferred Items
 
