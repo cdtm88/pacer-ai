@@ -72,12 +72,16 @@ async def run_turn(
     """
     retries: int = 0
     tool_turns: int = 0
+    # CR-01 / 260702-w52: tool_result_values is list[str] (JSON text from tool
+    # results), not list[dict]. scan_buffer does substring checks on these
+    # strings. Declared OUTSIDE the while loop so it accumulates across every
+    # round of this turn (trust retries AND tool-use continuation rounds) --
+    # a later round's text may legitimately reference a number from an
+    # earlier round's tool call, and must still be able to attribute it.
+    tool_result_values: list[str] = []
 
     while retries <= MAX_RETRIES:
         text_buffer: list[str] = []
-        # CR-01: tool_result_values is list[str] (JSON text from tool results),
-        # not list[dict]. scan_buffer does substring checks on these strings.
-        tool_result_values: list[str] = []
 
         # Per-turn dedup dict (D-13 / Anti-Pattern: fresh per iteration, not module-level)
         seen_calls: dict[tuple, bool] = {}

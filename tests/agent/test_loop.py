@@ -281,3 +281,56 @@ async def test_audit_log(mock_stream_with_tool_use, mock_stream_end_turn, no_op_
     assert "error" not in entry, f"Unexpected error in audit entry: {entry}"
     assert entry["name"] == "calculate_power_zones"
     assert entry["tool_use_id"] == "toolu_test_001"
+
+
+# ---------------------------------------------------------------------------
+# 260702-w52: tool_result_values must accumulate across rounds, not reset
+# ---------------------------------------------------------------------------
+
+
+async def test_tool_result_values_accumulate_across_rounds(mock_stream_with_tool_use):
+    """
+    260702-w52: reproduces the reset-every-iteration bug. Round 1 dispatches a
+    REAL calculate_power_zones(ftp=200.0) tool call (JSON containing 210, the
+    Z4/Z5 boundary). Round 2 is a text-only end_turn round whose prose
+    references "210 watts" -- a number genuinely sourced from round 1's tool
+    result, but in an EARLIER round than the one being scanned.
+
+    Uses the REAL scan_buffer (not no_op_scanner/always_violating_scanner) so
+    the real attribution logic is exercised end-to-end across rounds. Before
+    the fix, tool_result_values is reset to [] at the top of round 2's while
+    iteration, so scan_buffer cannot see round 1's tool JSON and flags "210
+    watts" as an unattributed violation. After the fix (tool_result_values
+    accumulates across the whole run_turn() call), round 2's scan sees round
+    1's tool result and correctly attributes it.
+    """
+    from backend.agent.loop import run_turn
+    from backend.agent.trust import scan_buffer
+    from tests.agent.conftest import _build_stream, _delta_event, _final_msg
+
+    round2_text = "Your threshold power sits around 210 watts."
+    round2_stream = _build_stream(
+        delta_events=[_delta_event(round2_text)],
+        final_msg=_final_msg(
+            stop_reason="end_turn",
+            content=[MagicMock(type="text", text=round2_text)],
+        ),
+    )
+
+    client = build_fake_client(mock_stream_with_tool_use, round2_stream)
+    messages = [{"role": "user", "content": "What's my FTP-based threshold power?"}]
+    audit_log = []
+
+    events = [
+        ev async for ev in run_turn(messages, client, "claude-test", scan_buffer, audit_log)
+    ]
+
+    violation_events = [
+        ev for ev in events
+        if ev["event"] == "error" and ev["data"].get("code") == "trust_violation"
+    ]
+    assert not violation_events, (
+        f"Expected no trust_violation (210 is attributed to round-1 tool "
+        f"output), got: {violation_events}"
+    )
+    assert "done" in [ev["event"] for ev in events]
