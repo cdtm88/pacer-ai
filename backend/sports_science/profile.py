@@ -89,7 +89,7 @@ async def save_profile(
     result = await supabase.table("profiles").upsert(
         {
             "user_id": user_id,
-            "fitness_goals": fitness_goals,
+            "goals": fitness_goals,
             "weekly_hours": weekly_hours,
             "preferred_days": preferred_days,
             "back_status": back_status,
