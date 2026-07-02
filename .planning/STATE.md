@@ -6,9 +6,9 @@ current_phase: 04
 current_phase_name: ui-and-calendar
 status: executing
 stopped_at: context exhaustion at 75% (2026-06-28)
-last_updated: "2026-07-02T20:28:10.079Z"
+last_updated: "2026-07-02T21:24:00.000Z"
 last_activity: 2026-07-02
-last_activity_desc: Quick task 260702-tth — fixed /api/health routing regression; SPA root still 404 pending follow-up
+last_activity_desc: Quick task 260702-ulq — production SPA restored; FastAPI now serves frontend/dist directly under the fastapi Vercel preset
 progress:
   total_phases: 5
   completed_phases: 5
@@ -134,13 +134,14 @@ None yet.
 
 ### Blockers/Concerns
 
-- Production SPA down: https://www.pacer.moorelabs.uk/ returns 404. Root cause: Vercel Project Framework Preset is `fastapi`, which routes all non-exact-static-match requests to the Python function regardless of vercel.json rewrites. `/api/health` is fixed (200). Fix requires either FastAPI serving `frontend/dist` directly with an SPA-fallback route (recommended — keeps working preset), trimming the Python function bundle so a non-fastapi preset stays under Vercel's 500MB limit, or splitting into two Vercel projects. Blocks the pending production E2E test.
+None yet.
 
 ### Quick Tasks Completed
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
-| 260702-tth | Fix broken production Vercel routing (partial — /api/health fixed, / still 404, see blockers) | 2026-07-02 | 54c899b | [260702-tth-fix-broken-production-vercel-routing-rev](./quick/260702-tth-fix-broken-production-vercel-routing-rev/) |
+| 260702-tth | Fix broken production Vercel routing (partial — /api/health fixed, / still 404, see 260702-ulq) | 2026-07-02 | 54c899b | [260702-tth-fix-broken-production-vercel-routing-rev](./quick/260702-tth-fix-broken-production-vercel-routing-rev/) |
+| 260702-ulq | Production SPA restored — FastAPI serves frontend/dist directly (StaticFiles + SPA-fallback catch-all) under the retained fastapi Vercel preset; also removed a stale duplicate root index.py that Vercel was silently deploying instead of api/index.py | 2026-07-02 | 3fb1da5 | [260702-ulq-fix-production-spa-404-have-fastapi-serv](./quick/260702-ulq-fix-production-spa-404-have-fastapi-serv/) |
 
 ## Deferred Items
 
