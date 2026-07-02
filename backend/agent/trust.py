@@ -120,7 +120,15 @@ def scan_buffer(
     # --- Pattern A: number then unit ---
     for match in PHYSIO_PATTERN_A.finditer(text):
         matched = match.group(0).strip()
-        if not any(matched in val for val in tool_result_values):
+        # Tool results are structured JSON (e.g. {"lower_bpm": 134}), so a
+        # number+unit phrase like "134 bpm" never appears verbatim in a tool
+        # result string. Fall back to the bare number, mirroring Pattern B's
+        # [full_match, synthetic, num] attribution candidates (260702-vsp).
+        number_match = re.match(r"\d+(?:\.\d+)?", matched)
+        bare_number = number_match.group(0) if number_match else matched
+        if not any(
+            s in val for val in tool_result_values for s in (matched, bare_number)
+        ):
             return TrustViolation(
                 matched_text=matched,
                 pattern=PHYSIO_PATTERN_A.pattern,

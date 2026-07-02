@@ -124,17 +124,46 @@ class TestScanBuffer:
         assert violation is not None
 
     def test_attribution_substring_match(self):
-        """Attribution check uses substring containment, not equality."""
+        """Attribution check falls back to the bare number when the tool result
+        is structured JSON (number and unit never appear adjacent as prose).
+
+        260702-vsp: this test previously asserted the Pattern A false-positive
+        behavior fixed by that quick task. The number 250 is present as the
+        tool JSON value "ftp": 250, so "250 watts" in the assistant's prose is
+        correctly attributed (not a hallucination) -- the fix mirrors Pattern
+        B's existing bare-number fallback.
+        """
         from backend.agent.trust import scan_buffer
 
-        # The tool result value is a longer JSON string containing "250 watts"
+        # The tool result value is a longer JSON string containing the bare number 250.
         tool_values = {'{"ftp": 250, "unit": "watts", "zones": [...]}'}
         violation = scan_buffer("Your FTP is 250 watts.", tool_values)
-        # "250 watts" is not verbatim in the tool value string -- should still be a violation
-        # unless the matched text "250 watts" appears as substring
-        # The matched text would be "250 watts"; is it in '{"ftp": 250, "unit": "watts", ...}'?
-        # "250 watts" is NOT a substring of that JSON string, so it IS a violation
+        assert violation is None
+
+    def test_pattern_a_number_unit_attributed_via_json_value(self):
+        """260702-vsp regression: a number+unit phrase in prose is attributed
+        when the bare number appears as a JSON value in a tool result, even
+        though "134 bpm" never appears verbatim (tool JSON never phrases
+        numbers adjacent to their unit -- e.g. {"lower_bpm": 134})."""
+        from backend.agent.trust import scan_buffer
+
+        tool_values = {'{"zone": 2, "lower_bpm": 134, "upper_bpm": 148}'}
+        violation = scan_buffer(
+            "Keep your heart rate around 134 bpm during this effort.", tool_values
+        )
+        assert violation is None
+
+    def test_pattern_a_unattributed_number_still_flagged(self):
+        """260702-vsp safety negative control: the bare-number fallback must
+        not wave through a hallucinated number just because tool_result_values
+        is non-empty -- only a number that actually appears in a tool result
+        is attributed."""
+        from backend.agent.trust import scan_buffer
+
+        tool_values = {'{"lower_bpm": 134, "upper_bpm": 148}'}
+        violation = scan_buffer("Actually your FTP is 300 watts.", tool_values)
         assert violation is not None
+        assert "300" in violation.matched_text
 
 
 class TestTrustViolationDataclass:
