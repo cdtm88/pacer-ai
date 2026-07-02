@@ -6,9 +6,9 @@ current_phase: 04
 current_phase_name: ui-and-calendar
 status: executing
 stopped_at: context exhaustion at 75% (2026-06-28)
-last_updated: "2026-07-02T22:23:00.000Z"
+last_updated: "2026-07-02T22:42:00.000Z"
 last_activity: 2026-07-02
-last_activity_desc: Quick task 260702-w52 — fixed loop.py tool_result_values cross-round reset, the actual root cause of onboarding trust_violation failures; re-verifying live E2E
+last_activity_desc: Quick task 260702-wev — inject authenticated user_id server-side into save_profile/generate_plan, replacing LLM-guessed placeholder UUIDs; re-verifying live E2E
 progress:
   total_phases: 5
   completed_phases: 5
@@ -147,6 +147,7 @@ None yet.
 | 260702-vs6 | Fixed save_profile PGRST204 — upsert used nonexistent "fitness_goals" column, real column is "goals"; every onboarding profile save was silently failing in production | 2026-07-02 | b619864 | [260702-vs6-fix-save-profile-column-mismatch-profile](./quick/260702-vs6-fix-save-profile-column-mismatch-profile/) |
 | 260702-vsp | Fixed trust-scanner Pattern A false positive — number+unit attribution (e.g. "134 bpm") required an exact substring match against tool JSON, which never phrases numbers adjacent to units; added bare-number fallback mirroring Pattern B, with regression + safety negative-control tests. Was blocking every onboarding confirmation with trust_violation/max_retries | 2026-07-02 | e1b6d88 | [260702-vsp-fix-trust-scanner-pattern-a-false-positi](./quick/260702-vsp-fix-trust-scanner-pattern-a-false-positi/) |
 | 260702-w52 | Fixed the actual dominant root cause of onboarding trust_violation failures — loop.py's tool_result_values reset every while-loop iteration instead of accumulating across a whole turn, so a later round's summary text could never attribute numbers from an earlier round's tool call. Discovered when 260702-vsp's correct attribution fix still failed live E2E testing | 2026-07-02 | 1773f6a | [260702-w52-fix-loop-py-tool-result-values-resets-ev](./quick/260702-w52-fix-loop-py-tool-result-values-resets-ev/) |
+| 260702-wev | Injected authenticated user_id server-side into save_profile/generate_plan tool calls (removed user_id from LLM tool schemas entirely) — the LLM had no way to know the real user UUID and guessed placeholders ("new_user", "user_001", ...) that failed uuid/FK checks on every call, so no onboarding profile had ever been persisted in production. Also fixed the identical latent bug in chat.py's coaching path | 2026-07-02 | b3fcf39 | [260702-wev-inject-authenticated-user-id-server-side](./quick/260702-wev-inject-authenticated-user-id-server-side/) |
 
 ## Deferred Items
 
