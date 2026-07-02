@@ -5,16 +5,16 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: ui-and-calendar
 status: executing
-stopped_at: Completed 04-12-PLAN.md
-last_updated: "2026-06-21T14:30:28.768Z"
-last_activity: 2026-06-21
-last_activity_desc: Phase 04 execution started
+stopped_at: context exhaustion at 75% (2026-06-28)
+last_updated: "2026-07-02T20:28:10.079Z"
+last_activity: 2026-07-02
+last_activity_desc: Quick task 260702-tth — fixed /api/health routing regression; SPA root still 404 pending follow-up
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 42
-  completed_plans: 37
-  percent: 80
+  completed_plans: 42
+  percent: 100
 ---
 
 # Project State
@@ -134,7 +134,13 @@ None yet.
 
 ### Blockers/Concerns
 
-None yet.
+- Production SPA down: https://www.pacer.moorelabs.uk/ returns 404. Root cause: Vercel Project Framework Preset is `fastapi`, which routes all non-exact-static-match requests to the Python function regardless of vercel.json rewrites. `/api/health` is fixed (200). Fix requires either FastAPI serving `frontend/dist` directly with an SPA-fallback route (recommended — keeps working preset), trimming the Python function bundle so a non-fastapi preset stays under Vercel's 500MB limit, or splitting into two Vercel projects. Blocks the pending production E2E test.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260702-tth | Fix broken production Vercel routing (partial — /api/health fixed, / still 404, see blockers) | 2026-07-02 | 54c899b | [260702-tth-fix-broken-production-vercel-routing-rev](./quick/260702-tth-fix-broken-production-vercel-routing-rev/) |
 
 ## Deferred Items
 
@@ -145,8 +151,8 @@ None yet.
 
 ## Session Continuity
 
-**Stopped at:** Completed 04-12-PLAN.md
+**Stopped at:** context exhaustion at 75% (2026-06-28)
 **Resume file:** None
 
-Last session: 2026-06-21T14:07:02.459Z
+Last session: 2026-06-28T21:10:49.059Z
 Next action: `/gsd-complete-milestone v1.0`
