@@ -802,10 +802,58 @@ async def test_intensity_from_tools(monkeypatch):
     assert call_log[0]["planned"]["tss"] == 80
     assert call_log[0]["actual"]["tss"] == 40.0
 
-    # 50% compliance < 60 threshold -> underperformance signal present.
+    # 50% compliance -> tool flags 'under_performed' (< 70%) -> signal present.
     assert len(signals) == 1
     assert signals[0]["type"] == "underperformance"
     assert signals[0]["compliance_pct"] == pytest.approx(50.0, abs=0.1)
+
+
+async def test_underperformance_uses_tool_flag_threshold(monkeypatch):
+    """
+    WR-07: a 65%-compliance session is flagged under_performed by the tool
+    (< 70%) and must produce a signal -- the old hardcoded route literal (< 60)
+    silently ignored the tool's own decision.
+    """
+    import backend.routes.adaptations as adapt_module
+
+    today = datetime.date.today()
+    yesterday = (today - datetime.timedelta(days=1)).isoformat()
+
+    sessions_data = [
+        {"id": "sess-65pct", "scheduled_date": yesterday, "tss_target": 100, "plan_id": None, "status": "completed"}
+    ]
+    rides_data = [
+        {"id": "ride-65", "ride_date": yesterday, "tss": 65.0, "session_id": "sess-65pct"}
+    ]
+
+    execute_consumed = MagicMock()
+    execute_consumed.data = []
+    execute_sessions = MagicMock()
+    execute_sessions.data = sessions_data
+    execute_rides = MagicMock()
+    execute_rides.data = rides_data
+
+    mock_client = MagicMock()
+    mock_client.table.return_value = mock_client
+    mock_client.select.return_value = mock_client
+    mock_client.eq.return_value = mock_client
+    mock_client.in_.return_value = mock_client
+    mock_client.gte.return_value = mock_client
+    mock_client.lte.return_value = mock_client
+    mock_client.execute = AsyncMock(side_effect=[execute_consumed, execute_sessions, execute_rides])
+
+    async def _mock_supabase():
+        return mock_client
+
+    monkeypatch.setattr(adapt_module, "_get_async_supabase", _mock_supabase)
+
+    signals = await adapt_module.detect_signals(TEST_USER_ID)
+
+    assert len(signals) == 1, (
+        f"65% compliance is under_performed per the tool (< 70) and must signal: {signals}"
+    )
+    assert signals[0]["type"] == "underperformance"
+    assert signals[0]["compliance_pct"] == pytest.approx(65.0, abs=0.1)
 
 
 # ---------------------------------------------------------------------------

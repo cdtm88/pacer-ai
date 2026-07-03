@@ -10,7 +10,8 @@ Endpoints:
 
 Signal detection (ADAPT-01):
   - Missed session: scheduled, past-due, no matching ride within +/-1 day
-  - Underperformance: actual TSS < 60% of planned TSS per validate_session_vs_actual (ADAPT-05)
+  - Underperformance: validate_session_vs_actual flags 'under_performed'
+    (tool-owned threshold: compliance < 70%) (ADAPT-05)
 
 Micro/macro decision (ADAPT-02, D-17, D-18):
   - 0 signals -> no adaptation
@@ -132,9 +133,10 @@ async def detect_signals(user_id: str, window_days: int = 7) -> list[dict]:
     Underperformance check (ADAPT-05, D-17):
       Load completed sessions within `window_days` that have a matching ride.
       For each, call validate_session_vs_actual(planned, actual).
-      If compliance_pct is not None and < 60, emit
+      If the tool result carries the 'under_performed' flag (tool-owned
+      threshold: compliance < 70%), emit
       {"type": "underperformance", "session_id": id, "compliance_pct": value}.
-      The compliance threshold decision comes from the tool result, not a hardcoded literal.
+      WR-07: the threshold decision is the tool's flag -- no route-level literal.
 
     Args:
         user_id:     User UUID (SECURITY: scoped to this user only).
@@ -222,8 +224,10 @@ async def detect_signals(user_id: str, window_days: int = 7) -> list[dict]:
             )
             compliance_pct = result.value.get("compliance_pct")
 
-            # ADAPT-05: compliance < 60 from tool result triggers underperformance signal.
-            if compliance_pct is not None and compliance_pct < 60:
+            # ADAPT-05 / WR-07: the tool's own 'under_performed' flag is the
+            # decision source (fires at < 70% in compliance.py) -- the route
+            # never re-implements the threshold as a literal.
+            if "under_performed" in (result.value.get("flags") or []):
                 signals.append({
                     "type": "underperformance",
                     "session_id": session["id"],
