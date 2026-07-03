@@ -11,7 +11,7 @@ PacerAI is an evidence-based, adaptive AI cycling coach for a beginner returning
 ### Constraints
 
 - **Architecture**: LLM never emits physiological numbers directly — tool library is the only authoritative source for all sports-science calculations. Enforced at code level, verifiable in logs.
-- **Tech Stack**: React + Vite + Tailwind (frontend), Python FastAPI (backend), Anthropic API with native tool use, Postgres/Supabase, fitdecode for FIT parsing, Vercel (frontend) + Railway (API/DB)
+- **Tech Stack**: React + Vite + Tailwind (frontend), Python FastAPI (backend), Anthropic API with native tool use, Postgres/Supabase, fitdecode for FIT parsing, Vercel (frontend + backend)
 - **PWA**: Web-first, mobile-responsive; During-session view must work on iOS Safari
 - **Light mode only**: No pure blacks anywhere for MVP; design system from PRD applies
 - **No em dashes**: In any generated content or copy — use commas, semicolons, colons, or separate sentences
@@ -54,7 +54,7 @@ PacerAI is an evidence-based, adaptive AI cycling coach for a beginner returning
 | Python | 3.12 | Runtime | LTS, supports all required libraries |
 | FastAPI | 0.115.x | HTTP framework | Native async, OpenAPI auto-docs, Pydantic v2 integration |
 | Pydantic | 2.x | Data validation / models | Bundled with FastAPI; v2 is 5-20x faster than v1 |
-| Uvicorn | 0.30.x | ASGI server | Standard FastAPI production server; pair with Gunicorn for Railway |
+| Uvicorn | 0.30.x | ASGI server | Used for local dev; Vercel's Python runtime invokes the ASGI app directly, no process manager needed in production |
 | python-multipart | latest | File upload parsing | Required for FastAPI file upload endpoints (.FIT ingestion) |
 | httpx | 0.27.x | Async HTTP client | Used for Google Calendar API calls and any outbound requests |
 | asyncpg | 0.29.x | Async Postgres driver | Fastest async Postgres driver; use with SQLAlchemy 2.x async or directly |
@@ -98,10 +98,8 @@ PacerAI is an evidence-based, adaptive AI cycling coach for a beginner returning
 | Technology | Purpose | Notes |
 |------------|---------|-------|
 | Vercel | Frontend hosting | Zero-config for Vite; automatic HTTPS; edge CDN |
-| Railway | FastAPI + Uvicorn hosting | Official FastAPI guide; supports Docker; managed env vars |
-| Docker | Backend containerization | `python:3.12-slim` base; multi-stage build for smaller image |
-| Gunicorn + Uvicorn workers | Production ASGI | `gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app` |
-| PostgreSQL | Railway or Supabase | Use Supabase managed Postgres; Railway can reference external DB |
+| Vercel Python Runtime | Backend hosting | Executes the FastAPI ASGI app directly as a Vercel Function; no Docker image or process manager |
+| PostgreSQL | Supabase | Supabase managed Postgres |
 | pytest + pytest-asyncio | Backend testing | Standard for FastAPI async; use `httpx.AsyncClient` as test client |
 | Vitest + React Testing Library | Frontend testing | Native Vite test runner; faster than Jest for Vite projects |
 | Ruff | Python linting/formatting | Replaces black + flake8 + isort; 100x faster |
@@ -146,7 +144,6 @@ PacerAI is an evidence-based, adaptive AI cycling coach for a beginner returning
 | Tailwind v4 + shadcn/ui Tailwind v4 compat | HIGH | Official shadcn/ui changelog Feb 2025 is authoritative |
 | FastAPI + Supabase async pattern | MEDIUM | supabase-py-async 2.5.6 confirmed on PyPI; lifespan pattern from community |
 | Google Calendar OAuth2 | MEDIUM | Official Google docs pattern; standard OAuth2 flow |
-| Railway for FastAPI | MEDIUM | Official Railway FastAPI guide exists; Docker deploy confirmed |
 | PMC math formulas | HIGH | Published in Coggan/Allen "Training and Racing with a Power Meter"; TrainingPeaks blog confirms |
 | ZWO file format | MEDIUM | Community-reverse-engineered reference (h4l/zwift-workout-file-reference); no official Zwift schema published |
 | vite-plugin-pwa + iOS Safari | MEDIUM | Plugin docs + community; iOS PWA limitations are well-documented |
