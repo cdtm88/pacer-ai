@@ -359,19 +359,31 @@ def test_shift_limit():
 # ---------------------------------------------------------------------------
 
 
-def _macro_upcoming_sessions(today):
+def _macro_upcoming_sessions(today, n=7):
+    """
+    CR-03: the fixed generator shifts session i by i // 2 days, so the 30%
+    guard only fires with 6+ upcoming sessions (shifted = n - 4 for n > 4).
+    Default n=7 (3/7 = 43% > 30%) keeps the needs_confirmation tests valid;
+    pass n <= 5 to exercise the auto-apply branch.
+    """
+    ids = ["sess-a", "sess-b", "sess-c", "sess-d", "sess-e", "sess-f", "sess-g"]
     return [
-        {"id": "sess-a", "scheduled_date": (today + datetime.timedelta(days=1)).isoformat(), "tss_target": 60, "duration_minutes": 60, "status": "planned"},
-        {"id": "sess-b", "scheduled_date": (today + datetime.timedelta(days=3)).isoformat(), "tss_target": 60, "duration_minutes": 60, "status": "planned"},
-        {"id": "sess-c", "scheduled_date": (today + datetime.timedelta(days=5)).isoformat(), "tss_target": 60, "duration_minutes": 60, "status": "planned"},
+        {
+            "id": ids[i],
+            "scheduled_date": (today + datetime.timedelta(days=1 + 2 * i)).isoformat(),
+            "tss_target": 60,
+            "duration_minutes": 60,
+            "status": "planned",
+        }
+        for i in range(n)
     ]
 
 
 async def test_apply_macro_replan_shift_limit_fires(monkeypatch):
     """
-    ADAPT-03, D-19: the fixed progressive-spacing generator produces a shift wide
-    enough for check_shift_limit's guard to fire. When it fires, needs_confirmation
-    is returned and NO session rows are updated with tss_target/scheduled_date.
+    ADAPT-03, D-19: with 7 upcoming sessions the i // 2 spacing shifts 3 of 7
+    (43% > 30%) so the guard fires. When it fires, needs_confirmation is
+    returned and NO session rows are updated with tss_target/scheduled_date.
     """
     import backend.routes.adaptations as adapt_module
 
@@ -420,6 +432,75 @@ async def test_apply_macro_replan_shift_limit_fires(monkeypatch):
         if "tss_target" in c.args[0] and "scheduled_date" in c.args[0]
     ]
     assert session_update_calls == [], "guard fired -- sessions must not be updated"
+
+
+async def test_apply_macro_replan_small_shift_auto_applies(monkeypatch):
+    """
+    CR-03: a macro replan whose reschedule shifts <= 30% of sessions by more
+    than 1 day must auto-apply (status='applied'), update the session rows,
+    flip missed trigger sessions, and log an applied adaptation. With the old
+    i + 2 spacing this branch was unreachable dead code.
+    """
+    import backend.routes.adaptations as adapt_module
+
+    today = datetime.date.today()
+    upcoming = _macro_upcoming_sessions(today, n=4)  # i // 2 shifts: 0,0,1,1 -> 0 shifted
+
+    execute_sessions = MagicMock()
+    execute_sessions.data = upcoming
+    execute_profiles = MagicMock()
+    execute_profiles.data = [{"constraints": {}}]
+    execute_pmc = MagicMock()
+    execute_pmc.data = [{"ctl": 50, "atl": 40}]
+    execute_generic = MagicMock()
+    execute_generic.data = [{"id": "adaptation-applied-001"}]
+
+    mock_client = MagicMock()
+    mock_client.table.return_value = mock_client
+    mock_client.select.return_value = mock_client
+    mock_client.eq.return_value = mock_client
+    mock_client.gte.return_value = mock_client
+    mock_client.order.return_value = mock_client
+    mock_client.update.return_value = mock_client
+    mock_client.insert.return_value = mock_client
+    mock_client.execute = AsyncMock(
+        side_effect=[execute_sessions, execute_profiles, execute_pmc] + [execute_generic] * 12
+    )
+
+    async def _mock_supabase():
+        return mock_client
+
+    monkeypatch.setattr(adapt_module, "_get_async_supabase", _mock_supabase)
+
+    signals = [_sig("missed", "sess-a"), _sig("underperformance", "sess-b", 40.0)]
+    result = await adapt_module.apply_macro_replan(TEST_USER_ID, signals)
+
+    assert result["status"] == "applied", (
+        f"Small-shift macro replan must auto-apply, got {result['status']}"
+    )
+    assert result["scope"] == "macro"
+    assert result["adaptation_id"] == "adaptation-applied-001"
+    assert result["sessions_adjusted"] == ["sess-a", "sess-b", "sess-c", "sess-d"]
+
+    # Session rows were actually updated (the apply branch ran).
+    session_update_calls = [
+        c for c in mock_client.update.call_args_list if "scheduled_date" in c.args[0]
+    ]
+    assert len(session_update_calls) == 4, "expected one UPDATE per upcoming session"
+
+    # The missed trigger session was flipped to status='missed' (Pattern 5).
+    missed_flip_calls = [
+        c for c in mock_client.update.call_args_list if c.args[0] == {"status": "missed"}
+    ]
+    assert len(missed_flip_calls) == 1
+
+    # The adaptation was logged with default status 'applied' and consumed both triggers.
+    applied_inserts = [
+        c for c in mock_client.insert.call_args_list
+        if isinstance(c.args[0], dict) and c.args[0].get("status") == "applied"
+    ]
+    assert len(applied_inserts) == 1
+    assert applied_inserts[0].args[0]["trigger_session_ids"] == ["sess-a", "sess-b"]
 
 
 async def test_apply_macro_replan_supersedes_prior_proposal(monkeypatch):

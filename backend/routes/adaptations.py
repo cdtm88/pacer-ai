@@ -558,16 +558,19 @@ async def apply_macro_replan(user_id: str, signals: list[dict]) -> dict:
     capacity_ratio = (recommended_ctl / current_ctl) if current_ctl > 0 else 0.8
 
     # Build "after" sessions with adjusted TSS and shifted dates (spread sessions out).
-    # Progressive spacing (session i shifts by i+2 days) so the shift is real enough for
-    # check_shift_limit's >1-day-per-session semantics to actually fire (ADAPT-03, D-19);
-    # a uniform +1-day shift can never exceed the guard's ">1 day" threshold.
+    # CR-03: progressive spacing shifts session i by i // 2 days, so the first
+    # four sessions stay within check_shift_limit's 1-day tolerance and only
+    # longer replans (6+ upcoming sessions) cross the 30% guard. The previous
+    # i + 2 spacing shifted EVERY session by >1 day, making shift_pct always
+    # 1.0 and the auto-apply branch unreachable (inverting ADAPT-03/D-19: the
+    # guard must discriminate large shifts from small ones, not fire always).
     after_sessions = []
     for i, session in enumerate(before_sessions):
         # CR-01: keep NULL tss_target as None -- never scale it into 0.0.
         original_tss = session.get("tss_target")
         new_tss = round(original_tss * capacity_ratio, 1) if original_tss is not None else None
         sched = _parse_date(session.get("scheduled_date"))
-        new_date = (sched + timedelta(days=i + 2)).isoformat() if sched else session.get("scheduled_date")
+        new_date = (sched + timedelta(days=i // 2)).isoformat() if sched else session.get("scheduled_date")
         after_sessions.append({
             **session,
             "tss_target": new_tss,
