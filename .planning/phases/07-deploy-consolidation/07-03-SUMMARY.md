@@ -132,3 +132,12 @@ None - `supabase login` credentials and `SUPABASE_ACCESS_TOKEN` were already ava
 ---
 *Phase: 07-deploy-consolidation*
 *Completed: 2026-07-03*
+
+## Self-Check: PASSED
+
+- FOUND: supabase/migrations/0007_repair_oauth_states.sql
+- FOUND: supabase/migrations/0008_fk_indexes.sql
+- FOUND: .planning/phases/07-deploy-consolidation/07-03-SUMMARY.md
+- FOUND commit: 9b73a0a
+- FOUND commit: a2b07ae
+- FOUND commit: 3d09265
