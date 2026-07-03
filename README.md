@@ -22,17 +22,16 @@ An evidence-based, adaptive AI cycling coach for a beginner returning to fitness
 | PWA | vite-plugin-pwa (iOS Safari safe) |
 | Toasts | Sonner |
 
-### Backend (Railway via Docker)
+### Backend (Vercel Python Runtime)
 
 | Layer | Technology |
 |---|---|
 | Runtime | Python 3.12 |
-| Framework | FastAPI + Uvicorn/Gunicorn |
+| Framework | FastAPI, served by Vercel's Python Runtime (ASGI `app` invoked directly -- no Docker, no Gunicorn/Uvicorn CLI) |
 | LLM | Anthropic Python SDK, `claude-sonnet-4-5`, native tool use |
 | FIT parsing | fitdecode (not fitparse, which is abandoned) |
 | Sports science | numpy, scipy, pandas (PMC, NP, TSS, IF, FTP) |
-| Database / auth | Supabase (managed Postgres + auth + storage) |
-| ORM / migrations | SQLAlchemy 2.x + Alembic |
+| Database / auth | Supabase (managed Postgres + auth + storage), accessed via the `supabase` client and raw SQL migrations under `supabase/migrations/` -- no SQLAlchemy/Alembic |
 | Calendar | Google Calendar API (OAuth2) |
 
 ---
@@ -67,7 +66,7 @@ This constraint is enforced at code level and verifiable in logs (the `capabilit
 
 ## API Endpoints
 
-The FastAPI backend exposes these route groups:
+The FastAPI backend exposes these route groups. In production, Vercel's root `vercel.json` rewrites `/api/(.*)` to the backend service and `api/index.py` mounts the FastAPI app at `/api`, so every path below is actually reached at `/api` + the path shown (e.g. `GET /chat/stream` is `GET /api/chat/stream`). In local dev, the Vite proxy strips this and forwards the bare paths shown below directly to `localhost:8000`.
 
 - `GET /chat/stream` -- SSE streaming for coaching conversations (GET because the browser `EventSource` API can only issue GET requests)
 - `POST /conversations/` -- create a new conversation
@@ -111,10 +110,10 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env          # fill in ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
-uvicorn api.main:app --reload --port 8000
+uvicorn backend.main:app --reload --port 8000
 ```
 
-The Vite dev server proxies all API routes (`/chat`, `/sessions`, `/rides`, etc.) to `localhost:8000`.
+The Vite dev server proxies all `/api/*` routes (`/api/chat`, `/api/sessions`, `/api/rides`, etc.) to `localhost:8000`, stripping the `/api` prefix before forwarding -- matching the production routing scheme (see API Endpoints below).
 
 ### Tests
 
