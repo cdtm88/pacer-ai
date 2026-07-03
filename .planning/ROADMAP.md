@@ -19,7 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: UI and Calendar** - React PWA, all screens, Google Calendar integration, Vercel deployment (completed 2026-06-20)
 - [x] **Phase 5: During-Session and ZWO Export** - iOS-safe session stepper with wake lock, ZWO file generator with Zwift acceptance test (completed 2026-06-21)
 - [x] **Phase 6: Core Loop Persistence** - Persist generated plans as sessions rows, fix FTP/PMC correctness, link rides to sessions, idempotent adaptations (completed 2026-07-03)
-- [ ] **Phase 7: Deploy Consolidation** - Vercel is the sole deploy target: remove Railway artifacts, make SSE and background FIT processing serverless-safe, resolve config conflicts, env docs, DB indexes
+- [x] **Phase 7: Deploy Consolidation** - Vercel is the sole deploy target: remove Railway artifacts, make SSE and background FIT processing serverless-safe, resolve config conflicts, env docs, DB indexes (completed 2026-07-03)
 - [ ] **Phase 8: Trust Model Integrity** - Persist audit log, scan tool inputs, tighten attribution, collect LTHR, correct HR zones and load constraints
 - [ ] **Phase 9: Frontend Resilience** - Chat SSE recovery and history reload, session persistence staleness, iOS export/auth fixes, contract mismatches, error boundary
 - [ ] **Phase 10: Hygiene and Safety Nets** - Repair stale tests, contract tests, SSE token exchange, rate limiting, CI, repo cleanup
@@ -233,14 +233,14 @@ Plans:
 **Goal:** Vercel is the sole, fully working deploy target (decision 2026-07-03: Railway abandoned). Remove Railway artifacts (Dockerfile, railway.toml, Railway references in README/CLAUDE.md); resolve the conflicting root vs frontend `vercel.json` so `/api/*` reliably reaches the Python function and the SPA is served as static build (drop the api/index.py frontend/dist fallback); make the serverless path correct: SSE streaming on `/chat/stream` and `/onboarding/*` verified within Vercel function limits, and all post-response BackgroundTasks work (ride TSS/PMC pipeline, calendar pushes, adaptation sync) moved inline-awaited or to a durable mechanism since Vercel freezes functions after the response; README env-var table corrected and completed (SUPABASE_SERVICE_ROLE_KEY, SUPABASE_JWT_SECRET, CALENDAR_FERNET_KEY, BACKEND_BASE_URL, ANTHROPIC_MODEL) with Vercel env setup documented; indexes added on all user_id/FK columns; `fits` storage bucket provisioned as config.
 **Requirements**: TBD
 **Depends on:** Phase 6
-**Plans:** 4 plans
+**Plans:** 4/4 plans complete
 
 Plans:
 
-- [ ] 07-01-PLAN.md — Remove Railway/Docker artifacts; correct README + .claude/CLAUDE.md to Vercel-only with accurate env-var table
-- [ ] 07-02-PLAN.md — Convert the 3 remaining BackgroundTasks call sites (onboarding + 2 adaptation calendar syncs) to inline-await
-- [ ] 07-03-PLAN.md — Add FK/user_id index migration (0007) + push to linked Supabase; verify fits bucket present
-- [ ] 07-04-PLAN.md — Restructure vercel.json routing + strip api/index.py SPA fallback; verify preview deploy (routing + SSE) and decommission Railway
+- [x] 07-01-PLAN.md — Remove Railway/Docker artifacts; correct README + .claude/CLAUDE.md to Vercel-only with accurate env-var table
+- [x] 07-02-PLAN.md — Convert the 3 remaining BackgroundTasks call sites (onboarding + 2 adaptation calendar syncs) to inline-await
+- [x] 07-03-PLAN.md — Add FK/user_id index migration (0007) + push to linked Supabase; verify fits bucket present
+- [x] 07-04-PLAN.md — Restructure vercel.json routing + strip api/index.py SPA fallback; verify preview deploy (routing + SSE) and decommission Railway
 
 ### Phase 8: Trust Model Integrity
 
@@ -285,7 +285,7 @@ Plans:
 | 4. UI and Calendar | 21/21 | Complete   | 2026-06-21 |
 | 5. During-Session and ZWO Export | 5/5 | Complete    | 2026-06-21 |
 | 6. Core Loop Persistence | 5/5 | Complete    | 2026-07-03 |
-| 7. Deploy Consolidation | 0/? | Not planned | - |
+| 7. Deploy Consolidation | 4/4 | Complete   | 2026-07-03 |
 | 8. Trust Model Integrity | 0/? | Not planned | - |
 | 9. Frontend Resilience | 0/? | Not planned | - |
 | 10. Hygiene and Safety Nets | 0/? | Not planned | - |
