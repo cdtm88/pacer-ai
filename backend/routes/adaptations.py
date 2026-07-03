@@ -739,6 +739,71 @@ async def check_adaptations(
     }
 
 
+@router.post("/{adaptation_id}/confirm")
+async def confirm_macro_replan(
+    adaptation_id: str = Path(...),
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """
+    D-19, Pattern 6: POST /adaptations/{adaptation_id}/confirm
+
+    Applies a stored 'proposed' macro-replan proposal exactly as it was persisted
+    (not a freshly recomputed version, which could differ if state changed in
+    between) and flips the adaptation's status to 'applied'.
+
+    T-06-04: dual-filters id + user_id + status='proposed' before any apply so a
+    foreign or non-proposed adaptation id can never be confirmed (IDOR mitigation).
+    user_id is sourced from the verified JWT.
+    """
+    user_id = current_user["user_id"]
+    validate_uuid(user_id, "user_id")
+    validate_uuid(adaptation_id, "adaptation_id")
+    supabase = await _get_async_supabase()
+
+    row_resp = await (
+        supabase.table("adaptations")
+        .select("*")
+        .eq("id", adaptation_id)
+        .eq("user_id", user_id)
+        .eq("status", "proposed")
+        .execute()
+    )
+    rows = row_resp.data or []
+    if not rows:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "proposal_not_found",
+                "detail": "No pending macro-replan proposal for this id.",
+            },
+        )
+
+    proposal = rows[0]
+    proposed_sessions = (proposal.get("after_snapshot") or {}).get("sessions") or []
+
+    for session in proposed_sessions:
+        await (
+            supabase.table("sessions")
+            .update({
+                "tss_target": session.get("tss_target"),
+                "scheduled_date": session.get("scheduled_date"),
+            })
+            .eq("id", session["id"])
+            .eq("user_id", user_id)
+            .execute()
+        )
+
+    await (
+        supabase.table("adaptations")
+        .update({"status": "applied"})
+        .eq("id", adaptation_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+
+    return {"status": "applied", "adaptation_id": adaptation_id}
+
+
 @router.post("/sessions/{session_id}/missed")
 async def mark_session_missed(
     background_tasks: BackgroundTasks,

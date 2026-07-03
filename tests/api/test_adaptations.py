@@ -656,3 +656,115 @@ async def test_get_adaptations_requires_auth():
         response = await client.get("/adaptations/")
 
     assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# T-06-04: POST /adaptations/{id}/confirm
+# ---------------------------------------------------------------------------
+
+
+async def test_confirm_macro_applies_stored_snapshot(monkeypatch):
+    """
+    Pattern 6: confirming a proposed macro replan applies the STORED after_snapshot
+    sessions verbatim (not a freshly recomputed one) and flips the adaptation's
+    status to 'applied'.
+    """
+    from backend.main import app
+    import backend.routes.adaptations as adapt_module
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
+
+    adaptation_id = "11111111-1111-1111-1111-111111111111"
+    proposal_row = {
+        "id": adaptation_id,
+        "user_id": TEST_USER_ID,
+        "status": "proposed",
+        "after_snapshot": {
+            "sessions": [
+                {"id": "sess-x", "tss_target": 42.0, "scheduled_date": "2026-07-10"},
+            ],
+        },
+    }
+
+    execute_select = MagicMock()
+    execute_select.data = [proposal_row]
+    execute_session_update = MagicMock()
+    execute_session_update.data = [{"id": "sess-x"}]
+    execute_status_update = MagicMock()
+    execute_status_update.data = [{"id": adaptation_id, "status": "applied"}]
+
+    mock_client = MagicMock()
+    mock_client.table.return_value = mock_client
+    mock_client.select.return_value = mock_client
+    mock_client.eq.return_value = mock_client
+    mock_client.update.return_value = mock_client
+    mock_client.execute = AsyncMock(side_effect=[execute_select, execute_session_update, execute_status_update])
+
+    async def _mock_supabase():
+        return mock_client
+
+    monkeypatch.setattr(adapt_module, "_get_async_supabase", _mock_supabase)
+
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        response = await client.post(
+            f"/adaptations/{adaptation_id}/confirm",
+            headers=auth_headers(),
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data == {"status": "applied", "adaptation_id": adaptation_id}
+
+    # The applied session payload matches the STORED snapshot verbatim.
+    session_update_calls = [c for c in mock_client.update.call_args_list if "tss_target" in c.args[0]]
+    assert len(session_update_calls) == 1
+    assert session_update_calls[0].args[0] == {"tss_target": 42.0, "scheduled_date": "2026-07-10"}
+
+    # The adaptation row itself flips to 'applied'.
+    status_update_calls = [c for c in mock_client.update.call_args_list if c.args[0] == {"status": "applied"}]
+    assert len(status_update_calls) == 1
+
+
+async def test_confirm_macro_idor_returns_404(monkeypatch):
+    """
+    T-06-04: an adaptation id that does not resolve under the id+user_id+status='proposed'
+    dual-filter (foreign owner, missing, or already applied/superseded) returns 404
+    proposal_not_found -- nothing is applied.
+    """
+    from backend.main import app
+    import backend.routes.adaptations as adapt_module
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
+
+    foreign_adaptation_id = "22222222-2222-2222-2222-222222222222"
+
+    execute_select = MagicMock()
+    execute_select.data = []  # dual-filter matched nothing for this user
+
+    mock_client = MagicMock()
+    mock_client.table.return_value = mock_client
+    mock_client.select.return_value = mock_client
+    mock_client.eq.return_value = mock_client
+    mock_client.update.return_value = mock_client
+    mock_client.execute = AsyncMock(return_value=execute_select)
+
+    async def _mock_supabase():
+        return mock_client
+
+    monkeypatch.setattr(adapt_module, "_get_async_supabase", _mock_supabase)
+
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        response = await client.post(
+            f"/adaptations/{foreign_adaptation_id}/confirm",
+            headers=auth_headers(),
+        )
+
+    assert response.status_code == 404
+    assert response.json()["detail"]["error"] == "proposal_not_found"
+    assert mock_client.update.call_args_list == [], "no update must occur on a 404 proposal lookup"
