@@ -717,6 +717,124 @@ async def test_get_adaptations_requires_auth():
 
 
 # ---------------------------------------------------------------------------
+# CR-02 / D-16: POST /adaptations/sessions/{id}/missed synthesizes its signal
+# ---------------------------------------------------------------------------
+
+
+async def test_mark_missed_synthesizes_signal_for_marked_session(monkeypatch):
+    """
+    CR-02: the mark-missed endpoint flips the session to 'missed', which
+    excludes it from detect_signals' planned/completed scan. The endpoint must
+    synthesize the missed signal for the marked session so the manual report
+    actually triggers an adaptation (here: micro, since it is the only signal).
+    """
+    from backend.main import app
+    import backend.routes.adaptations as adapt_module
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
+
+    session_id = "33333333-3333-3333-3333-333333333333"
+
+    execute_session_lookup = MagicMock()
+    execute_session_lookup.data = [{"id": session_id, "user_id": TEST_USER_ID, "status": "planned"}]
+    execute_generic = MagicMock()
+    execute_generic.data = []
+
+    mock_client = MagicMock()
+    mock_client.table.return_value = mock_client
+    mock_client.select.return_value = mock_client
+    mock_client.eq.return_value = mock_client
+    mock_client.update.return_value = mock_client
+    # First execute: ownership lookup; all later ones (status flip, consumed
+    # pre-query) return empty data.
+    mock_client.execute = AsyncMock(side_effect=[execute_session_lookup, execute_generic, execute_generic])
+
+    async def _mock_supabase():
+        return mock_client
+
+    monkeypatch.setattr(adapt_module, "_get_async_supabase", _mock_supabase)
+
+    # detect_signals returns nothing -- the flipped session is invisible to it.
+    monkeypatch.setattr(adapt_module, "detect_signals", AsyncMock(return_value=[]))
+
+    micro_calls: list = []
+
+    async def _capturing_micro(user_id, signal):
+        micro_calls.append((user_id, signal))
+        return {"status": "applied", "scope": "micro", "after": [], "before": [],
+                "sessions_adjusted": [], "explanation": "x", "adaptation_id": "a-1"}
+
+    monkeypatch.setattr(adapt_module, "apply_micro_adjustment", _capturing_micro)
+
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        response = await client.post(
+            f"/adaptations/sessions/{session_id}/missed",
+            headers=auth_headers(),
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["marked_missed"] is True
+    assert data["signals"] == [{"type": "missed", "session_id": session_id}], (
+        f"Expected the marked session's synthesized missed signal: {data['signals']}"
+    )
+    assert data["scope"] == "micro"
+    assert len(micro_calls) == 1
+    assert micro_calls[0][1] == {"type": "missed", "session_id": session_id}
+
+
+async def test_mark_missed_skips_synthesis_when_already_consumed(monkeypatch):
+    """
+    CR-02 + Pattern 5: if a prior adaptation already consumed the session,
+    marking it missed again must NOT re-fire a signal.
+    """
+    from backend.main import app
+    import backend.routes.adaptations as adapt_module
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
+
+    session_id = "44444444-4444-4444-4444-444444444444"
+
+    execute_session_lookup = MagicMock()
+    execute_session_lookup.data = [{"id": session_id, "user_id": TEST_USER_ID, "status": "planned"}]
+    execute_flip = MagicMock()
+    execute_flip.data = []
+    execute_consumed = MagicMock()
+    execute_consumed.data = [{"trigger_session_ids": [session_id]}]
+
+    mock_client = MagicMock()
+    mock_client.table.return_value = mock_client
+    mock_client.select.return_value = mock_client
+    mock_client.eq.return_value = mock_client
+    mock_client.update.return_value = mock_client
+    mock_client.execute = AsyncMock(side_effect=[execute_session_lookup, execute_flip, execute_consumed])
+
+    async def _mock_supabase():
+        return mock_client
+
+    monkeypatch.setattr(adapt_module, "_get_async_supabase", _mock_supabase)
+    monkeypatch.setattr(adapt_module, "detect_signals", AsyncMock(return_value=[]))
+
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        response = await client.post(
+            f"/adaptations/sessions/{session_id}/missed",
+            headers=auth_headers(),
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["signals"] == [], "consumed session must not re-fire a synthesized signal"
+    assert data["scope"] is None
+    assert data["result"] is None
+
+
+# ---------------------------------------------------------------------------
 # T-06-04: POST /adaptations/{id}/confirm
 # ---------------------------------------------------------------------------
 

@@ -92,6 +92,24 @@ def _find_matching_ride(session_id: str, sched: date, rides_by_date: dict) -> Op
     return None
 
 
+async def _get_consumed_session_ids(supabase, user_id: str) -> set[str]:
+    """
+    Pattern 5 consumed-ids lookup: session ids recorded in
+    adaptations.trigger_session_ids for this user. A consumed session must
+    never re-fire a signal.
+    """
+    consumed_resp = await (
+        supabase.table("adaptations")
+        .select("trigger_session_ids")
+        .eq("user_id", user_id)
+        .execute()
+    )
+    consumed_ids: set[str] = set()
+    for row in (consumed_resp.data or []):
+        consumed_ids.update(row.get("trigger_session_ids") or [])
+    return consumed_ids
+
+
 async def detect_signals(user_id: str, window_days: int = 7) -> list[dict]:
     """
     ADAPT-01: Detect missed-session and underperformance signals for a user.
@@ -126,15 +144,7 @@ async def detect_signals(user_id: str, window_days: int = 7) -> list[dict]:
     signals: list[dict] = []
 
     # --- Consumed-ids pre-query (Pattern 5, T-06-05): scoped to this user only. ---
-    consumed_resp = await (
-        supabase.table("adaptations")
-        .select("trigger_session_ids")
-        .eq("user_id", user_id)
-        .execute()
-    )
-    consumed_ids: set[str] = set()
-    for row in (consumed_resp.data or []):
-        consumed_ids.update(row.get("trigger_session_ids") or [])
+    consumed_ids = await _get_consumed_session_ids(supabase, user_id)
 
     # --- Load candidate sessions: both still-planned and already-completed. ---
     sessions_resp = await (
@@ -854,6 +864,17 @@ async def mark_session_missed(
     scope = None
     try:
         signals = await detect_signals(user_id)
+
+        # CR-02: detect_signals only scans status in ('planned', 'completed'),
+        # so the session just flipped to 'missed' can never appear in its
+        # output. Synthesize its missed signal explicitly so a manual mark
+        # actually triggers an adaptation -- unless a prior adaptation already
+        # consumed this session (Pattern 5).
+        if session_id not in {s.get("session_id") for s in signals}:
+            consumed_ids = await _get_consumed_session_ids(supabase, user_id)
+            if session_id not in consumed_ids:
+                signals.append({"type": "missed", "session_id": session_id})
+
         scope = decide_scope(signals)
 
         if scope == "micro" and signals:
