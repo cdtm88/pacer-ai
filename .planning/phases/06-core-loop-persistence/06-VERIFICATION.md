@@ -1,7 +1,7 @@
 ---
 phase: 06-core-loop-persistence
 verified: 2026-07-03T17:40:00Z
-status: human_needed
+status: passed
 score: 16/16 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
@@ -19,7 +19,7 @@ human_verification:
 **Phase Goal:** A generated plan becomes real database state and ride data flows through it correctly: plan confirmation writes `plans` and `sessions` rows; Today/Agenda/ZWO/calendar read real sessions; estimated FTP is actually used (fix `ftp_watts` vs `ftp` key mismatch, add missing `profiles.ftp`/`lthr` columns); PMC uses ride date not upload date, decays through zero-TSS gap days, sums same-day rides, and dedups re-uploaded FIT files; rides link to sessions and mark them completed; adaptation checks are idempotent (signals consumed once, `/missed` endpoint works, macro-replan confirm endpoint exists).
 
 **Verified:** 2026-07-03T17:40:00Z
-**Status:** human_needed
+**Status:** passed (human verification completed 2026-07-03: both items passed via live UAT, see 06-UAT.md)
 **Re-verification:** No — initial verification
 
 ## Goal Achievement

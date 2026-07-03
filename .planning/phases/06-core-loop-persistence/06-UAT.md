@@ -1,30 +1,23 @@
 ---
-status: testing
+status: complete
 phase: 06-core-loop-persistence
 source: [06-VERIFICATION.md]
 started: 2026-07-03T16:41:02Z
-updated: 2026-07-03T16:41:02Z
+updated: 2026-07-03T18:07:03Z
 ---
 
 ## Current Test
 
-number: 1
-name: Live Supabase end-to-end ride upload smoke test
-expected: |
-  Against the live linked project (all phase tests mock Supabase): upload a real
-  .FIT file while a planned session exists for the ride date. The ride row is
-  created with content_hash and raw_fit_path, the matching session flips to
-  status 'completed' with the ride linked via rides.session_id, and pmc_history
-  gains a contiguous daily series (gap days decayed, tss column populated).
-  Upload the byte-identical file again: the request short-circuits via the
-  UNIQUE(user_id, content_hash) constraint and no second ride row appears.
-awaiting: user response
+number: —
+name: All tests complete
+expected: —
+awaiting: nothing; UAT passed 2/2
 
 ## Tests
 
 ### 1. Live Supabase end-to-end ride upload smoke test
 expected: First upload processes inline and links to the session; byte-identical re-upload dedups via the live UNIQUE constraint; pmc_history shows a contiguous day series with rest-day decay.
-result: partial pass; 2 infra gaps found and fixed live (see Gaps); duplicate re-upload sub-check still pending
+result: pass (after live fixes; see Gaps)
 notes: |
   Upload chain verified in production (2026-07-03): FIT parsed, ride booked to
   ride date (not upload date), content_hash written, session 5766f37d flipped
@@ -34,19 +27,21 @@ notes: |
   pmc_history (upsert failed 42P10, series empty) and missing `fits` storage
   bucket (raw_fit_path NULL). PMC series backfilled with production-parity math:
   731 rows, gap decay verified (CTL 2.16 -> 0.21 over idle years -> 2.36 today).
-  Remaining: byte-identical re-upload of hilly_ride_30min_today.fit must
-  short-circuit via dedup.
+  Dedup confirmed: byte-identical re-upload short-circuited server-side (still
+  2 ride rows). Frontend showed generic success toast because it ignored the
+  duplicate flag; fixed in f2488d0 (duplicate-aware toast).
 
 ### 2. Physiological sanity check of _estimate_session_tss
 expected: The new pure tool-library function (backend/sports_science/plan.py) estimates planned-session TSS with Coggan steady-state formula using IF midpoints 0.655 (zone 2) and 0.50 (recovery). Confirm these targets are sane for a deconditioned returning beginner (they drive underperformance detection thresholds, not prescriptions).
-result: [pending]
+result: pass
+notes: Constants match published references (Z2 IF band 0.56-0.75 midpoint = 0.655 -> ~43 TSS/hr; recovery 0.50 -> 25 TSS/hr, both in TrainingPeaks ranges). Errs safe for detection: false underperformance flag requires riding below IF 0.55 all session. User confirmed pass 2026-07-03.
 
 ## Summary
 
 total: 2
-passed: 0
+passed: 2
 issues: 0
-pending: 2
+pending: 0
 skipped: 0
 blocked: 0
 
