@@ -21,7 +21,11 @@ export function FitUploadZone() {
     if (isUploading) return
     setIsUploading(true)
     try {
-      await uploadRide(file)
+      const result = await uploadRide(file)
+      if (result.duplicate) {
+        toast.info('This ride is already uploaded. No duplicate was created.')
+        return
+      }
       toast.success('Ride uploaded. History updated.')
       // D-08: invalidate rides query so the list auto-refetches; no redirect
       await queryClient.invalidateQueries({ queryKey: ['rides'] })

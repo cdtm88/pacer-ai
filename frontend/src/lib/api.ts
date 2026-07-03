@@ -280,6 +280,8 @@ export async function exportSessionZwo(sessionId: string): Promise<void> {
 export interface UploadRideResponse {
   ride_id: string
   status: string
+  // True when the backend short-circuited a byte-identical re-upload
+  duplicate?: boolean
 }
 
 // POST /rides/upload — multipart upload; do NOT set Content-Type (browser sets multipart boundary)
