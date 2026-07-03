@@ -554,6 +554,14 @@ async def dispatch_tool(tool_use_block, audit_log: list, user_id: str | None = N
             # Sync compute functions run in a thread to avoid blocking the event loop.
             result: ToolResult = await asyncio.to_thread(fn, **inputs)
 
+        # 06-02: persist generate_plan output before it reaches Claude. result.value
+        # is a mutable dict even though ToolResult itself is frozen (frozen blocks
+        # reassigning the field, not mutating its contents in place). No second
+        # try/except here -- a persistence failure propagates to the outer except
+        # below, which already gives D-14 "never silently swallowed" semantics.
+        if name == "generate_plan" and user_id is not None and result.value:
+            await _persist_generated_plan(user_id, result.value)
+
         audit_log.append({
             "tool_use_id": tool_use_id,
             "name": name,
