@@ -839,6 +839,19 @@ async def confirm_macro_replan(
         .execute()
     )
 
+    # CAL-02: calendar sync after sessions change (CAL-04: never 500 on failure).
+    # WR-01: confirm_macro_replan applies proposed_sessions but, unlike
+    # check_adaptations/mark_session_missed, previously never synced the
+    # calendar -- mirror those call sites using proposed_sessions'
+    # calendar_event_id (present once CR-02's select fix ships).
+    for session in proposed_sessions:
+        event_id = session.get("calendar_event_id")
+        if event_id:
+            # --- update_calendar_event inline-awaited (Vercel serverless
+            #     constraint: no BackgroundTasks, which Vercel freezes/kills
+            #     after the response is sent) ---
+            await update_calendar_event(user_id, event_id, session)
+
     return {"status": "applied", "adaptation_id": adaptation_id}
 
 
