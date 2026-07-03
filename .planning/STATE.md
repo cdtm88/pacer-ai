@@ -86,6 +86,15 @@ Progress: [████████████████████] 32/32 p
 
 ## Accumulated Context
 
+### Roadmap Evolution
+
+- Phases 6-10 added 2026-07-03 from full app review (4 parallel review agents; findings in .planning/research/APP-REVIEW-260703.md):
+  - Phase 6: Core Loop Persistence (plans/sessions never persisted, FTP key mismatch, PMC date/gap/dedup)
+  - Phase 7: Deploy Consolidation (Railway image cannot boot, VITE_API_URL unused, vercel.json conflicts)
+  - Phase 8: Trust Model Integrity (audit log dropped, tool inputs unscanned, LTHR never collected)
+  - Phase 9: Frontend Resilience (chat SSE brick, stale session hijack, iOS export, contract mismatches)
+  - Phase 10: Hygiene and Safety Nets (stale tests, contract tests, token exchange, rate limit, CI)
+
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.

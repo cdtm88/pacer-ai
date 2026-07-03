@@ -18,6 +18,11 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Coaching Loop** - FIT ingestion, plan generation, onboarding interview, and adaptive re-planning (completed 2026-06-20)
 - [x] **Phase 4: UI and Calendar** - React PWA, all screens, Google Calendar integration, Vercel deployment (completed 2026-06-20)
 - [x] **Phase 5: During-Session and ZWO Export** - iOS-safe session stepper with wake lock, ZWO file generator with Zwift acceptance test (completed 2026-06-21)
+- [ ] **Phase 6: Core Loop Persistence** - Persist generated plans as sessions rows, fix FTP/PMC correctness, link rides to sessions, idempotent adaptations
+- [ ] **Phase 7: Deploy Consolidation** - One working deploy target: fix Railway boot, API URL wiring, Vercel config conflicts, env docs, DB indexes
+- [ ] **Phase 8: Trust Model Integrity** - Persist audit log, scan tool inputs, tighten attribution, collect LTHR, correct HR zones and load constraints
+- [ ] **Phase 9: Frontend Resilience** - Chat SSE recovery and history reload, session persistence staleness, iOS export/auth fixes, contract mismatches, error boundary
+- [ ] **Phase 10: Hygiene and Safety Nets** - Repair stale tests, contract tests, SSE token exchange, rate limiting, CI, repo cleanup
 
 ## Phase Details
 
@@ -201,6 +206,61 @@ Plans:
 
 **UI hint**: yes
 
+### Phase 6: Core Loop Persistence
+
+**Goal:** A generated plan becomes real database state and ride data flows through it correctly: plan confirmation writes `plans` and `sessions` rows; Today/Agenda/ZWO/calendar read real sessions; estimated FTP is actually used (fix `ftp_watts` vs `ftp` key mismatch, add missing `profiles.ftp`/`lthr` columns); PMC uses ride date not upload date, decays through zero-TSS gap days, sums same-day rides, and dedups re-uploaded FIT files; rides link to sessions and mark them completed; adaptation checks are idempotent (signals consumed once, `/missed` endpoint works, macro-replan confirm endpoint exists).
+**Requirements**: TBD
+**Depends on:** Phase 5
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 6 to break down)
+
+### Phase 7: Deploy Consolidation
+
+**Goal:** One deploy target that boots and serves the app end-to-end: Railway hosts the API (Dockerfile copies `backend/`, CMD targets `backend.main:app`), frontend reads `VITE_API_URL`, CORS configured, conflicting `vercel.json` resolved, README env-var table corrected and completed (SUPABASE_SERVICE_ROLE_KEY, SUPABASE_JWT_SECRET, CALENDAR_FERNET_KEY, BACKEND_BASE_URL, ANTHROPIC_MODEL), indexes added on all user_id/FK columns, `fits` storage bucket provisioned as config.
+**Requirements**: TBD
+**Depends on:** Phase 6
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 7 to break down)
+
+### Phase 8: Trust Model Integrity
+
+**Goal:** The trust model is airtight and verifiable: audit log persisted per turn (TRUST-04), tool inputs scanned so invented numbers cannot launder through tool calls, bare-number attribution uses word-boundary and tolerance matching instead of substring, prior-turn numbers seeded to kill cross-turn false positives, LTHR (or explicit RPE-only fallback) collected in onboarding, HR zone constants match the claimed Coggan methodology, Zone 2 targets safe for a returning beginner, and generate_plan consumes current_ctl/load_targets/preferred_days so back-protective caps actually constrain sessions.
+**Requirements**: TBD
+**Depends on:** Phase 7
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 8 to break down)
+
+### Phase 9: Frontend Resilience
+
+**Goal:** The UI survives real-world failure modes: chat recovers from SSE errors and empty tool-only turns (no more bricked input), conversation history reloads instead of creating new conversations, persisted sessions carry id+date so stale records cannot hijack Today or mark the wrong session done, iOS ZWO export works within the user-gesture window, auth callback no longer double-exchanges the code, Ride/Profile field names match the backend, upload invalidates PMC/session queries, and a router error boundary replaces white-screen crashes.
+**Requirements**: TBD
+**Depends on:** Phase 8
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 9 to break down)
+
+### Phase 10: Hygiene and Safety Nets
+
+**Goal:** The test suite is green and guards the seams: 8 stale SSE tests authenticate properly, capability-gap test-order leak fixed, Playwright mocks match real response shapes, frontend-backend contract tests added (would have caught the Ride/Profile/FTP-key mismatches), short-lived SSE token exchange removes JWTs from query strings, LLM endpoints rate-limited, CI runs pytest+vitest+ruff, repo cleaned (root node_modules, test-ride.fit, root .gitignore).
+**Requirements**: TBD
+**Depends on:** Phase 9
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 10 to break down)
+
 ## Progress Table
 
 | Phase | Plans Complete | Status | Completed |
@@ -210,3 +270,8 @@ Plans:
 | 3. Coaching Loop | 5/5 | Complete    | 2026-06-20 |
 | 4. UI and Calendar | 21/21 | Complete   | 2026-06-21 |
 | 5. During-Session and ZWO Export | 5/5 | Complete    | 2026-06-21 |
+| 6. Core Loop Persistence | 0/? | Not planned | - |
+| 7. Deploy Consolidation | 0/? | Not planned | - |
+| 8. Trust Model Integrity | 0/? | Not planned | - |
+| 9. Frontend Resilience | 0/? | Not planned | - |
+| 10. Hygiene and Safety Nets | 0/? | Not planned | - |
