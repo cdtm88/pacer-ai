@@ -352,6 +352,76 @@ async def test_plan_calendar_sync_inline_await(monkeypatch):
     )
 
 
+async def test_resolve_conversation_id_rejects_malformed_id(monkeypatch):
+    """
+    WR-08 (07-REVIEW.md): a malformed conversation_id (not a valid UUID) must be
+    treated as absent, not passed through to the DB layer as-is.
+    """
+    import backend.routes.onboarding as onboarding_module
+
+    async def _unexpected_supabase():
+        raise AssertionError("must not query Supabase for a malformed conversation_id")
+
+    monkeypatch.setattr(onboarding_module, "_get_async_supabase", _unexpected_supabase)
+
+    result = await onboarding_module._resolve_conversation_id(TEST_USER_ID, "not-a-uuid")
+    assert result is None
+
+
+async def test_resolve_conversation_id_rejects_foreign_id(monkeypatch):
+    """
+    WR-08 (07-REVIEW.md): a well-formed conversation_id that does not belong to the
+    requesting user (ownership check returns no rows) must be treated as absent.
+    """
+    import backend.routes.onboarding as onboarding_module
+
+    foreign_id = "11111111-1111-1111-1111-111111111111"
+
+    execute_empty = MagicMock()
+    execute_empty.data = []
+
+    mock_client = MagicMock()
+    mock_client.table.return_value = mock_client
+    mock_client.select.return_value = mock_client
+    mock_client.eq.return_value = mock_client
+    mock_client.execute = AsyncMock(return_value=execute_empty)
+
+    async def _mock_supabase():
+        return mock_client
+
+    monkeypatch.setattr(onboarding_module, "_get_async_supabase", _mock_supabase)
+
+    result = await onboarding_module._resolve_conversation_id(TEST_USER_ID, foreign_id)
+    assert result is None
+
+
+async def test_resolve_conversation_id_accepts_owned_id(monkeypatch):
+    """
+    WR-08 (07-REVIEW.md): a well-formed conversation_id owned by the requesting user
+    (ownership check returns a row) is retained as resumable.
+    """
+    import backend.routes.onboarding as onboarding_module
+
+    owned_id = "22222222-2222-2222-2222-222222222222"
+
+    execute_found = MagicMock()
+    execute_found.data = [{"id": owned_id}]
+
+    mock_client = MagicMock()
+    mock_client.table.return_value = mock_client
+    mock_client.select.return_value = mock_client
+    mock_client.eq.return_value = mock_client
+    mock_client.execute = AsyncMock(return_value=execute_found)
+
+    async def _mock_supabase():
+        return mock_client
+
+    monkeypatch.setattr(onboarding_module, "_get_async_supabase", _mock_supabase)
+
+    result = await onboarding_module._resolve_conversation_id(TEST_USER_ID, owned_id)
+    assert result == owned_id
+
+
 async def test_profile_persisted(monkeypatch):
     """
     ONBD-03: save_profile upserts to the profiles table with on_conflict=user_id

@@ -34,7 +34,7 @@ import json
 import os
 
 import anthropic
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel as _PydanticBaseModel
 
@@ -44,6 +44,7 @@ from backend.auth import get_current_user
 from backend.calendar_sync import push_all_sessions_to_calendar
 from backend.db import get_async_supabase as _get_async_supabase
 from backend.routes._sse import sse_generator
+from backend.utils import validate_uuid
 
 router = APIRouter()
 
@@ -173,6 +174,43 @@ async def save_messages(
     await supabase.table("messages").insert(rows).execute()
 
 
+async def _resolve_conversation_id(user_id: str, conversation_id: str | None) -> str | None:
+    """
+    WR-08: validate format and verify ownership of a client-supplied conversation_id
+    before treating it as resumable.
+
+    A malformed conversation_id, or one that does not belong to this user, falls back
+    to treating the request as if conversation_id were absent -- matching the already
+    -documented "when absent, a new conversation is created" behavior -- rather than
+    silently writing new message rows tied to an unverified/foreign conversation_id
+    on the write path (save_messages).
+    """
+    if conversation_id is not None:
+        try:
+            validate_uuid(conversation_id, "conversation_id")
+        except HTTPException:
+            conversation_id = None
+
+    if conversation_id is not None:
+        supabase = await _get_async_supabase()
+        try:
+            resp = await (
+                supabase.table("conversations")
+                .select("id")
+                .eq("id", conversation_id)
+                .eq("user_id", user_id)
+                .execute()
+            )
+            if not (resp.data or []):
+                conversation_id = None
+        except Exception:
+            # Best-effort ownership check; treat any failure as "not resumable"
+            # rather than surfacing an error (matches CAL-04-style graceful fallback).
+            conversation_id = None
+
+    return conversation_id
+
+
 # ---------------------------------------------------------------------------
 # Endpoint
 # ---------------------------------------------------------------------------
@@ -243,7 +281,9 @@ async def onboarding_start(
     ]
 
     # WR-005: reuse the supplied conversation_id when provided; create a new one otherwise.
-    conversation_id: str | None = body.conversation_id
+    # WR-08: reuse only after format + ownership validation -- a malformed or foreign
+    # conversation_id is treated as absent rather than trusted as-is.
+    conversation_id: str | None = await _resolve_conversation_id(user_id, body.conversation_id)
     if conversation_id is None:
         try:
             conversation_id = await create_conversation(user_id, context_type="onboarding")
