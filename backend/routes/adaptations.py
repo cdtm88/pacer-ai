@@ -400,16 +400,21 @@ async def apply_micro_adjustment(user_id: str, signal: dict) -> dict:
 
     for session in upcoming:
         # Reduce TSS target and duration by 20% for micro-adjustment.
-        original_tss = session.get("tss_target") or 0
+        # CR-01: skip TSS scaling when tss_target is NULL -- writing 0.0 over
+        # NULL would permanently zero the column and disable future compliance.
+        original_tss = session.get("tss_target")
         original_dur = session.get("duration_minutes") or 0
-        new_tss = round(original_tss * 0.8, 1)
+        new_tss = round(original_tss * 0.8, 1) if original_tss is not None else None
         new_dur = round(original_dur * 0.8, 0)
 
-        await supabase.table("sessions").update({
-            "tss_target": new_tss,
+        update_payload: dict = {
             "duration_minutes": new_dur,
             "duration_mins": new_dur,  # keep legacy column in sync
-        }).eq("id", session["id"]).execute()
+        }
+        if new_tss is not None:
+            update_payload["tss_target"] = new_tss
+
+        await supabase.table("sessions").update(update_payload).eq("id", session["id"]).execute()
 
         after_sessions.append({
             **session,
@@ -548,8 +553,9 @@ async def apply_macro_replan(user_id: str, signals: list[dict]) -> dict:
     # a uniform +1-day shift can never exceed the guard's ">1 day" threshold.
     after_sessions = []
     for i, session in enumerate(before_sessions):
-        original_tss = session.get("tss_target") or 0
-        new_tss = round(original_tss * capacity_ratio, 1)
+        # CR-01: keep NULL tss_target as None -- never scale it into 0.0.
+        original_tss = session.get("tss_target")
+        new_tss = round(original_tss * capacity_ratio, 1) if original_tss is not None else None
         sched = _parse_date(session.get("scheduled_date"))
         new_date = (sched + timedelta(days=i + 2)).isoformat() if sched else session.get("scheduled_date")
         after_sessions.append({
@@ -610,10 +616,11 @@ async def apply_macro_replan(user_id: str, signals: list[dict]) -> dict:
 
     # Apply: update sessions in DB.
     for session in after_sessions:
-        await supabase.table("sessions").update({
-            "tss_target": session["tss_target"],
-            "scheduled_date": session["scheduled_date"],
-        }).eq("id", session["id"]).execute()
+        update_payload: dict = {"scheduled_date": session["scheduled_date"]}
+        # CR-01: never write a scaled-from-NULL 0.0 over a NULL tss_target.
+        if session.get("tss_target") is not None:
+            update_payload["tss_target"] = session["tss_target"]
+        await supabase.table("sessions").update(update_payload).eq("id", session["id"]).execute()
 
     # Flip every 'missed' signal's triggering session to status='missed' (Pattern 5),
     # dual-filtered for defence-in-depth.

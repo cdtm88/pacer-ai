@@ -219,6 +219,64 @@ async def test_apply_micro_adjustment_missed_status_value(monkeypatch):
     assert result["status"] == "applied"
 
 
+async def test_apply_micro_adjustment_null_tss_target_not_zeroed(monkeypatch):
+    """
+    CR-01: a session with tss_target=NULL must NOT have 0.0 written over it by
+    the micro adjustment -- TSS scaling is skipped, duration scaling still runs.
+    """
+    import backend.routes.adaptations as adapt_module
+
+    today = datetime.date.today()
+
+    upcoming = [
+        {"id": "sess-null-tss", "scheduled_date": today.isoformat(), "tss_target": None, "duration_minutes": 60, "status": "planned"},
+    ]
+    execute_upcoming = MagicMock()
+    execute_upcoming.data = upcoming
+    execute_generic = MagicMock()
+    execute_generic.data = [{"id": "adaptation-uuid-null-tss"}]
+
+    update_payloads: list[dict] = []
+
+    class _Chain:
+        def eq(self, field, value):
+            return self
+
+        async def execute(self):
+            return execute_generic
+
+    mock_client = MagicMock()
+
+    def _update(payload):
+        update_payloads.append(payload)
+        return _Chain()
+
+    mock_client.table.return_value = mock_client
+    mock_client.select.return_value = mock_client
+    mock_client.eq.return_value = mock_client
+    mock_client.gte.return_value = mock_client
+    mock_client.order.return_value = mock_client
+    mock_client.insert.return_value = mock_client
+    mock_client.update = _update
+    mock_client.execute = AsyncMock(return_value=execute_upcoming)
+
+    async def _mock_supabase():
+        return mock_client
+
+    monkeypatch.setattr(adapt_module, "_get_async_supabase", _mock_supabase)
+
+    signal = _sig(type_="underperformance", session_id="sess-trigger", compliance_pct=40.0)
+    result = await adapt_module.apply_micro_adjustment(TEST_USER_ID, signal)
+
+    assert result["status"] == "applied"
+    session_updates = [p for p in update_payloads if "duration_minutes" in p]
+    assert len(session_updates) == 1
+    assert "tss_target" not in session_updates[0], (
+        f"NULL tss_target must not be scaled into a value: {session_updates[0]}"
+    )
+    assert session_updates[0]["duration_minutes"] == 48.0
+
+
 # ---------------------------------------------------------------------------
 # ADAPT-02: test_micro_macro_branch
 # ---------------------------------------------------------------------------

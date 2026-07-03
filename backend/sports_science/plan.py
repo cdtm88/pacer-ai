@@ -16,6 +16,28 @@ from .types import ToolResult
 # Default day assignments when preferred_days is not specified or insufficient
 _DEFAULT_DAYS = ["Tuesday", "Thursday", "Saturday", "Sunday"]
 
+# Coggan IF midpoints used to derive per-session TSS targets (pure computation,
+# owned by the tool library per the trust model). Zone 2 endurance/strength
+# sessions use the midpoint of the Coggan zone 2 band (0.56-0.75 -> 0.655);
+# zone 1 recovery sessions use 0.50.
+_SESSION_TYPE_IF = {
+    "endurance": 0.655,
+    "strength": 0.655,
+    "recovery": 0.50,
+}
+
+
+def _estimate_session_tss(session_type: str, duration_minutes: int) -> float:
+    """
+    Steady-state TSS estimate for a planned session.
+
+    Coggan TSS definition: TSS = duration_hours * IF^2 * 100 (for a steady
+    session where NP == IF * FTP). IF comes from the session type's zone
+    midpoint in _SESSION_TYPE_IF.
+    """
+    intensity_factor = _SESSION_TYPE_IF.get(session_type, 0.655)
+    return round(duration_minutes / 60 * (intensity_factor ** 2) * 100, 1)
+
 # Session count from weekly_hours
 def _sessions_per_week(weekly_hours: float) -> int:
     if weekly_hours <= 1.0:
@@ -160,6 +182,10 @@ def _build_sessions(
                 "zone_targets": zone2_targets,
                 "power_targets": power_targets,
                 "rpe_target": rpe,
+                # CR-01: per-session TSS target so downstream consumers
+                # (underperformance detection, ride compliance, micro/macro
+                # TSS adjustment) have a real planned value to compare against.
+                "tss_target": _estimate_session_tss(session_type, duration),
             })
 
     return sessions

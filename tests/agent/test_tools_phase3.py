@@ -184,6 +184,39 @@ def test_back_constraints():
     )
 
 
+def test_generate_plan_sessions_have_tss_target():
+    """
+    CR-01: every generated session must carry a positive, tool-derived
+    tss_target so downstream detection/compliance/adjustment paths work.
+    """
+    from backend.sports_science.plan import generate_plan
+
+    result = generate_plan(
+        user_id="u1",
+        weekly_hours=3.0,
+        back_status="none",
+        current_ctl=0.0,
+        load_targets={"recommended_ctl_target": 8.0},
+        hr_zones=[{"zone": 2, "lower_bpm": 120, "upper_bpm": 145}],
+        ftp_confidence="medium",
+        ftp_watts=200.0,
+    )
+
+    for session in result.value["sessions"]:
+        assert session.get("tss_target") is not None, (
+            f"Week {session['week']} {session['day']} session has no tss_target"
+        )
+        assert session["tss_target"] > 0
+
+    # Recovery sessions (zone 1) must have a lower TSS-per-minute than
+    # endurance sessions (zone 2) -- the IF mapping must actually discriminate.
+    endurance = next(s for s in result.value["sessions"] if s["type"] == "endurance")
+    recovery = next(s for s in result.value["sessions"] if s["type"] == "recovery")
+    assert (recovery["tss_target"] / recovery["duration_minutes"]) < (
+        endurance["tss_target"] / endurance["duration_minutes"]
+    )
+
+
 # ---------------------------------------------------------------------------
 # save_profile unit test (async, mocked Supabase)
 # ---------------------------------------------------------------------------
@@ -300,6 +333,57 @@ async def test_dispatch_tool_persists_generate_plan(monkeypatch):
     assert len(payload["value"]["sessions"]) > 0
     for session in payload["value"]["sessions"]:
         assert session.get("id", "").startswith("sess-")
+
+
+async def test_persist_generated_plan_writes_tss_target(monkeypatch):
+    """
+    CR-01 regression: _persist_generated_plan must include a non-NULL positive
+    tss_target in every inserted sessions row.
+    """
+    import backend.agent.tools as tools_module
+
+    captured_session_rows: list = []
+
+    class _MockQuery:
+        def __init__(self, table_name):
+            self._table_name = table_name
+            self._payload = None
+
+        def insert(self, payload):
+            self._payload = payload
+            if self._table_name == "sessions":
+                captured_session_rows.extend(payload)
+            return self
+
+        async def execute(self):
+            if self._table_name == "plans":
+                return MagicMock(data=[{"id": "mock-plan-uuid-tss"}])
+            rows = [{"id": f"sess-{i}"} for i in range(len(self._payload))]
+            return MagicMock(data=rows)
+
+    class _MockClient:
+        def table(self, name):
+            return _MockQuery(name)
+
+    async def _mock_get_async_supabase():
+        return _MockClient()
+
+    monkeypatch.setattr(tools_module, "_get_async_supabase", _mock_get_async_supabase)
+
+    block = _FakeToolUseBlock("generate_plan", _generate_plan_inputs())
+    audit_log: list = []
+
+    tool_result = await tools_module.dispatch_tool(
+        block, audit_log, user_id="00000000-0000-0000-0000-000000000042"
+    )
+
+    assert tool_result["is_error"] is False
+    assert len(captured_session_rows) > 0
+    for row in captured_session_rows:
+        assert row.get("tss_target") is not None, (
+            f"sessions insert row missing tss_target: {row}"
+        )
+        assert row["tss_target"] > 0
 
 
 async def test_dispatch_tool_generate_plan_uses_injected_user_id(monkeypatch):

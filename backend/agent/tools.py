@@ -489,6 +489,9 @@ async def _persist_generated_plan(user_id: str, plan_value: dict) -> None:
                 "zone_targets": session["zone_targets"],
                 "power_targets": session["power_targets"],
                 "rpe_target": session["rpe_target"],
+                # CR-01: persist the tool-derived TSS target so detection,
+                # compliance, and adjustment paths operate on real values.
+                "tss_target": session.get("tss_target"),
                 # Dual-column pattern (must stay hand-synced): both duration_mins
                 # and duration_minutes are set from the same session duration.
                 "duration_mins": session["duration_minutes"],

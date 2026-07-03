@@ -545,7 +545,9 @@ async def test_session_compliance(monkeypatch):
     update_payloads: list[dict] = []
     call_count = {"n": 0}
 
-    planned_session_row = {"tss": 50.0, "session_type": "endurance"}
+    # WR-12: realistic row shape -- production code reads 'id' and 'tss_target'
+    # (NOT 'tss'/'session_type'); the old unrealistic row masked CR-01.
+    planned_session_row = {"id": "sess-compliance-001", "tss_target": 50.0, "type": "endurance"}
 
     execute_with_session = MagicMock()
     execute_with_session.data = [planned_session_row]
@@ -611,6 +613,18 @@ async def test_session_compliance(monkeypatch):
         f"Expected 'compliance_pct' in rides UPDATE when planned session exists. "
         f"Got: {ride_payload}"
     )
+    # WR-12/CR-01: the compliance value must be REAL, not None -- the old test
+    # passed vacuously with compliance_pct=None because the mocked session row
+    # had no tss_target.
+    assert ride_payload["compliance_pct"] is not None, (
+        f"compliance_pct is None -- planned tss_target was not read: {ride_payload}"
+    )
+    expected_pct = ride_payload["tss"] / 50.0 * 100
+    assert ride_payload["compliance_pct"] == pytest.approx(expected_pct, abs=0.1), (
+        f"compliance_pct {ride_payload['compliance_pct']} != expected {expected_pct}"
+    )
+    # The matched session must also be linked on the rides row.
+    assert ride_payload.get("session_id") == "sess-compliance-001"
 
 
 # ---------------------------------------------------------------------------
