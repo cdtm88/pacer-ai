@@ -6,6 +6,8 @@ Test status at review time: frontend 79/79 pass; backend 212 pass / 9 fail (8 SS
 
 ## Phase 6 — Core Loop Persistence
 
+Deploy context (see Phase 7 decision): the app runs on Vercel serverless only. The ride processing pipeline currently runs via FastAPI BackgroundTasks, which Vercel freezes post-response — any Phase 6 rework of process_ride_background should make it inline-awaited (or durable) rather than deepening the BackgroundTasks dependency.
+
 Critical:
 - Generated plans never persisted. plan.py:207-215 returns sessions with plan_id None; zero inserts into `sessions` anywhere (grep-verified). Today/Agenda/ZWO/calendar/adaptations read an empty table. Core product loop broken end-to-end.
 - FTP key mismatch: rides.py:236 reads `ftp_value.get("ftp_watts", ...)` but estimate_ftp_from_rides returns key `"ftp"` (ftp.py:100). Estimated FTP silently discarded; users stay at 150W placeholder with is_estimated=False.
@@ -27,16 +29,24 @@ Major/minor to fold in:
 
 ## Phase 7 — Deploy Consolidation
 
-Critical:
-- Dockerfile CMD `gunicorn ... api.main:app` — api/main.py does not exist (app is backend/main.py). Dockerfile copies only api/, never backend/. Railway container cannot boot at all.
-- frontend/src/lib/api.ts:6 BASE='' hardcoded same-origin; VITE_API_URL declared/documented but never read. Railway backend unreachable from shipped frontend.
-- Vercel path runs SSE + BackgroundTasks (ride TSS/PMC pipeline, calendar pushes) on serverless; post-response work frozen. Deploy targets mutually contradictory.
-- Two conflicting vercel.json (root routes /api/* → api/index.py; frontend/vercel.json rewrites everything incl. /api/* to index.html).
-- README env table: documents SUPABASE_SERVICE_KEY, code requires SUPABASE_SERVICE_ROLE_KEY; missing SUPABASE_JWT_SECRET, CALENDAR_FERNET_KEY, BACKEND_BASE_URL, ANTHROPIC_MODEL; README dev/deploy commands target api.main:app (fail).
+**DECISION (2026-07-03, user): Vercel is the sole deploy target. Railway is abandoned.** The Railway findings below are resolved by deletion, not repair. Same-origin BASE='' in api.ts is correct for Vercel and stays.
+
+Resolve by removal:
+- Dockerfile (broken anyway: CMD targets nonexistent api.main:app, never copies backend/) — delete.
+- railway.toml — delete.
+- Railway references in README (deploy section, `uvicorn api.main:app` commands) and CLAUDE.md stack table — update to Vercel.
+- VITE_API_URL: no longer needed for prod (same-origin). Either remove from docs/vite-env.d.ts or keep as optional local-dev override; pick one and make code+docs agree.
+
+Must fix for Vercel to be correct:
+- BackgroundTasks are unreliable on serverless (function frozen post-response): ride TSS/PMC pipeline (rides.py:556), calendar pushes, adaptation calendar sync. Move inline-awaited (acceptable latency for single-user) or to a durable mechanism (Vercel Queues / cron). This is a data-loss class bug on the chosen platform.
+- SSE streaming on /chat/stream and /onboarding/*: verify function duration limits and streaming behavior on the deployed Python function (Fluid Compute; default 300s cap). Add keepalive frames.
+- Two conflicting vercel.json: root routes /api/* → api/index.py; frontend/vercel.json rewrites everything incl. /api/* to index.html. Determine actual Vercel project root and delete the dead config.
+- api/index.py serves SPA from gitignored frontend/dist (503 risk) and duplicates root vercel.json's rewrite — serve the SPA as Vercel static build output instead and strip the fallback.
+- README env table: documents SUPABASE_SERVICE_KEY, code requires SUPABASE_SERVICE_ROLE_KEY; missing SUPABASE_JWT_SECRET, CALENDAR_FERNET_KEY, BACKEND_BASE_URL, ANTHROPIC_MODEL. Document Vercel env setup (vercel env).
 - Zero CREATE INDEX in migrations; unindexed user_id/FK on sessions, rides, conversations, messages, plans, adaptations, capability_gaps, oauth_states.
 - Storage bucket `fits` (rides.py:508) not provisioned as code; fresh env 404s on upload.
 
-Also: api/index.py serves SPA from gitignored frontend/dist (503 risk); requirements.txt mixed pinning, no lockfile; oauth_states no TTL/cleanup; docstrings still say api/main.py etc. (rename evidence); README `ruff check api/` checks nothing; backend/main.py FRONTEND_URL comma-list used raw as redirect base in calendar.py:279,362.
+Also: requirements.txt mixed pinning, no lockfile (gunicorn can be dropped with Railway); oauth_states no TTL/cleanup; docstrings still say api/main.py etc. (rename evidence); README `ruff check api/` checks nothing; backend/main.py FRONTEND_URL comma-list used raw as redirect base in calendar.py:279,362.
 
 Env inventory (backend): SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_JWT_SECRET, ANTHROPIC_API_KEY, ANTHROPIC_MODEL, FRONTEND_URL, BACKEND_BASE_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, CALENDAR_FERNET_KEY, PORT. Frontend: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY (+VITE_API_URL once wired).
 

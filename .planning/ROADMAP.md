@@ -19,7 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: UI and Calendar** - React PWA, all screens, Google Calendar integration, Vercel deployment (completed 2026-06-20)
 - [x] **Phase 5: During-Session and ZWO Export** - iOS-safe session stepper with wake lock, ZWO file generator with Zwift acceptance test (completed 2026-06-21)
 - [ ] **Phase 6: Core Loop Persistence** - Persist generated plans as sessions rows, fix FTP/PMC correctness, link rides to sessions, idempotent adaptations
-- [ ] **Phase 7: Deploy Consolidation** - One working deploy target: fix Railway boot, API URL wiring, Vercel config conflicts, env docs, DB indexes
+- [ ] **Phase 7: Deploy Consolidation** - Vercel is the sole deploy target: remove Railway artifacts, make SSE and background FIT processing serverless-safe, resolve config conflicts, env docs, DB indexes
 - [ ] **Phase 8: Trust Model Integrity** - Persist audit log, scan tool inputs, tighten attribution, collect LTHR, correct HR zones and load constraints
 - [ ] **Phase 9: Frontend Resilience** - Chat SSE recovery and history reload, session persistence staleness, iOS export/auth fixes, contract mismatches, error boundary
 - [ ] **Phase 10: Hygiene and Safety Nets** - Repair stale tests, contract tests, SSE token exchange, rate limiting, CI, repo cleanup
@@ -219,7 +219,7 @@ Plans:
 
 ### Phase 7: Deploy Consolidation
 
-**Goal:** One deploy target that boots and serves the app end-to-end: Railway hosts the API (Dockerfile copies `backend/`, CMD targets `backend.main:app`), frontend reads `VITE_API_URL`, CORS configured, conflicting `vercel.json` resolved, README env-var table corrected and completed (SUPABASE_SERVICE_ROLE_KEY, SUPABASE_JWT_SECRET, CALENDAR_FERNET_KEY, BACKEND_BASE_URL, ANTHROPIC_MODEL), indexes added on all user_id/FK columns, `fits` storage bucket provisioned as config.
+**Goal:** Vercel is the sole, fully working deploy target (decision 2026-07-03: Railway abandoned). Remove Railway artifacts (Dockerfile, railway.toml, Railway references in README/CLAUDE.md); resolve the conflicting root vs frontend `vercel.json` so `/api/*` reliably reaches the Python function and the SPA is served as static build (drop the api/index.py frontend/dist fallback); make the serverless path correct: SSE streaming on `/chat/stream` and `/onboarding/*` verified within Vercel function limits, and all post-response BackgroundTasks work (ride TSS/PMC pipeline, calendar pushes, adaptation sync) moved inline-awaited or to a durable mechanism since Vercel freezes functions after the response; README env-var table corrected and completed (SUPABASE_SERVICE_ROLE_KEY, SUPABASE_JWT_SECRET, CALENDAR_FERNET_KEY, BACKEND_BASE_URL, ANTHROPIC_MODEL) with Vercel env setup documented; indexes added on all user_id/FK columns; `fits` storage bucket provisioned as config.
 **Requirements**: TBD
 **Depends on:** Phase 6
 **Plans:** 0 plans
