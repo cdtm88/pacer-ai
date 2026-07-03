@@ -529,14 +529,18 @@ async def upload_fit(
     ftp_used, is_estimated = await get_user_ftp(user_id)
 
     # --- Content-addressed Storage path (T-06-12): identical content always maps to
-    #     the same object, removing filename-collision/overwrite surprises. ---
-    storage_path = f"fits/{user_id}/{content_hash}.fit"
+    #     the same object, removing filename-collision/overwrite surprises.
+    #     WR-04: this is the object KEY within the 'fits' bucket (no bucket prefix --
+    #     a future storage.from_('fits').download(raw_fit_path) must not 404), and
+    #     the SAME variable is used for both the upload and the DB row so the two
+    #     can never diverge. ---
+    storage_path = f"{user_id}/{content_hash}.fit"
 
     # --- Upload raw bytes to Supabase Storage (best-effort) ---
     try:
         supabase = await _get_async_supabase()
         await supabase.storage.from_("fits").upload(
-            path=f"{user_id}/{content_hash}.fit",
+            path=storage_path,
             file=file_bytes,
             file_options={"content-type": "application/octet-stream"},
         )

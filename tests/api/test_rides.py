@@ -147,6 +147,47 @@ async def test_upload_returns_200(monkeypatch):
     assert captured["called"] is True, "Expected process_ride_background to have run inline"
 
 
+async def test_raw_fit_path_matches_storage_object_key(monkeypatch):
+    """
+    WR-04: rides.raw_fit_path must equal the object key passed to
+    storage.from_('fits').upload -- with no duplicated 'fits/' bucket prefix --
+    so a future download(raw_fit_path) resolves.
+    """
+    from backend.main import app
+    import backend.routes.rides as rides_module
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
+    client_mock, rides_mock = _make_rides_mock()
+    monkeypatch.setattr(rides_module, "_get_async_supabase", AsyncMock(return_value=client_mock))
+    monkeypatch.setattr(rides_module, "get_user_ftp", AsyncMock(return_value=(150.0, True)))
+    mock_bg, _captured = _make_background_mock()
+    monkeypatch.setattr(rides_module, "process_ride_background", mock_bg)
+
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        with open(FIXTURE_PATH, "rb") as f:
+            response = await client.post(
+                "/rides/upload",
+                files={"file": ("sample_zwift.fit", f, "application/octet-stream")},
+                headers=auth_headers(),
+            )
+
+    assert response.status_code == 200
+
+    upload_call = client_mock.storage.from_.return_value.upload.call_args
+    uploaded_key = upload_call.kwargs["path"]
+
+    insert_row = rides_mock.insert.call_args.args[0]
+    assert insert_row["raw_fit_path"] == uploaded_key, (
+        f"raw_fit_path {insert_row['raw_fit_path']!r} != uploaded object key {uploaded_key!r}"
+    )
+    assert not insert_row["raw_fit_path"].startswith("fits/"), (
+        "raw_fit_path must not duplicate the bucket name in the object key"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Task 2: content-hash dedup (T-06-06)
 # ---------------------------------------------------------------------------
