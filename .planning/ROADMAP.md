@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Coaching Loop** - FIT ingestion, plan generation, onboarding interview, and adaptive re-planning (completed 2026-06-20)
 - [x] **Phase 4: UI and Calendar** - React PWA, all screens, Google Calendar integration, Vercel deployment (completed 2026-06-20)
 - [x] **Phase 5: During-Session and ZWO Export** - iOS-safe session stepper with wake lock, ZWO file generator with Zwift acceptance test (completed 2026-06-21)
-- [ ] **Phase 6: Core Loop Persistence** - Persist generated plans as sessions rows, fix FTP/PMC correctness, link rides to sessions, idempotent adaptations
+- [x] **Phase 6: Core Loop Persistence** - Persist generated plans as sessions rows, fix FTP/PMC correctness, link rides to sessions, idempotent adaptations (completed 2026-07-03)
 - [ ] **Phase 7: Deploy Consolidation** - Vercel is the sole deploy target: remove Railway artifacts, make SSE and background FIT processing serverless-safe, resolve config conflicts, env docs, DB indexes
 - [ ] **Phase 8: Trust Model Integrity** - Persist audit log, scan tool inputs, tighten attribution, collect LTHR, correct HR zones and load constraints
 - [ ] **Phase 9: Frontend Resilience** - Chat SSE recovery and history reload, session persistence staleness, iOS export/auth fixes, contract mismatches, error boundary
@@ -211,7 +211,7 @@ Plans:
 **Goal:** A generated plan becomes real database state and ride data flows through it correctly: plan confirmation writes `plans` and `sessions` rows; Today/Agenda/ZWO/calendar read real sessions; estimated FTP is actually used (fix `ftp_watts` vs `ftp` key mismatch, add missing `profiles.ftp`/`lthr` columns); PMC uses ride date not upload date, decays through zero-TSS gap days, sums same-day rides, and dedups re-uploaded FIT files; rides link to sessions and mark them completed; adaptation checks are idempotent (signals consumed once, `/missed` endpoint works, macro-replan confirm endpoint exists).
 **Requirements**: No new IDs; repairs existing FIT-04, FIT-05, TOOL-03, TOOL-05, PLAN-01, PLAN-04, ONBD-04, ADAPT-01, ADAPT-02, ADAPT-03, ADAPT-04, TRANSP-02 (all marked complete but broken in APP-REVIEW-260703)
 **Depends on:** Phase 5
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 **Wave 1** *(schema foundation, blocking)*
@@ -226,7 +226,7 @@ Plans:
 
 **Wave 3** *(depends on 06-01 + 06-03)*
 
-- [ ] 06-05-PLAN.md — Rides pipeline: FTP key fix + profiles.ftp write-back, content-hash dedup, ride-session link, inline-await (Vercel), recompute_pmc_for_user
+- [x] 06-05-PLAN.md — Rides pipeline: FTP key fix + profiles.ftp write-back, content-hash dedup, ride-session link, inline-await (Vercel), recompute_pmc_for_user
 
 ### Phase 7: Deploy Consolidation
 
@@ -281,7 +281,7 @@ Plans:
 | 3. Coaching Loop | 5/5 | Complete    | 2026-06-20 |
 | 4. UI and Calendar | 21/21 | Complete   | 2026-06-21 |
 | 5. During-Session and ZWO Export | 5/5 | Complete    | 2026-06-21 |
-| 6. Core Loop Persistence | 4/5 | In Progress|  |
+| 6. Core Loop Persistence | 5/5 | Complete   | 2026-07-03 |
 | 7. Deploy Consolidation | 0/? | Not planned | - |
 | 8. Trust Model Integrity | 0/? | Not planned | - |
 | 9. Frontend Resilience | 0/? | Not planned | - |
