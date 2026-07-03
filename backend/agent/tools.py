@@ -22,6 +22,7 @@ is_error tool_result blocks and appends an audit entry per call (TRUST-04).
 import asyncio
 import hashlib
 import json
+from datetime import date, timedelta
 
 from backend.sports_science import (
     calculate_power_zones,
@@ -36,6 +37,7 @@ from backend.sports_science import (
 from backend.sports_science.types import ToolResult  # noqa: F401 – referenced in type hints below
 from backend.sports_science.profile import save_profile
 from backend.sports_science.plan import generate_plan
+from backend.db import get_async_supabase as _get_async_supabase
 
 # ---------------------------------------------------------------------------
 # Tool Registry
@@ -390,6 +392,118 @@ def dedup_key(name: str, inputs: dict) -> tuple:
         json.dumps(inputs, sort_keys=True).encode()
     ).hexdigest()
     return (name, digest)
+
+
+# ---------------------------------------------------------------------------
+# Plan persistence (Phase 6 06-02): generate_plan is a pure, DB-free tool
+# (locked invariant in sports_science/plan.py). Persistence for its output
+# lives here, in the orchestration layer, not in the pure tool itself.
+# ---------------------------------------------------------------------------
+
+# Monday=0 .. Sunday=6, matching date.weekday().
+_DAY_INDEX = {
+    "Monday": 0,
+    "Tuesday": 1,
+    "Wednesday": 2,
+    "Thursday": 3,
+    "Friday": 4,
+    "Saturday": 5,
+    "Sunday": 6,
+}
+
+
+def _resolve_scheduled_date(confirm_date: date, week: int, day_name: str) -> date:
+    """
+    Resolve a session's (week, day_name) pair to an absolute scheduled_date.
+
+    Week 1 anchors to the Monday of confirm_date's week (confirm_date minus its
+    weekday offset). Later weeks are Monday-of-week-1 plus (week - 1) full weeks
+    plus the day-of-week offset.
+
+    Planner-locked policy (resolves RESEARCH A3): for week == 1 only, if the
+    computed date falls strictly before confirm_date, roll it forward by 7 days
+    so no Week-1 session is ever created in the past. Without this, a plan
+    confirmed mid-week would put Monday/Tuesday sessions in the past and they
+    would be falsely detected as missed.
+    """
+    monday_of_week1 = confirm_date - timedelta(days=confirm_date.weekday())
+    target = monday_of_week1 + timedelta(weeks=week - 1, days=_DAY_INDEX[day_name])
+
+    if week == 1 and target < confirm_date:
+        target = target + timedelta(days=7)
+
+    return target
+
+
+async def _persist_generated_plan(user_id: str, plan_value: dict) -> None:
+    """
+    Persist a generate_plan() result as one `plans` row and one `sessions` row
+    per generated session, then mutate plan_value in place so the caller's
+    tool_result carries real database ids.
+
+    Mutates:
+      - plan_value["plan_id"] -> the inserted plans.id
+      - plan_value["sessions"][i]["id"] -> the inserted sessions.id, in order
+
+    Exceptions propagate deliberately (no swallow-and-log): the outer
+    try/except in dispatch_tool already gives D-14 "never silently swallowed"
+    semantics and will surface a DB failure as a tool error.
+    """
+    supabase = await _get_async_supabase()
+    sessions = plan_value["sessions"]
+
+    plans_insert = await (
+        supabase.table("plans")
+        .insert(
+            {
+                "user_id": user_id,
+                "sessions": sessions,
+                "mesocycle_weeks": plan_value.get("mesocycle_weeks", 4),
+                # generate_plan's return value does not carry ftp_confidence
+                # (it lives on ToolResult.inputs, which _persist_generated_plan
+                # does not receive); left None when unavailable.
+                "ftp_confidence": plan_value.get("ftp_confidence"),
+                "status": "active",
+            }
+        )
+        .execute()
+    )
+    plan_id = plans_insert.data[0]["id"]
+
+    confirm_date = date.today()
+    session_rows = []
+    for session in sessions:
+        scheduled_date = _resolve_scheduled_date(
+            confirm_date, session["week"], session["day"]
+        )
+        session_rows.append(
+            {
+                "plan_id": plan_id,
+                "user_id": user_id,
+                "status": "planned",
+                "scheduled_date": scheduled_date.isoformat(),
+                "week_num": session["week"],
+                "type": session["type"],
+                "objective": session["objective"],
+                "structure": session["structure"],
+                "zone_targets": session["zone_targets"],
+                "power_targets": session["power_targets"],
+                "rpe_target": session["rpe_target"],
+                # Dual-column pattern (must stay hand-synced): both duration_mins
+                # and duration_minutes are set from the same session duration.
+                "duration_mins": session["duration_minutes"],
+                "duration_minutes": session["duration_minutes"],
+            }
+        )
+
+    sessions_insert = await (
+        supabase.table("sessions").insert(session_rows).execute()
+    )
+
+    for i, row in enumerate(sessions_insert.data):
+        sessions[i]["id"] = row["id"]
+
+    plan_value["plan_id"] = plan_id
 
 
 # ---------------------------------------------------------------------------
