@@ -66,8 +66,11 @@ def _make_rides_mock(ride_id="test-ride-001"):
 
     async def execute_dispatch():
         _call_count["n"] += 1
-        # First execute: rides INSERT -> returns ride_id
+        # First execute: content-hash dedup pre-check SELECT -> no existing row
         if _call_count["n"] == 1:
+            return execute_empty_result
+        # Second execute: rides INSERT -> returns ride_id
+        if _call_count["n"] == 2:
             return execute_insert_result
         # All subsequent: empty (PMC history, training_sessions, rides SELECT, etc.)
         return execute_empty_result
@@ -107,8 +110,10 @@ def _make_background_mock(ride_id="test-ride-001"):
 async def test_upload_returns_200(monkeypatch):
     """
     FIT-01: POST /rides/upload with a valid .FIT file returns 200 with ride_id.
-    Background task is mocked to avoid live DB calls.
+    The ride pipeline is mocked to avoid live DB calls.
     Phase 4: request requires a valid JWT; user_id is no longer a form field.
+    Task 3: the pipeline is inline-awaited (Vercel-safe); the returned status
+    is 'processed', not the old BackgroundTasks-era 'processing'.
     """
     from backend.main import app
     import backend.routes.rides as rides_module
@@ -138,7 +143,231 @@ async def test_upload_returns_200(monkeypatch):
     assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
     body = response.json()
     assert "ride_id" in body, f"Expected 'ride_id' in response: {body}"
-    assert body["status"] == "processing", f"Expected status='processing': {body}"
+    assert body["status"] == "processed", f"Expected status='processed': {body}"
+    assert captured["called"] is True, "Expected process_ride_background to have run inline"
+
+
+# ---------------------------------------------------------------------------
+# Task 2: content-hash dedup (T-06-06)
+# ---------------------------------------------------------------------------
+
+
+async def test_dedup_precheck_short_circuits(monkeypatch):
+    """
+    Task 2: A byte-identical re-upload is caught by the content-hash pre-check
+    SELECT and returns duplicate=true with no second rides insert.
+    """
+    from backend.main import app
+    import backend.routes.rides as rides_module
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
+
+    existing_result = MagicMock()
+    existing_result.data = [{"id": "existing-ride-001"}]
+
+    rides_mock = MagicMock()
+    rides_mock.select = MagicMock(return_value=rides_mock)
+    rides_mock.eq = MagicMock(return_value=rides_mock)
+    rides_mock.insert = MagicMock(return_value=rides_mock)
+    rides_mock.execute = AsyncMock(return_value=existing_result)
+
+    storage_mock = MagicMock()
+    storage_mock.from_ = MagicMock(return_value=storage_mock)
+    storage_mock.upload = AsyncMock(return_value=MagicMock())
+
+    client_mock = MagicMock()
+    client_mock.table = MagicMock(return_value=rides_mock)
+    client_mock.storage = storage_mock
+
+    monkeypatch.setattr(rides_module, "_get_async_supabase", AsyncMock(return_value=client_mock))
+    monkeypatch.setattr(rides_module, "get_user_ftp", AsyncMock(return_value=(150.0, True)))
+    mock_bg, _captured = _make_background_mock()
+    monkeypatch.setattr(rides_module, "process_ride_background", mock_bg)
+
+    assert FIXTURE_PATH.exists(), f"Test fixture missing: {FIXTURE_PATH}"
+
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        with open(FIXTURE_PATH, "rb") as f:
+            response = await client.post(
+                "/rides/upload",
+                files={"file": ("sample_zwift.fit", f, "application/octet-stream")},
+                headers=auth_headers(),
+            )
+
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+    body = response.json()
+    assert body.get("duplicate") is True, f"Expected duplicate=True: {body}"
+    assert body.get("status") == "duplicate", f"Expected status='duplicate': {body}"
+    assert body.get("ride_id") == "existing-ride-001", f"Expected existing ride_id echoed back: {body}"
+    assert rides_mock.insert.call_count == 0, "Duplicate short-circuit must not call insert"
+
+
+async def test_dedup_unique_violation_returns_duplicate(monkeypatch):
+    """
+    Task 2 (T-06-06): a concurrent-upload race that slips past the pre-check
+    SELECT and hits the DB UNIQUE(user_id, content_hash) constraint at INSERT
+    time is caught and returns the same duplicate=true response, not a 500.
+    """
+    from backend.main import app
+    import backend.routes.rides as rides_module
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
+
+    empty_result = MagicMock()
+    empty_result.data = []
+
+    existing_after_race = MagicMock()
+    existing_after_race.data = [{"id": "raced-ride-001"}]
+
+    class FakeUniqueViolation(Exception):
+        code = "23505"
+
+    call_state = {"n": 0}
+
+    async def execute_dispatch():
+        call_state["n"] += 1
+        if call_state["n"] == 1:
+            return empty_result  # pre-check: no duplicate found
+        if call_state["n"] == 2:
+            raise FakeUniqueViolation(
+                'duplicate key value violates unique constraint "rides_user_content_hash_unique"'
+            )
+        return existing_after_race  # post-race re-check finds the row the other request inserted
+
+    rides_mock = MagicMock()
+    rides_mock.select = MagicMock(return_value=rides_mock)
+    rides_mock.eq = MagicMock(return_value=rides_mock)
+    rides_mock.insert = MagicMock(return_value=rides_mock)
+    rides_mock.execute = execute_dispatch
+
+    storage_mock = MagicMock()
+    storage_mock.from_ = MagicMock(return_value=storage_mock)
+    storage_mock.upload = AsyncMock(return_value=MagicMock())
+
+    client_mock = MagicMock()
+    client_mock.table = MagicMock(return_value=rides_mock)
+    client_mock.storage = storage_mock
+
+    monkeypatch.setattr(rides_module, "_get_async_supabase", AsyncMock(return_value=client_mock))
+    monkeypatch.setattr(rides_module, "get_user_ftp", AsyncMock(return_value=(150.0, True)))
+    mock_bg, _captured = _make_background_mock()
+    monkeypatch.setattr(rides_module, "process_ride_background", mock_bg)
+
+    assert FIXTURE_PATH.exists(), f"Test fixture missing: {FIXTURE_PATH}"
+
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        with open(FIXTURE_PATH, "rb") as f:
+            response = await client.post(
+                "/rides/upload",
+                files={"file": ("sample_zwift.fit", f, "application/octet-stream")},
+                headers=auth_headers(),
+            )
+
+    assert response.status_code == 200, (
+        f"Expected 200 (duplicate), got {response.status_code}: {response.text}"
+    )
+    body = response.json()
+    assert body.get("duplicate") is True, f"Expected duplicate=True after unique-violation race: {body}"
+    assert body.get("ride_id") == "raced-ride-001", f"Expected raced ride_id echoed back: {body}"
+
+
+# ---------------------------------------------------------------------------
+# Task 1: get_user_ftp reads the correct 'ftp' key and writes back profiles.ftp
+# ---------------------------------------------------------------------------
+
+
+async def test_get_user_ftp_writeback(monkeypatch):
+    """
+    Task 1: get_user_ftp reads the estimated value from key 'ftp' (not the
+    stale 'ftp_watts' key) and, when confidence is medium/high, writes the
+    resolved value back to profiles.ftp filtered by user_id (T-06-08).
+    """
+    from backend.sports_science.types import ToolResult
+    import backend.routes.rides as rides_module
+
+    fake_result = ToolResult(
+        value={"ftp": 245.3, "cp": 245.3, "wprime": 20000.0, "confidence": "medium"},
+        unit="watts",
+        methodology="test",
+        inputs={"confidence": "medium"},
+    )
+    monkeypatch.setattr(rides_module, "estimate_ftp_from_rides", lambda efforts: fake_result)
+
+    update_calls: list[dict] = []
+
+    profiles_mock = MagicMock()
+
+    def capture_profile_update(payload):
+        update_calls.append(payload)
+        return profiles_mock
+
+    profiles_mock.update = MagicMock(side_effect=capture_profile_update)
+    profiles_mock.eq = MagicMock(return_value=profiles_mock)
+    profiles_mock.execute = AsyncMock(return_value=MagicMock(data=[]))
+
+    rides_mock = MagicMock()
+    rides_mock.select = MagicMock(return_value=rides_mock)
+    rides_mock.eq = MagicMock(return_value=rides_mock)
+    rides_mock.order = MagicMock(return_value=rides_mock)
+    rides_mock.execute = AsyncMock(return_value=MagicMock(data=[]))
+
+    def table_dispatch(name):
+        return profiles_mock if name == "profiles" else rides_mock
+
+    client_mock = MagicMock()
+    client_mock.table = MagicMock(side_effect=table_dispatch)
+
+    monkeypatch.setattr(rides_module, "_get_async_supabase", AsyncMock(return_value=client_mock))
+
+    ftp, is_estimated = await rides_module.get_user_ftp(TEST_USER_ID)
+
+    assert ftp == 245.3, f"Expected estimated FTP 245.3 read from key 'ftp', got {ftp}"
+    assert is_estimated is False, "Expected is_estimated=False for a medium-confidence estimate"
+
+    assert len(update_calls) == 1, (
+        f"Expected exactly one profiles.ftp write-back call, got {update_calls}"
+    )
+    assert update_calls[0] == {"ftp": 245.3}, f"Unexpected profiles update payload: {update_calls[0]}"
+    profiles_mock.eq.assert_called_with("user_id", TEST_USER_ID)
+
+
+async def test_get_user_ftp_cold_start_unchanged(monkeypatch):
+    """
+    Task 1 regression guard: insufficient-data confidence still returns the
+    cold-start placeholder with is_estimated=True and issues no profiles write.
+    """
+    from backend.sports_science.types import ToolResult
+    import backend.routes.rides as rides_module
+
+    fake_result = ToolResult(
+        value=None,
+        unit="watts",
+        methodology="test",
+        inputs={"confidence": "insufficient_data"},
+    )
+    monkeypatch.setattr(rides_module, "estimate_ftp_from_rides", lambda efforts: fake_result)
+
+    rides_mock = MagicMock()
+    rides_mock.select = MagicMock(return_value=rides_mock)
+    rides_mock.eq = MagicMock(return_value=rides_mock)
+    rides_mock.order = MagicMock(return_value=rides_mock)
+    rides_mock.execute = AsyncMock(return_value=MagicMock(data=[]))
+
+    client_mock = MagicMock()
+    client_mock.table = MagicMock(return_value=rides_mock)
+
+    monkeypatch.setattr(rides_module, "_get_async_supabase", AsyncMock(return_value=client_mock))
+
+    ftp, is_estimated = await rides_module.get_user_ftp(TEST_USER_ID)
+
+    assert ftp == rides_module.COLD_START_FTP
+    assert is_estimated is True
 
 
 # ---------------------------------------------------------------------------
@@ -211,11 +440,17 @@ def test_missing_fields():
 # ---------------------------------------------------------------------------
 
 
-async def test_tss_computed():
+async def test_tss_computed(monkeypatch):
     """
     FIT-04: process_ride_background computes TSS and fires a rides UPDATE
     with tss > 0 when given a valid parsed dict from the real fixture.
+
+    Task 3: the old single-step PMC upsert is gone; process_ride_background
+    now delegates the full PMC recompute to recompute_pmc_for_user (unit-
+    tested in isolation in tests/test_pmc_recompute.py, 06-03) -- here we
+    only assert the integration point is called with the right arguments.
     """
+    import backend.routes.rides as rides_module
     from backend.routes.rides import parse_fit_file, process_ride_background
 
     assert FIXTURE_PATH.exists(), f"Test fixture missing: {FIXTURE_PATH}"
@@ -225,7 +460,6 @@ async def test_tss_computed():
 
     # Track all calls to the rides mock
     update_payloads: list[dict] = []
-    upsert_payloads: list[dict] = []
 
     # Build a carefully tracked mock
     execute_result = MagicMock()
@@ -234,32 +468,26 @@ async def test_tss_computed():
     chain_mock = MagicMock()
     chain_mock.select.return_value = chain_mock
     chain_mock.insert.return_value = chain_mock
-    chain_mock.upsert.return_value = chain_mock
     chain_mock.update.return_value = chain_mock
     chain_mock.eq.return_value = chain_mock
     chain_mock.order.return_value = chain_mock
+    chain_mock.limit.return_value = chain_mock
     chain_mock.execute = AsyncMock(return_value=execute_result)
 
     # Intercept update calls to capture payloads
-    real_update = chain_mock.update
-
     def capture_update(payload):
         update_payloads.append(payload)
         return chain_mock
 
     chain_mock.update = capture_update
 
-    def capture_upsert(payload, **kwargs):
-        upsert_payloads.append(payload)
-        return chain_mock
-
-    chain_mock.upsert = capture_upsert
-
     client_mock = MagicMock()
     client_mock.table.return_value = chain_mock
     client_mock.storage = MagicMock()
 
-    import backend.routes.rides as rides_module
+    recompute_mock = AsyncMock()
+    monkeypatch.setattr(rides_module, "recompute_pmc_for_user", recompute_mock)
+
     original_get = rides_module._get_async_supabase
 
     async def mock_get_supabase():
@@ -272,6 +500,7 @@ async def test_tss_computed():
             user_id=TEST_USER_ID,
             parsed=parsed,
             ftp_used=150.0,
+            ride_date="2026-06-01",
         )
     finally:
         rides_module._get_async_supabase = original_get
@@ -289,13 +518,8 @@ async def test_tss_computed():
     assert "np_watts" in ride_payload, "rides UPDATE missing np_watts"
     assert "intensity_factor" in ride_payload, "rides UPDATE missing intensity_factor"
 
-    # Assert a pmc_history UPSERT was attempted
-    assert len(upsert_payloads) >= 1, (
-        "Expected at least one pmc_history UPSERT; background task did not update PMC"
-    )
-    pmc_payload = upsert_payloads[0]
-    assert "ctl" in pmc_payload, f"pmc_history UPSERT missing 'ctl': {pmc_payload}"
-    assert "atl" in pmc_payload, f"pmc_history UPSERT missing 'atl': {pmc_payload}"
+    # Assert the full PMC recompute was triggered for the user (Task 3)
+    recompute_mock.assert_awaited_once_with(TEST_USER_ID, client_mock)
 
 
 # ---------------------------------------------------------------------------
@@ -303,12 +527,13 @@ async def test_tss_computed():
 # ---------------------------------------------------------------------------
 
 
-async def test_session_compliance():
+async def test_session_compliance(monkeypatch):
     """
     FIT-05: When a training_sessions row exists for today, process_ride_background
     calls validate_session_vs_actual and its compliance_pct is included in the
     rides UPDATE payload.
     """
+    import backend.routes.rides as rides_module
     from backend.routes.rides import parse_fit_file, process_ride_background
 
     assert FIXTURE_PATH.exists(), f"Test fixture missing: {FIXTURE_PATH}"
@@ -318,7 +543,6 @@ async def test_session_compliance():
 
     # Build mock that returns a planned session on the training_sessions SELECT
     update_payloads: list[dict] = []
-    upsert_payloads: list[dict] = []
     call_count = {"n": 0}
 
     planned_session_row = {"tss": 50.0, "session_type": "endurance"}
@@ -334,25 +558,20 @@ async def test_session_compliance():
     chain_mock.insert.return_value = chain_mock
     chain_mock.eq.return_value = chain_mock
     chain_mock.order.return_value = chain_mock
+    chain_mock.limit.return_value = chain_mock
 
     def capture_update(payload):
         update_payloads.append(payload)
         return chain_mock
 
-    def capture_upsert(payload, **kwargs):
-        upsert_payloads.append(payload)
-        return chain_mock
-
     chain_mock.update = capture_update
-    chain_mock.upsert = capture_upsert
 
-    # Decide which result to return based on call count
+    # Decide which result to return based on call count. Task 3: the old
+    # PMC-load select (previously call 1) is gone, so the sessions SELECT
+    # (ride_date + status='planned') is now the first DB call.
     async def execute_dispatch():
         call_count["n"] += 1
-        # First call: pmc_history SELECT -> empty (cold start)
-        # Second call: training_sessions SELECT -> planned session
-        # All others: empty
-        if call_count["n"] == 2:
+        if call_count["n"] == 1:
             return execute_with_session
         return execute_empty
 
@@ -362,7 +581,8 @@ async def test_session_compliance():
     client_mock.table.return_value = chain_mock
     client_mock.storage = MagicMock()
 
-    import backend.routes.rides as rides_module
+    monkeypatch.setattr(rides_module, "recompute_pmc_for_user", AsyncMock())
+
     original_get = rides_module._get_async_supabase
 
     async def mock_get_supabase():
@@ -375,16 +595,125 @@ async def test_session_compliance():
             user_id=TEST_USER_ID,
             parsed=parsed,
             ftp_used=150.0,
+            ride_date="2026-06-01",
         )
     finally:
         rides_module._get_async_supabase = original_get
 
-    # Assert rides UPDATE includes compliance_pct (validate_session_vs_actual was called)
-    assert len(update_payloads) >= 1, "Expected rides UPDATE to have been called"
-    ride_payload = update_payloads[0]
+    # Assert rides UPDATE includes compliance_pct (validate_session_vs_actual was called).
+    # Find the rides UPDATE payload (contains "tss") rather than assuming index 0, since
+    # the session-flip UPDATE ({"status": "completed"}) may now be captured first.
+    ride_payload = next((p for p in update_payloads if "tss" in p), None)
+    assert ride_payload is not None, (
+        f"Expected a rides UPDATE payload (containing 'tss'): {update_payloads}"
+    )
     assert "compliance_pct" in ride_payload, (
         f"Expected 'compliance_pct' in rides UPDATE when planned session exists. "
         f"Got: {ride_payload}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Task 2: ride-session link (Pattern 4) replaces "first session today" match
+# ---------------------------------------------------------------------------
+
+
+async def test_session_link_flips_planned_session_to_completed(monkeypatch):
+    """
+    Task 2: process_ride_background matches a session scheduled on the ride's
+    own ride_date with status 'planned', flips it to 'completed', and sets
+    rides.session_id -- replacing the old "first session today" fuzzy match.
+    """
+    import backend.routes.rides as rides_module
+    from backend.routes.rides import parse_fit_file, process_ride_background
+
+    assert FIXTURE_PATH.exists(), f"Test fixture missing: {FIXTURE_PATH}"
+    file_bytes = FIXTURE_PATH.read_bytes()
+    parsed = parse_fit_file(file_bytes)
+    assert parsed is not None
+
+    ride_date = "2026-06-15"
+    matched_session_row = {"id": "session-abc-001", "tss_target": 50.0, "type": "endurance"}
+
+    eq_calls: list[tuple] = []
+    update_payloads: list[dict] = []
+
+    execute_with_session = MagicMock()
+    execute_with_session.data = [matched_session_row]
+    execute_empty = MagicMock()
+    execute_empty.data = []
+
+    chain_mock = MagicMock()
+    chain_mock.select.return_value = chain_mock
+    chain_mock.insert.return_value = chain_mock
+    chain_mock.order.return_value = chain_mock
+    chain_mock.limit.return_value = chain_mock
+
+    def capture_eq(*args):
+        eq_calls.append(args)
+        return chain_mock
+
+    chain_mock.eq = MagicMock(side_effect=capture_eq)
+
+    def capture_update(payload):
+        update_payloads.append(payload)
+        return chain_mock
+
+    chain_mock.update = capture_update
+
+    call_count = {"n": 0}
+
+    # Task 3: the old PMC-load select (previously call 1) is gone, so the
+    # sessions SELECT (ride_date + status='planned') is now the first DB call.
+    async def execute_dispatch():
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            return execute_with_session
+        return execute_empty
+
+    chain_mock.execute = execute_dispatch
+
+    client_mock = MagicMock()
+    client_mock.table.return_value = chain_mock
+    client_mock.storage = MagicMock()
+
+    monkeypatch.setattr(rides_module, "recompute_pmc_for_user", AsyncMock())
+
+    original_get = rides_module._get_async_supabase
+
+    async def mock_get_supabase():
+        return client_mock
+
+    rides_module._get_async_supabase = mock_get_supabase
+    try:
+        await process_ride_background(
+            ride_id="test-ride-session-link-001",
+            user_id=TEST_USER_ID,
+            parsed=parsed,
+            ftp_used=150.0,
+            ride_date=ride_date,
+        )
+    finally:
+        rides_module._get_async_supabase = original_get
+
+    # Assert the sessions query matched on the ride's own ride_date and status='planned'
+    assert ("scheduled_date", ride_date) in eq_calls, (
+        f"Expected sessions query filtered by scheduled_date={ride_date}: {eq_calls}"
+    )
+    assert ("status", "planned") in eq_calls, (
+        f"Expected sessions query filtered by status='planned': {eq_calls}"
+    )
+
+    # Assert the matched session was flipped to completed
+    assert {"status": "completed"} in update_payloads, (
+        f"Expected a sessions UPDATE flipping status to 'completed': {update_payloads}"
+    )
+
+    # Assert rides.session_id is set on the rides UPDATE payload (contains "tss")
+    ride_update_payload = next((p for p in update_payloads if "tss" in p), None)
+    assert ride_update_payload is not None, "Expected a rides UPDATE payload containing tss"
+    assert ride_update_payload.get("session_id") == "session-abc-001", (
+        f"Expected rides UPDATE to set session_id: {ride_update_payload}"
     )
 
 
@@ -400,7 +729,7 @@ async def test_fit_upload_integration(monkeypatch):
     Asserts:
     - HTTP 200 with ride_id
     - No 422 parse error
-    - Background task (driven synchronously here) produces TSS > 0
+    - The ride pipeline (mocked, inline-awaited per Task 3) produces TSS > 0
 
     DB is mocked to avoid live Supabase connections.
     """
@@ -413,13 +742,14 @@ async def test_fit_upload_integration(monkeypatch):
         "TSS > 0 assertion cannot be weakened -- fixture must be present."
     )
 
-    # Track background task args to assert TSS > 0 after driving it
+    # Track inline-awaited pipeline args to assert TSS > 0 after driving it
     bg_args: dict = {}
 
-    async def capture_bg(ride_id, user_id, parsed, ftp_used):
+    async def capture_bg(ride_id, user_id, parsed, ftp_used, ride_date):
         bg_args["ride_id"] = ride_id
         bg_args["parsed"] = parsed
         bg_args["ftp_used"] = ftp_used
+        bg_args["ride_date"] = ride_date
 
     client_mock, _ = _make_rides_mock(ride_id="integration-ride-001")
     monkeypatch.setattr(rides_module, "_get_async_supabase", AsyncMock(return_value=client_mock))
@@ -446,7 +776,7 @@ async def test_fit_upload_integration(monkeypatch):
     )
     body = response.json()
     assert "ride_id" in body, f"Expected 'ride_id' in body: {body}"
-    assert body.get("status") == "processing", f"Expected status='processing': {body}"
+    assert body.get("status") == "processed", f"Expected status='processed': {body}"
 
     # Drive TSS computation directly from the captured parsed dict (FIT-06 core assertion)
     from backend.sports_science.metrics import compute_tss
