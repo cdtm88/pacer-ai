@@ -142,6 +142,99 @@ async def test_upload_returns_200(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# Task 1: get_user_ftp reads the correct 'ftp' key and writes back profiles.ftp
+# ---------------------------------------------------------------------------
+
+
+async def test_get_user_ftp_writeback(monkeypatch):
+    """
+    Task 1: get_user_ftp reads the estimated value from key 'ftp' (not the
+    stale 'ftp_watts' key) and, when confidence is medium/high, writes the
+    resolved value back to profiles.ftp filtered by user_id (T-06-08).
+    """
+    from backend.sports_science.types import ToolResult
+    import backend.routes.rides as rides_module
+
+    fake_result = ToolResult(
+        value={"ftp": 245.3, "cp": 245.3, "wprime": 20000.0, "confidence": "medium"},
+        unit="watts",
+        methodology="test",
+        inputs={"confidence": "medium"},
+    )
+    monkeypatch.setattr(rides_module, "estimate_ftp_from_rides", lambda efforts: fake_result)
+
+    update_calls: list[dict] = []
+
+    profiles_mock = MagicMock()
+
+    def capture_profile_update(payload):
+        update_calls.append(payload)
+        return profiles_mock
+
+    profiles_mock.update = MagicMock(side_effect=capture_profile_update)
+    profiles_mock.eq = MagicMock(return_value=profiles_mock)
+    profiles_mock.execute = AsyncMock(return_value=MagicMock(data=[]))
+
+    rides_mock = MagicMock()
+    rides_mock.select = MagicMock(return_value=rides_mock)
+    rides_mock.eq = MagicMock(return_value=rides_mock)
+    rides_mock.order = MagicMock(return_value=rides_mock)
+    rides_mock.execute = AsyncMock(return_value=MagicMock(data=[]))
+
+    def table_dispatch(name):
+        return profiles_mock if name == "profiles" else rides_mock
+
+    client_mock = MagicMock()
+    client_mock.table = MagicMock(side_effect=table_dispatch)
+
+    monkeypatch.setattr(rides_module, "_get_async_supabase", AsyncMock(return_value=client_mock))
+
+    ftp, is_estimated = await rides_module.get_user_ftp(TEST_USER_ID)
+
+    assert ftp == 245.3, f"Expected estimated FTP 245.3 read from key 'ftp', got {ftp}"
+    assert is_estimated is False, "Expected is_estimated=False for a medium-confidence estimate"
+
+    assert len(update_calls) == 1, (
+        f"Expected exactly one profiles.ftp write-back call, got {update_calls}"
+    )
+    assert update_calls[0] == {"ftp": 245.3}, f"Unexpected profiles update payload: {update_calls[0]}"
+    profiles_mock.eq.assert_called_with("user_id", TEST_USER_ID)
+
+
+async def test_get_user_ftp_cold_start_unchanged(monkeypatch):
+    """
+    Task 1 regression guard: insufficient-data confidence still returns the
+    cold-start placeholder with is_estimated=True and issues no profiles write.
+    """
+    from backend.sports_science.types import ToolResult
+    import backend.routes.rides as rides_module
+
+    fake_result = ToolResult(
+        value=None,
+        unit="watts",
+        methodology="test",
+        inputs={"confidence": "insufficient_data"},
+    )
+    monkeypatch.setattr(rides_module, "estimate_ftp_from_rides", lambda efforts: fake_result)
+
+    rides_mock = MagicMock()
+    rides_mock.select = MagicMock(return_value=rides_mock)
+    rides_mock.eq = MagicMock(return_value=rides_mock)
+    rides_mock.order = MagicMock(return_value=rides_mock)
+    rides_mock.execute = AsyncMock(return_value=MagicMock(data=[]))
+
+    client_mock = MagicMock()
+    client_mock.table = MagicMock(return_value=rides_mock)
+
+    monkeypatch.setattr(rides_module, "_get_async_supabase", AsyncMock(return_value=client_mock))
+
+    ftp, is_estimated = await rides_module.get_user_ftp(TEST_USER_ID)
+
+    assert ftp == rides_module.COLD_START_FTP
+    assert is_estimated is True
+
+
+# ---------------------------------------------------------------------------
 # FIT-02: fitdecode WARN parse on real file (no exception raised)
 # ---------------------------------------------------------------------------
 
