@@ -31,3 +31,5 @@ playwright-report/
 # IDE
 .vscode/
 .idea/
+.vercel
+.env*
