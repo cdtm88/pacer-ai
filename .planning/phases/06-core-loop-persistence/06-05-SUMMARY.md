@@ -180,3 +180,16 @@ None — no external service configuration required. Live end-to-end verificatio
 ---
 *Phase: 06-core-loop-persistence*
 *Completed: 2026-07-03*
+
+## Self-Check: PASSED
+- FOUND: backend/routes/rides.py
+- FOUND: tests/api/test_rides.py
+- FOUND: .planning/phases/06-core-loop-persistence/06-05-SUMMARY.md
+- FOUND commit: d70df38 (test)
+- FOUND commit: 834206f (fix)
+- FOUND commit: 9283743 (test)
+- FOUND commit: aa468fd (feat)
+- FOUND commit: 0e57b0d (test)
+- FOUND commit: b03f250 (test)
+- FOUND commit: 07949b1 (feat)
+- FOUND commit: 7050194 (docs, this SUMMARY)
