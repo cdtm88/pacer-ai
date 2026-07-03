@@ -66,7 +66,7 @@ None. All v1.0 requirements shipped.
 ## Constraints
 
 - **Architecture**: LLM never emits physiological numbers directly — tool library is the only authoritative source for all sports-science calculations. Enforced at code level, verifiable in logs.
-- **Tech Stack**: React + Vite + Tailwind (frontend), Python FastAPI (backend), Anthropic API with native tool use, Postgres/Supabase, fitdecode for FIT parsing, Vercel (frontend) + Railway (API/DB)
+- **Tech Stack**: React + Vite + Tailwind (frontend), Python FastAPI (backend), Anthropic API with native tool use, Postgres/Supabase, fitdecode for FIT parsing, Vercel (frontend + backend, sole deploy target since Phase 07)
 - **PWA**: Web-first, mobile-responsive; During-session view must work on iOS Safari
 - **Light mode only**: No pure blacks anywhere for MVP; design system from PRD applies
 - **No em dashes**: In any generated content or copy — use commas, semicolons, colons, or separate sentences
@@ -80,10 +80,11 @@ None. All v1.0 requirements shipped.
 | FastAPI over Node backend | Eases FIT parsing (fitdecode) and sports-science maths (numpy/scipy) | Validated Phase 03: fitdecode pipeline and PMC calculations all Python-native, no cross-process friction |
 | Supabase for Postgres | Managed Postgres with auth, storage, and real-time; simplifies hosting | Validated Phase 01: schema migrations, JWT auth, and storage all used without issue |
 | Passive FTP estimation, no forced test | Cold-start reality: beginner cannot do a 20-min test; CP modelling from ride data | Validated Phase 03: RPE/HR sessions for cold-start, FTP estimate emerges after 4+ quality efforts |
-| LLM capability-gap log is a runtime artefact | Distinct from GSD build planning; application logs gaps it cannot compute | Validated Phase 02: log entries appear in capability_gaps table, trust scanner intercepts violations before frontend |
-| Raw anthropic SDK, not claude-agent-sdk | Agent SDK executes tools autonomously, violating trust model | Validated Phase 02: tool dispatch is explicitly controlled, LLM cannot self-execute physiological calculations |
-| ZWO generated server-side only | Frontend must never build XML with unsourced power fractions | Validated Phase 05: POWER_BY_SEGMENT constants are the only source, LLM never touches power values |
+| LLM capability-gap log is a runtime artefact | Distinct from GSD build planning; application logs gaps it cannot compute | Validated Phase 02: log entries appear in capability_gaps table; trust scanner intercepts violations before frontend |
+| Raw anthropic SDK, not claude-agent-sdk | Agent SDK executes tools autonomously, violating trust model | Validated Phase 02: tool dispatch is explicitly controlled; LLM cannot self-execute physiological calculations |
+| ZWO generated server-side only | Frontend must never build XML with unsourced power fractions | Validated Phase 05: POWER_BY_SEGMENT constants are the only source; LLM never touches power values |
 | Date.now() delta timer, not tick counter | visibilitychange on iOS resets the interval; only wall-clock diff survives backgrounding | Phase 05: IOS-03 kill-to-root fix committed; physical device retest pending |
+| Vercel as sole deploy target, Railway abandoned | Dual-target maintenance cost and vercel.json/api routing conflict outweighed any benefit; Vercel's `services` model natively supports the Python+static split | Validated Phase 07: vercel.json restructured, BackgroundTasks moved to inline-await (Vercel freezes functions post-response), live preview verified (routing, SSE, env parity), Railway service decommissioned |
 
 ## Evolution
 
@@ -104,3 +105,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 *Last updated: 2026-06-21. Milestone v1.0: all 5 phases shipped. Full coaching loop with ZWO export, Google Calendar sync (development OAuth), during-session stepper, and trust-model enforcement.*
+
