@@ -69,7 +69,7 @@ This constraint is enforced at code level and verifiable in logs (the `capabilit
 
 The FastAPI backend exposes these route groups:
 
-- `POST /chat/stream` -- SSE streaming for coaching conversations
+- `GET /chat/stream` -- SSE streaming for coaching conversations (GET because the browser `EventSource` API can only issue GET requests)
 - `POST /conversations/` -- create a new conversation
 - `POST /onboarding/start` -- begin the onboarding interview
 - `POST /rides/upload` -- ingest a `.FIT` file
@@ -110,7 +110,7 @@ npm run dev                   # http://localhost:5173
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env          # fill in ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY
+cp .env.example .env          # fill in ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 uvicorn api.main:app --reload --port 8000
 ```
 
@@ -136,23 +136,19 @@ cd frontend && npm run build
 
 ## Deployment
 
+Vercel is the sole deploy target. Both frontend and backend deploy from `main` as a single Vercel project, configured by the root `vercel.json`.
+
 ### Frontend: Vercel
 
-Auto-deploys from `main`. The `vercel.json` at repo root sets:
+Auto-deploys from `main`. Builds to a static bundle:
 
 - Build command: `cd frontend && npm install && npm run build`
 - Output directory: `frontend/dist`
-- SPA fallback rewrite: all routes -> `/index.html`
+- SPA fallback rewrite: all non-API routes -> `/index.html`
 
-### Backend: Railway
+### Backend: Vercel
 
-The `Dockerfile` at repo root targets the `api/` directory. Multi-stage build on `python:3.12-slim`. Production command: `gunicorn -w 4 -k uvicorn.workers.UvicornWorker api.main:app`.
-
-`railway.toml` configures:
-
-- Builder: Dockerfile
-- Health check: `GET /health`, 300s timeout
-- Restart policy: on failure, up to 10 retries
+The FastAPI app runs as a Vercel Python Function, entrypoint `api/index.py`. Vercel's Python runtime invokes the ASGI `app` object directly, no Docker image or process manager (Gunicorn/Uvicorn CLI) is involved. Request routing between the static frontend and the Python function is configured in the root `vercel.json`.
 
 ---
 
@@ -166,17 +162,22 @@ The `Dockerfile` at repo root targets the `api/` directory. Multi-stage build on
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon/public key |
 | `VITE_API_URL` | Backend API URL (blank = same-origin proxy in dev) |
 
-### Backend (`.env` or Railway env vars)
+### Backend (`.env` or Vercel env vars)
 
 | Variable | Description |
 |---|---|
 | `ANTHROPIC_API_KEY` | Anthropic API key |
 | `SUPABASE_URL` | Supabase project URL |
-| `SUPABASE_SERVICE_KEY` | Supabase service role key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
+| `SUPABASE_JWT_SECRET` | Secret used to verify Supabase-issued JWTs |
+| `CALENDAR_FERNET_KEY` | Symmetric key for encrypting/decrypting stored Google Calendar OAuth tokens |
+| `BACKEND_BASE_URL` | Publicly reachable base URL of the backend (used to build OAuth redirect URIs) |
+| `ANTHROPIC_MODEL` | Claude model identifier used by the coaching agent |
 | `FRONTEND_URL` | Deployed frontend URL (used for CORS) |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID (for calendar) |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
-| `PORT` | Port for Gunicorn (Railway sets this automatically) |
+
+These vars must be set in Vercel Project Settings -> Environment Variables (per environment) for production.
 
 ---
 
