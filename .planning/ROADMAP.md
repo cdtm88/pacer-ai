@@ -281,7 +281,7 @@ Plans:
 | 3. Coaching Loop | 5/5 | Complete    | 2026-06-20 |
 | 4. UI and Calendar | 21/21 | Complete   | 2026-06-21 |
 | 5. During-Session and ZWO Export | 5/5 | Complete    | 2026-06-21 |
-| 6. Core Loop Persistence | 5/5 | Complete   | 2026-07-03 |
+| 6. Core Loop Persistence | 5/5 | Complete    | 2026-07-03 |
 | 7. Deploy Consolidation | 0/? | Not planned | - |
 | 8. Trust Model Integrity | 0/? | Not planned | - |
 | 9. Frontend Resilience | 0/? | Not planned | - |
