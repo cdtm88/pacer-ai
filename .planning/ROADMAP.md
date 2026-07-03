@@ -211,12 +211,12 @@ Plans:
 **Goal:** A generated plan becomes real database state and ride data flows through it correctly: plan confirmation writes `plans` and `sessions` rows; Today/Agenda/ZWO/calendar read real sessions; estimated FTP is actually used (fix `ftp_watts` vs `ftp` key mismatch, add missing `profiles.ftp`/`lthr` columns); PMC uses ride date not upload date, decays through zero-TSS gap days, sums same-day rides, and dedups re-uploaded FIT files; rides link to sessions and mark them completed; adaptation checks are idempotent (signals consumed once, `/missed` endpoint works, macro-replan confirm endpoint exists).
 **Requirements**: No new IDs; repairs existing FIT-04, FIT-05, TOOL-03, TOOL-05, PLAN-01, PLAN-04, ONBD-04, ADAPT-01, ADAPT-02, ADAPT-03, ADAPT-04, TRANSP-02 (all marked complete but broken in APP-REVIEW-260703)
 **Depends on:** Phase 5
-**Plans:** 5 plans
+**Plans:** 1/5 plans executed
 
 Plans:
 **Wave 1** *(schema foundation, blocking)*
 
-- [ ] 06-01-PLAN.md — Migration 0005 (pmc_history tss/days_of_data, sessions 'missed', profiles ftp/lthr, rides content_hash+UNIQUE, adaptations trigger_session_ids/status) + [BLOCKING] supabase db push
+- [x] 06-01-PLAN.md — Migration 0005 (pmc_history tss/days_of_data, sessions 'missed', profiles ftp/lthr, rides content_hash+UNIQUE, adaptations trigger_session_ids/status) + [BLOCKING] supabase db push
 
 **Wave 2** *(parallel, depend on 06-01)*
 
@@ -281,7 +281,7 @@ Plans:
 | 3. Coaching Loop | 5/5 | Complete    | 2026-06-20 |
 | 4. UI and Calendar | 21/21 | Complete   | 2026-06-21 |
 | 5. During-Session and ZWO Export | 5/5 | Complete    | 2026-06-21 |
-| 6. Core Loop Persistence | 0/5 | Planned | - |
+| 6. Core Loop Persistence | 1/5 | In Progress|  |
 | 7. Deploy Consolidation | 0/? | Not planned | - |
 | 8. Trust Model Integrity | 0/? | Not planned | - |
 | 9. Frontend Resilience | 0/? | Not planned | - |

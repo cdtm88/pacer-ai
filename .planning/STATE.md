@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 04
-current_phase_name: ui-and-calendar
+current_phase: 06
+current_phase_name: core-loop-persistence
 status: executing
 stopped_at: context exhaustion at 75% (2026-06-28)
-last_updated: "2026-07-03T09:21:39.928Z"
-last_activity: 2026-06-21
-last_activity_desc: Phase 04 execution started
+last_updated: "2026-07-03T09:23:27.393Z"
+last_activity: 2026-07-03
+last_activity_desc: Phase 06 execution started
 progress:
-  total_phases: 5
+  total_phases: 10
   completed_phases: 5
-  total_plans: 42
+  total_plans: 47
   completed_plans: 42
-  percent: 100
+  percent: 50
 ---
 
 # Project State
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-21)
 
 **Core value:** A beginner with no FTP and no history completes an interview and immediately receives a safe, structured cycling plan with explicit targets — that plan adapts automatically as real ride data arrives.
-**Current focus:** Phase 04 — ui-and-calendar
+**Current focus:** Phase 06 — core-loop-persistence
 
 ## Current Position
 
-Phase: 04 (ui-and-calendar) — EXECUTING
-Plan: 1 of 21
-Status: Ready to execute
-Last activity: 2026-06-21 — Phase 04 execution started
+Phase: 06 (core-loop-persistence) — EXECUTING
+Plan: 1 of 5
+Status: Executing Phase 06
+Last activity: 2026-07-03 — Phase 06 execution started
 
 Progress: [████████████████████] 32/32 plans (100%)
 
