@@ -138,3 +138,11 @@ None - no external service configuration required.
 ---
 *Phase: 06-core-loop-persistence*
 *Completed: 2026-07-03*
+
+## Self-Check: PASSED
+- FOUND: backend/pmc_recompute.py
+- FOUND: tests/test_pmc_recompute.py
+- FOUND: .planning/phases/06-core-loop-persistence/06-03-SUMMARY.md
+- FOUND commit: fbc8d18 (test)
+- FOUND commit: 2cda807 (feat)
+- FOUND commit: 0945362 (docs, this SUMMARY)
