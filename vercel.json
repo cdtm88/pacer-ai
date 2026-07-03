@@ -6,8 +6,8 @@
       "outputDirectory": "dist"
     },
     "backend": {
-      "root": "api/",
-      "entrypoint": "index:app"
+      "root": ".",
+      "entrypoint": "api.index:app"
     }
   },
   "rewrites": [
