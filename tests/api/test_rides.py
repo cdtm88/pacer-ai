@@ -66,8 +66,11 @@ def _make_rides_mock(ride_id="test-ride-001"):
 
     async def execute_dispatch():
         _call_count["n"] += 1
-        # First execute: rides INSERT -> returns ride_id
+        # First execute: content-hash dedup pre-check SELECT -> no existing row
         if _call_count["n"] == 1:
+            return execute_empty_result
+        # Second execute: rides INSERT -> returns ride_id
+        if _call_count["n"] == 2:
             return execute_insert_result
         # All subsequent: empty (PMC history, training_sessions, rides SELECT, etc.)
         return execute_empty_result
@@ -139,6 +142,136 @@ async def test_upload_returns_200(monkeypatch):
     body = response.json()
     assert "ride_id" in body, f"Expected 'ride_id' in response: {body}"
     assert body["status"] == "processing", f"Expected status='processing': {body}"
+
+
+# ---------------------------------------------------------------------------
+# Task 2: content-hash dedup (T-06-06)
+# ---------------------------------------------------------------------------
+
+
+async def test_dedup_precheck_short_circuits(monkeypatch):
+    """
+    Task 2: A byte-identical re-upload is caught by the content-hash pre-check
+    SELECT and returns duplicate=true with no second rides insert.
+    """
+    from backend.main import app
+    import backend.routes.rides as rides_module
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
+
+    existing_result = MagicMock()
+    existing_result.data = [{"id": "existing-ride-001"}]
+
+    rides_mock = MagicMock()
+    rides_mock.select = MagicMock(return_value=rides_mock)
+    rides_mock.eq = MagicMock(return_value=rides_mock)
+    rides_mock.insert = MagicMock(return_value=rides_mock)
+    rides_mock.execute = AsyncMock(return_value=existing_result)
+
+    storage_mock = MagicMock()
+    storage_mock.from_ = MagicMock(return_value=storage_mock)
+    storage_mock.upload = AsyncMock(return_value=MagicMock())
+
+    client_mock = MagicMock()
+    client_mock.table = MagicMock(return_value=rides_mock)
+    client_mock.storage = storage_mock
+
+    monkeypatch.setattr(rides_module, "_get_async_supabase", AsyncMock(return_value=client_mock))
+    monkeypatch.setattr(rides_module, "get_user_ftp", AsyncMock(return_value=(150.0, True)))
+    mock_bg, _captured = _make_background_mock()
+    monkeypatch.setattr(rides_module, "process_ride_background", mock_bg)
+
+    assert FIXTURE_PATH.exists(), f"Test fixture missing: {FIXTURE_PATH}"
+
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        with open(FIXTURE_PATH, "rb") as f:
+            response = await client.post(
+                "/rides/upload",
+                files={"file": ("sample_zwift.fit", f, "application/octet-stream")},
+                headers=auth_headers(),
+            )
+
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+    body = response.json()
+    assert body.get("duplicate") is True, f"Expected duplicate=True: {body}"
+    assert body.get("status") == "duplicate", f"Expected status='duplicate': {body}"
+    assert body.get("ride_id") == "existing-ride-001", f"Expected existing ride_id echoed back: {body}"
+    assert rides_mock.insert.call_count == 0, "Duplicate short-circuit must not call insert"
+
+
+async def test_dedup_unique_violation_returns_duplicate(monkeypatch):
+    """
+    Task 2 (T-06-06): a concurrent-upload race that slips past the pre-check
+    SELECT and hits the DB UNIQUE(user_id, content_hash) constraint at INSERT
+    time is caught and returns the same duplicate=true response, not a 500.
+    """
+    from backend.main import app
+    import backend.routes.rides as rides_module
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
+
+    empty_result = MagicMock()
+    empty_result.data = []
+
+    existing_after_race = MagicMock()
+    existing_after_race.data = [{"id": "raced-ride-001"}]
+
+    class FakeUniqueViolation(Exception):
+        code = "23505"
+
+    call_state = {"n": 0}
+
+    async def execute_dispatch():
+        call_state["n"] += 1
+        if call_state["n"] == 1:
+            return empty_result  # pre-check: no duplicate found
+        if call_state["n"] == 2:
+            raise FakeUniqueViolation(
+                'duplicate key value violates unique constraint "rides_user_content_hash_unique"'
+            )
+        return existing_after_race  # post-race re-check finds the row the other request inserted
+
+    rides_mock = MagicMock()
+    rides_mock.select = MagicMock(return_value=rides_mock)
+    rides_mock.eq = MagicMock(return_value=rides_mock)
+    rides_mock.insert = MagicMock(return_value=rides_mock)
+    rides_mock.execute = execute_dispatch
+
+    storage_mock = MagicMock()
+    storage_mock.from_ = MagicMock(return_value=storage_mock)
+    storage_mock.upload = AsyncMock(return_value=MagicMock())
+
+    client_mock = MagicMock()
+    client_mock.table = MagicMock(return_value=rides_mock)
+    client_mock.storage = storage_mock
+
+    monkeypatch.setattr(rides_module, "_get_async_supabase", AsyncMock(return_value=client_mock))
+    monkeypatch.setattr(rides_module, "get_user_ftp", AsyncMock(return_value=(150.0, True)))
+    mock_bg, _captured = _make_background_mock()
+    monkeypatch.setattr(rides_module, "process_ride_background", mock_bg)
+
+    assert FIXTURE_PATH.exists(), f"Test fixture missing: {FIXTURE_PATH}"
+
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        with open(FIXTURE_PATH, "rb") as f:
+            response = await client.post(
+                "/rides/upload",
+                files={"file": ("sample_zwift.fit", f, "application/octet-stream")},
+                headers=auth_headers(),
+            )
+
+    assert response.status_code == 200, (
+        f"Expected 200 (duplicate), got {response.status_code}: {response.text}"
+    )
+    body = response.json()
+    assert body.get("duplicate") is True, f"Expected duplicate=True after unique-violation race: {body}"
+    assert body.get("ride_id") == "raced-ride-001", f"Expected raced ride_id echoed back: {body}"
 
 
 # ---------------------------------------------------------------------------
@@ -331,6 +464,7 @@ async def test_tss_computed():
     chain_mock.update.return_value = chain_mock
     chain_mock.eq.return_value = chain_mock
     chain_mock.order.return_value = chain_mock
+    chain_mock.limit.return_value = chain_mock
     chain_mock.execute = AsyncMock(return_value=execute_result)
 
     # Intercept update calls to capture payloads
@@ -365,6 +499,7 @@ async def test_tss_computed():
             user_id=TEST_USER_ID,
             parsed=parsed,
             ftp_used=150.0,
+            ride_date="2026-06-01",
         )
     finally:
         rides_module._get_async_supabase = original_get
@@ -427,6 +562,7 @@ async def test_session_compliance():
     chain_mock.insert.return_value = chain_mock
     chain_mock.eq.return_value = chain_mock
     chain_mock.order.return_value = chain_mock
+    chain_mock.limit.return_value = chain_mock
 
     def capture_update(payload):
         update_payloads.append(payload)
@@ -443,7 +579,7 @@ async def test_session_compliance():
     async def execute_dispatch():
         call_count["n"] += 1
         # First call: pmc_history SELECT -> empty (cold start)
-        # Second call: training_sessions SELECT -> planned session
+        # Second call: sessions SELECT (ride_date + status='planned') -> planned session
         # All others: empty
         if call_count["n"] == 2:
             return execute_with_session
@@ -468,16 +604,130 @@ async def test_session_compliance():
             user_id=TEST_USER_ID,
             parsed=parsed,
             ftp_used=150.0,
+            ride_date="2026-06-01",
         )
     finally:
         rides_module._get_async_supabase = original_get
 
-    # Assert rides UPDATE includes compliance_pct (validate_session_vs_actual was called)
-    assert len(update_payloads) >= 1, "Expected rides UPDATE to have been called"
-    ride_payload = update_payloads[0]
+    # Assert rides UPDATE includes compliance_pct (validate_session_vs_actual was called).
+    # Find the rides UPDATE payload (contains "tss") rather than assuming index 0, since
+    # the session-flip UPDATE ({"status": "completed"}) may now be captured first.
+    ride_payload = next((p for p in update_payloads if "tss" in p), None)
+    assert ride_payload is not None, (
+        f"Expected a rides UPDATE payload (containing 'tss'): {update_payloads}"
+    )
     assert "compliance_pct" in ride_payload, (
         f"Expected 'compliance_pct' in rides UPDATE when planned session exists. "
         f"Got: {ride_payload}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Task 2: ride-session link (Pattern 4) replaces "first session today" match
+# ---------------------------------------------------------------------------
+
+
+async def test_session_link_flips_planned_session_to_completed():
+    """
+    Task 2: process_ride_background matches a session scheduled on the ride's
+    own ride_date with status 'planned', flips it to 'completed', and sets
+    rides.session_id -- replacing the old "first session today" fuzzy match.
+    """
+    from backend.routes.rides import parse_fit_file, process_ride_background
+
+    assert FIXTURE_PATH.exists(), f"Test fixture missing: {FIXTURE_PATH}"
+    file_bytes = FIXTURE_PATH.read_bytes()
+    parsed = parse_fit_file(file_bytes)
+    assert parsed is not None
+
+    ride_date = "2026-06-15"
+    matched_session_row = {"id": "session-abc-001", "tss_target": 50.0, "type": "endurance"}
+
+    eq_calls: list[tuple] = []
+    update_payloads: list[dict] = []
+    upsert_payloads: list[dict] = []
+
+    execute_with_session = MagicMock()
+    execute_with_session.data = [matched_session_row]
+    execute_empty = MagicMock()
+    execute_empty.data = []
+
+    chain_mock = MagicMock()
+    chain_mock.select.return_value = chain_mock
+    chain_mock.insert.return_value = chain_mock
+    chain_mock.order.return_value = chain_mock
+    chain_mock.limit.return_value = chain_mock
+
+    def capture_eq(*args):
+        eq_calls.append(args)
+        return chain_mock
+
+    chain_mock.eq = MagicMock(side_effect=capture_eq)
+
+    def capture_update(payload):
+        update_payloads.append(payload)
+        return chain_mock
+
+    def capture_upsert(payload, **kwargs):
+        upsert_payloads.append(payload)
+        return chain_mock
+
+    chain_mock.update = capture_update
+    chain_mock.upsert = capture_upsert
+
+    call_count = {"n": 0}
+
+    async def execute_dispatch():
+        call_count["n"] += 1
+        # Call 1: pmc_history SELECT -> empty (cold start)
+        # Call 2: sessions SELECT (ride_date + status='planned') -> matched session
+        # All others: empty
+        if call_count["n"] == 2:
+            return execute_with_session
+        return execute_empty
+
+    chain_mock.execute = execute_dispatch
+
+    client_mock = MagicMock()
+    client_mock.table.return_value = chain_mock
+    client_mock.storage = MagicMock()
+
+    import backend.routes.rides as rides_module
+    original_get = rides_module._get_async_supabase
+
+    async def mock_get_supabase():
+        return client_mock
+
+    rides_module._get_async_supabase = mock_get_supabase
+    try:
+        await process_ride_background(
+            ride_id="test-ride-session-link-001",
+            user_id=TEST_USER_ID,
+            parsed=parsed,
+            ftp_used=150.0,
+            ride_date=ride_date,
+        )
+    finally:
+        rides_module._get_async_supabase = original_get
+
+    # Assert the sessions query matched on the ride's own ride_date and status='planned'
+    assert ("scheduled_date", ride_date) in eq_calls, (
+        f"Expected sessions query filtered by scheduled_date={ride_date}: {eq_calls}"
+    )
+    assert ("status", "planned") in eq_calls, (
+        f"Expected sessions query filtered by status='planned': {eq_calls}"
+    )
+
+    # Assert the matched session was flipped to completed
+    assert {"status": "completed"} in update_payloads, (
+        f"Expected a sessions UPDATE flipping status to 'completed': {update_payloads}"
+    )
+
+    # Assert rides.session_id is set on the rides UPDATE payload (contains "tss")
+    ride_update_payload = next((p for p in update_payloads if "tss" in p), None)
+    assert ride_update_payload is not None, "Expected a rides UPDATE payload containing tss"
+    assert ride_update_payload.get("session_id") == "session-abc-001", (
+        f"Expected rides UPDATE to set session_id: {ride_update_payload}"
     )
 
 
