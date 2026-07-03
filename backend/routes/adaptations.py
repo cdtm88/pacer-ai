@@ -398,7 +398,7 @@ async def apply_micro_adjustment(user_id: str, signal: dict) -> dict:
     # Fetch the next 3 upcoming planned sessions for this user.
     resp = await (
         supabase.table("sessions")
-        .select("id, scheduled_date, tss_target, duration_minutes, status")
+        .select("id, scheduled_date, tss_target, duration_minutes, status, calendar_event_id")
         .eq("user_id", user_id)
         .eq("status", "planned")
         .gte("scheduled_date", today.isoformat())
@@ -518,7 +518,7 @@ async def apply_macro_replan(user_id: str, signals: list[dict]) -> dict:
     # Load upcoming planned sessions (the "before" state).
     upcoming_resp = await (
         supabase.table("sessions")
-        .select("id, scheduled_date, tss_target, duration_minutes, status")
+        .select("id, scheduled_date, tss_target, duration_minutes, status, calendar_event_id")
         .eq("user_id", user_id)
         .eq("status", "planned")
         .gte("scheduled_date", today.isoformat())

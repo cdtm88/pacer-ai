@@ -347,6 +347,121 @@ async def test_apply_micro_adjustment_missed_status_value(monkeypatch):
     assert result["status"] == "applied"
 
 
+async def test_apply_micro_adjustment_retains_calendar_event_id(monkeypatch):
+    """
+    CR-02 (07-REVIEW.md): the real (unmocked) apply_micro_adjustment SELECT must
+    include calendar_event_id so downstream calendar-sync callers (check_adaptations,
+    mark_session_missed) can locate the Google Calendar event to update. Previously
+    the column was missing from the select() list, so event_id was always None and
+    update_calendar_event was silently unreachable in production.
+    """
+    import backend.routes.adaptations as adapt_module
+
+    today = datetime.date.today()
+
+    upcoming = [
+        {
+            "id": "sess-next-1",
+            "scheduled_date": today.isoformat(),
+            "tss_target": 60,
+            "duration_minutes": 60,
+            "status": "planned",
+            "calendar_event_id": "evt-abc-123",
+        },
+    ]
+    execute_upcoming = MagicMock()
+    execute_upcoming.data = upcoming
+    execute_generic = MagicMock()
+    execute_generic.data = [{"id": "adaptation-uuid-cal-002"}]
+
+    select_calls: list[str] = []
+
+    mock_client = MagicMock()
+    mock_client.table.return_value = mock_client
+
+    def _select(cols):
+        select_calls.append(cols)
+        return mock_client
+
+    mock_client.select = _select
+    mock_client.eq.return_value = mock_client
+    mock_client.gte.return_value = mock_client
+    mock_client.order.return_value = mock_client
+    mock_client.insert.return_value = mock_client
+    mock_client.update.return_value = mock_client
+    mock_client.execute = AsyncMock(side_effect=[execute_upcoming, execute_generic, execute_generic])
+
+    async def _mock_supabase():
+        return mock_client
+
+    monkeypatch.setattr(adapt_module, "_get_async_supabase", _mock_supabase)
+
+    signal = _sig(type_="underperformance", session_id="sess-underperf-cal", compliance_pct=50.0)
+    result = await adapt_module.apply_micro_adjustment(TEST_USER_ID, signal)
+
+    assert any("calendar_event_id" in cols for cols in select_calls), (
+        "apply_micro_adjustment's sessions SELECT must include calendar_event_id"
+    )
+    assert result["after"][0]["calendar_event_id"] == "evt-abc-123"
+
+
+async def test_apply_macro_replan_retains_calendar_event_id(monkeypatch):
+    """
+    CR-02 (07-REVIEW.md): the real (unmocked) apply_macro_replan SELECT must include
+    calendar_event_id so check_adaptations/mark_session_missed's calendar-sync loop can
+    resolve which Google Calendar event to update after an auto-applied macro replan.
+    """
+    import backend.routes.adaptations as adapt_module
+
+    today = datetime.date.today()
+    upcoming = [
+        {**s, "calendar_event_id": f"evt-{s['id']}"}
+        for s in _macro_upcoming_sessions(today, n=4)  # n=4 -> auto-apply branch (see CR-03 note)
+    ]
+
+    execute_sessions = MagicMock()
+    execute_sessions.data = upcoming
+    execute_profiles = MagicMock()
+    execute_profiles.data = [{"constraints": {}}]
+    execute_pmc = MagicMock()
+    execute_pmc.data = [{"ctl": 50, "atl": 40}]
+    execute_generic = MagicMock()
+    execute_generic.data = [{"id": "adaptation-applied-cal-001"}]
+
+    select_calls: list[str] = []
+
+    mock_client = MagicMock()
+    mock_client.table.return_value = mock_client
+
+    def _select(cols):
+        select_calls.append(cols)
+        return mock_client
+
+    mock_client.select = _select
+    mock_client.eq.return_value = mock_client
+    mock_client.gte.return_value = mock_client
+    mock_client.order.return_value = mock_client
+    mock_client.update.return_value = mock_client
+    mock_client.insert.return_value = mock_client
+    mock_client.execute = AsyncMock(
+        side_effect=[execute_sessions, execute_profiles, execute_pmc] + [execute_generic] * 12
+    )
+
+    async def _mock_supabase():
+        return mock_client
+
+    monkeypatch.setattr(adapt_module, "_get_async_supabase", _mock_supabase)
+
+    signals = [_sig("missed", "sess-a"), _sig("underperformance", "sess-b", 40.0)]
+    result = await adapt_module.apply_macro_replan(TEST_USER_ID, signals)
+
+    assert any("calendar_event_id" in cols for cols in select_calls if "tss_target" in cols), (
+        "apply_macro_replan's sessions SELECT must include calendar_event_id"
+    )
+    assert result["status"] == "applied"
+    assert all(s.get("calendar_event_id") for s in result["after"])
+
+
 async def test_apply_micro_adjustment_null_tss_target_not_zeroed(monkeypatch):
     """
     CR-01: a session with tss_target=NULL must NOT have 0.0 written over it by
