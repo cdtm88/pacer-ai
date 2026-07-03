@@ -145,6 +145,10 @@ None.
 
 None - no new network endpoints, auth paths, or schema changes at trust boundaries beyond what the plan's own `<threat_model>` (T-06-02, T-06-09) already covers.
 
+## Self-Check: PASSED
+
+All claimed files exist on disk and all claimed commit hashes (879bb02, f48bd21, 41fa181, cceb81a) are present in git history.
+
 ---
 *Phase: 06-core-loop-persistence*
 *Completed: 2026-07-03*
