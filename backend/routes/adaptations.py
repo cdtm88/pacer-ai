@@ -598,7 +598,10 @@ async def apply_macro_replan(user_id: str, signals: list[dict]) -> dict:
 
     if shift_check["requires_user_confirmation"]:
         # D-19: surface change summary WITHOUT applying (never silently over-shift).
-        signal_types = list({s.get("type") for s in signals})
+        # WR-04: preserve first-seen order (a set's iteration order is
+        # hash-randomization-dependent, making the persisted `trigger` field
+        # nondeterministic across process restarts for identical input).
+        signal_types = list(dict.fromkeys(s.get("type") for s in signals))
         change_summary = {
             "proposed_sessions": after_sessions,
             "shift_check": shift_check,
@@ -669,7 +672,9 @@ async def apply_macro_replan(user_id: str, signals: list[dict]) -> dict:
                 .execute()
             )
 
-    signal_types = list({s.get("type") for s in signals})
+    # WR-04: preserve first-seen order (see comment above in the
+    # needs_confirmation branch for rationale).
+    signal_types = list(dict.fromkeys(s.get("type") for s in signals))
     primary_trigger = signal_types[0] if signal_types else "underperformance"
     explanation_text = (
         f"Macro re-plan triggered by {len(signals)} signals "
