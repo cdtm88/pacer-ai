@@ -96,6 +96,10 @@ async def save_profile(
             "equipment": equipment,
             "rpe_baseline": rpe_baseline,
             "lthr_estimate": lthr_estimate,
+            # 06-02 / RESEARCH A5: lthr_estimate stays the raw self-reported
+            # onboarding value (audit trail); lthr is the confirmed/current
+            # value the rest of the app reads. Both columns are kept.
+            "lthr": lthr_estimate,
             "constraints": constraints,
         },
         on_conflict="user_id",

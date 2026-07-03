@@ -10,6 +10,7 @@ save_profile unit test: mock _get_async_supabase (async Supabase write).
 
 asyncio_mode = auto (pytest.ini) -- no @pytest.mark.asyncio needed.
 """
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 
@@ -217,6 +218,178 @@ async def test_save_profile_upserts(monkeypatch):
     assert result.value["saved"] is True
     assert result.value["profile_id"] == "profile-uuid-001"
     assert result.methodology == "profile_persistence"
+
+
+class _FakeToolUseBlock:
+    """Minimal stand-in for an Anthropic tool_use content block."""
+
+    def __init__(self, name: str, input: dict, id: str = "toolu_test"):
+        self.name = name
+        self.input = input
+        self.id = id
+
+
+def _generate_plan_inputs(user_id_in_llm_input: str = "user_supplied_should_be_ignored") -> dict:
+    return {
+        "user_id": user_id_in_llm_input,
+        "weekly_hours": 3.0,
+        "back_status": "none",
+        "current_ctl": 0.0,
+        "load_targets": {"recommended_ctl_target": 8.0},
+        "hr_zones": [{"zone": 2, "lower_bpm": 120, "upper_bpm": 145}],
+        "ftp_confidence": "medium",
+        "ftp_watts": 200.0,
+    }
+
+
+def _mock_persistence_supabase(plan_id: str, session_id_prefix: str = "sess"):
+    """
+    Mock Supabase client whose plans/sessions inserts return fixed ids.
+    Distinguishes plans vs sessions inserts by inspecting the table name.
+    """
+    class _MockQuery:
+        def __init__(self, table_name):
+            self._table_name = table_name
+            self._payload = None
+
+        def insert(self, payload):
+            self._payload = payload
+            return self
+
+        async def execute(self):
+            if self._table_name == "plans":
+                return MagicMock(data=[{"id": plan_id}])
+            # sessions: one row per inserted session, in order
+            rows = [
+                {"id": f"{session_id_prefix}-{i}"} for i in range(len(self._payload))
+            ]
+            return MagicMock(data=rows)
+
+    class _MockClient:
+        def table(self, name):
+            return _MockQuery(name)
+
+    return _MockClient()
+
+
+async def test_dispatch_tool_persists_generate_plan(monkeypatch):
+    """
+    T-06-02 (happy path): dispatching a generate_plan tool_use block persists
+    a plans row and sessions rows via a mocked Supabase client, and rewrites
+    result.value['plan_id'] to the mocked plan UUID.
+    """
+    import backend.agent.tools as tools_module
+
+    mock_client = _mock_persistence_supabase(plan_id="mock-plan-uuid-001")
+
+    async def _mock_get_async_supabase():
+        return mock_client
+
+    monkeypatch.setattr(tools_module, "_get_async_supabase", _mock_get_async_supabase)
+
+    block = _FakeToolUseBlock("generate_plan", _generate_plan_inputs())
+    audit_log: list = []
+
+    tool_result = await tools_module.dispatch_tool(
+        block, audit_log, user_id="00000000-0000-0000-0000-000000000042"
+    )
+
+    assert tool_result["is_error"] is False
+    payload = json.loads(tool_result["content"][0]["text"])
+    assert payload["value"]["plan_id"] == "mock-plan-uuid-001"
+    assert len(payload["value"]["sessions"]) > 0
+    for session in payload["value"]["sessions"]:
+        assert session.get("id", "").startswith("sess-")
+
+
+async def test_dispatch_tool_generate_plan_uses_injected_user_id(monkeypatch):
+    """
+    T-06-02 (regression): the persisted user_id must be the dispatch-injected
+    identity, never the user_id the LLM supplied in tool_use_block.input.
+    """
+    import backend.agent.tools as tools_module
+
+    captured_user_ids: list = []
+
+    class _MockQuery:
+        def __init__(self, table_name):
+            self._table_name = table_name
+            self._payload = None
+
+        def insert(self, payload):
+            self._payload = payload
+            if self._table_name == "plans":
+                captured_user_ids.append(payload["user_id"])
+            elif self._table_name == "sessions":
+                for row in payload:
+                    captured_user_ids.append(row["user_id"])
+            return self
+
+        async def execute(self):
+            if self._table_name == "plans":
+                return MagicMock(data=[{"id": "mock-plan-uuid-002"}])
+            rows = [{"id": f"sess-{i}"} for i in range(len(self._payload))]
+            return MagicMock(data=rows)
+
+    class _MockClient:
+        def table(self, name):
+            return _MockQuery(name)
+
+    async def _mock_get_async_supabase():
+        return _MockClient()
+
+    monkeypatch.setattr(tools_module, "_get_async_supabase", _mock_get_async_supabase)
+
+    injected_user_id = "00000000-0000-0000-0000-000000000042"
+    llm_supplied_user_id = "attacker-supplied-user-id"
+    block = _FakeToolUseBlock("generate_plan", _generate_plan_inputs(llm_supplied_user_id))
+    audit_log: list = []
+
+    await tools_module.dispatch_tool(block, audit_log, user_id=injected_user_id)
+
+    assert len(captured_user_ids) > 0
+    assert all(uid == injected_user_id for uid in captured_user_ids), (
+        f"Expected every persisted user_id to be the injected identity "
+        f"{injected_user_id}, got {captured_user_ids}"
+    )
+    assert llm_supplied_user_id not in captured_user_ids
+
+
+async def test_dispatch_tool_save_profile_unaffected_by_persistence_branch(monkeypatch):
+    """save_profile dispatch is unaffected by the generate_plan persistence branch."""
+    import backend.agent.tools as tools_module
+
+    mock_client = MagicMock()
+    mock_client.table.return_value.upsert.return_value.execute = AsyncMock(
+        return_value=MagicMock(data=[{"id": "profile-uuid-dispatch"}])
+    )
+    monkeypatch.setattr(
+        __import__("backend.sports_science.profile", fromlist=["_supabase_client"]),
+        "_supabase_client",
+        mock_client,
+    )
+
+    block = _FakeToolUseBlock(
+        "save_profile",
+        {
+            "user_id": "u1",
+            "fitness_goals": "weight loss",
+            "weekly_hours": 3.0,
+            "preferred_days": ["Tuesday", "Thursday"],
+            "back_status": "none",
+            "equipment": {},
+            "rpe_baseline": "beginner",
+        },
+    )
+    audit_log: list = []
+
+    tool_result = await tools_module.dispatch_tool(
+        block, audit_log, user_id="00000000-0000-0000-0000-000000000042"
+    )
+
+    assert tool_result["is_error"] is False
+    payload = json.loads(tool_result["content"][0]["text"])
+    assert payload["value"]["saved"] is True
 
 
 async def test_save_profile_moderate_back_constraints(monkeypatch):
