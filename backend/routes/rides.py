@@ -233,7 +233,17 @@ async def get_user_ftp(user_id: str) -> tuple[float, bool]:
         ftp_value = ftp_result.value
 
         if ftp_value is not None and confidence in ("medium", "high"):
-            return (float(ftp_value.get("ftp_watts", COLD_START_FTP)), False)
+            resolved_ftp = float(ftp_value.get("ftp", COLD_START_FTP))  # ftp.py:100 returns "ftp"
+            try:
+                await (
+                    supabase.table("profiles")
+                    .update({"ftp": resolved_ftp})
+                    .eq("user_id", user_id)
+                    .execute()
+                )
+            except Exception as exc:
+                logger.warning("profiles.ftp write-back failed (non-fatal): %s", exc)
+            return (resolved_ftp, False)
     except Exception as exc:
         logger.warning("get_user_ftp failed, using cold-start placeholder: %s", exc)
 
