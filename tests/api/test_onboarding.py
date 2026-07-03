@@ -305,6 +305,53 @@ async def test_back_status_constraint(monkeypatch):
     assert captured_payload.get("back_status") == "moderate"
 
 
+async def test_plan_calendar_sync_inline_await(monkeypatch):
+    """
+    DEPLOY-BG-01: POST /onboarding/plan-calendar-sync inline-awaits
+    push_all_sessions_to_calendar before returning (no BackgroundTasks scheduling).
+
+    Asserts:
+      - push_all_sessions_to_calendar is awaited exactly once with the authenticated user_id
+      - the response body reports completion, not scheduling (CAL-01)
+      - onboarding_plan_calendar_sync no longer declares a background_tasks parameter --
+        the deterministic RED signal that the route still depends on FastAPI BackgroundTasks
+        (fails against current code, which schedules via background_tasks.add_task and
+        still declares the parameter)
+    """
+    import inspect
+    import httpx
+    from httpx import ASGITransport
+    from backend.main import app
+    import backend.routes.onboarding as onboarding_module
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
+
+    mock_push = AsyncMock(return_value=None)
+    monkeypatch.setattr(onboarding_module, "push_all_sessions_to_calendar", mock_push)
+
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        response = await client.post(
+            "/onboarding/plan-calendar-sync",
+            headers=auth_headers(),
+        )
+
+    assert response.status_code == 200
+    mock_push.assert_awaited_once_with(TEST_USER_ID)
+
+    body = response.json()
+    assert body.get("status") != "scheduled", f"Expected an inline-completed status, got: {body}"
+    assert body.get("status") == "completed"
+
+    sig = inspect.signature(onboarding_module.onboarding_plan_calendar_sync)
+    assert "background_tasks" not in sig.parameters, (
+        "onboarding_plan_calendar_sync must not declare a background_tasks parameter "
+        "after the inline-await conversion (DEPLOY-BG-01)"
+    )
+
+
 async def test_profile_persisted(monkeypatch):
     """
     ONBD-03: save_profile upserts to the profiles table with on_conflict=user_id

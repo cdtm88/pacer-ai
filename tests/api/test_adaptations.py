@@ -17,6 +17,7 @@ Pure functions (decide_scope, check_shift_limit) are called directly (no mock ne
 DB-dependent functions (detect_signals, log_adaptation) use monkeypatched _get_async_supabase.
 """
 import datetime
+import inspect
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -734,6 +735,60 @@ async def test_weekly_check(monkeypatch):
     assert data["result"] is None
 
 
+async def test_check_adaptations_inline_awaits_calendar_update(monkeypatch):
+    """
+    DEPLOY-BG-02: POST /adaptations/check awaits update_calendar_event inline for
+    each applied session carrying a calendar_event_id, instead of scheduling it via
+    BackgroundTasks.
+
+    Asserts:
+      - update_calendar_event is awaited with (user_id, event_id, session)
+      - check_adaptations no longer declares a background_tasks parameter -- the
+        deterministic RED signal that the route still schedules calendar sync via
+        BackgroundTasks (fails against current code)
+    """
+    from backend.main import app
+    import backend.routes.adaptations as adapt_module
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
+
+    signal = _sig(type_="missed", session_id="sess-cal-1")
+    monkeypatch.setattr(adapt_module, "detect_signals", AsyncMock(return_value=[signal]))
+
+    applied_session = {"id": "sess-cal-1", "calendar_event_id": "evt-123", "scheduled_date": "2026-07-10"}
+    applied_result = {
+        "status": "applied",
+        "scope": "micro",
+        "sessions_adjusted": ["sess-cal-1"],
+        "before": [applied_session],
+        "after": [applied_session],
+        "explanation": "x",
+        "adaptation_id": "adaptation-uuid-cal",
+    }
+    monkeypatch.setattr(adapt_module, "apply_micro_adjustment", AsyncMock(return_value=applied_result))
+
+    mock_update = AsyncMock(return_value=None)
+    monkeypatch.setattr(adapt_module, "update_calendar_event", mock_update)
+
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        response = await client.post(
+            "/adaptations/check",
+            headers=auth_headers(),
+        )
+
+    assert response.status_code == 200
+    mock_update.assert_awaited_once_with(TEST_USER_ID, "evt-123", applied_session)
+
+    sig_check = inspect.signature(adapt_module.check_adaptations)
+    assert "background_tasks" not in sig_check.parameters, (
+        "check_adaptations must not declare a background_tasks parameter after the "
+        "inline-await conversion (DEPLOY-BG-02)"
+    )
+
+
 # ---------------------------------------------------------------------------
 # ADAPT-05: test_intensity_from_tools
 # ---------------------------------------------------------------------------
@@ -1090,6 +1145,79 @@ async def test_mark_missed_skips_synthesis_when_already_consumed(monkeypatch):
     assert data["signals"] == [], "consumed session must not re-fire a synthesized signal"
     assert data["scope"] is None
     assert data["result"] is None
+
+
+async def test_mark_missed_inline_awaits_calendar_update(monkeypatch):
+    """
+    DEPLOY-BG-02: POST /adaptations/sessions/{id}/missed awaits update_calendar_event
+    inline for each applied session carrying a calendar_event_id, instead of scheduling
+    it via BackgroundTasks.
+
+    Asserts:
+      - update_calendar_event is awaited with (user_id, event_id, session)
+      - mark_session_missed no longer declares a background_tasks parameter -- the
+        deterministic RED signal that the route still schedules calendar sync via
+        BackgroundTasks (fails against current code)
+    """
+    from backend.main import app
+    import backend.routes.adaptations as adapt_module
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
+
+    session_id = "55555555-5555-5555-5555-555555555555"
+
+    execute_session_lookup = MagicMock()
+    execute_session_lookup.data = [{"id": session_id, "user_id": TEST_USER_ID, "status": "planned"}]
+    execute_generic = MagicMock()
+    execute_generic.data = []
+
+    mock_client = MagicMock()
+    mock_client.table.return_value = mock_client
+    mock_client.select.return_value = mock_client
+    mock_client.eq.return_value = mock_client
+    mock_client.in_.return_value = mock_client
+    mock_client.update.return_value = mock_client
+    # execute order: ownership lookup, status flip to 'missed', consumed-ids pre-query.
+    mock_client.execute = AsyncMock(side_effect=[execute_session_lookup, execute_generic, execute_generic])
+
+    async def _mock_supabase():
+        return mock_client
+
+    monkeypatch.setattr(adapt_module, "_get_async_supabase", _mock_supabase)
+    monkeypatch.setattr(adapt_module, "detect_signals", AsyncMock(return_value=[]))
+
+    applied_session = {"id": session_id, "calendar_event_id": "evt-456", "scheduled_date": "2026-07-11"}
+    applied_result = {
+        "status": "applied",
+        "scope": "micro",
+        "sessions_adjusted": [session_id],
+        "before": [applied_session],
+        "after": [applied_session],
+        "explanation": "x",
+        "adaptation_id": "adaptation-uuid-cal-2",
+    }
+    monkeypatch.setattr(adapt_module, "apply_micro_adjustment", AsyncMock(return_value=applied_result))
+
+    mock_update = AsyncMock(return_value=None)
+    monkeypatch.setattr(adapt_module, "update_calendar_event", mock_update)
+
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        response = await client.post(
+            f"/adaptations/sessions/{session_id}/missed",
+            headers=auth_headers(),
+        )
+
+    assert response.status_code == 200
+    mock_update.assert_awaited_once_with(TEST_USER_ID, "evt-456", applied_session)
+
+    sig_missed = inspect.signature(adapt_module.mark_session_missed)
+    assert "background_tasks" not in sig_missed.parameters, (
+        "mark_session_missed must not declare a background_tasks parameter after the "
+        "inline-await conversion (DEPLOY-BG-02)"
+    )
 
 
 # ---------------------------------------------------------------------------
