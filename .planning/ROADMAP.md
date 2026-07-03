@@ -209,13 +209,24 @@ Plans:
 ### Phase 6: Core Loop Persistence
 
 **Goal:** A generated plan becomes real database state and ride data flows through it correctly: plan confirmation writes `plans` and `sessions` rows; Today/Agenda/ZWO/calendar read real sessions; estimated FTP is actually used (fix `ftp_watts` vs `ftp` key mismatch, add missing `profiles.ftp`/`lthr` columns); PMC uses ride date not upload date, decays through zero-TSS gap days, sums same-day rides, and dedups re-uploaded FIT files; rides link to sessions and mark them completed; adaptation checks are idempotent (signals consumed once, `/missed` endpoint works, macro-replan confirm endpoint exists).
-**Requirements**: TBD
+**Requirements**: No new IDs; repairs existing FIT-04, FIT-05, TOOL-03, TOOL-05, PLAN-01, PLAN-04, ONBD-04, ADAPT-01, ADAPT-02, ADAPT-03, ADAPT-04, TRANSP-02 (all marked complete but broken in APP-REVIEW-260703)
 **Depends on:** Phase 5
-**Plans:** 0 plans
+**Plans:** 5 plans
 
 Plans:
+**Wave 1** *(schema foundation, blocking)*
 
-- [ ] TBD (run /gsd-plan-phase 6 to break down)
+- [ ] 06-01-PLAN.md — Migration 0005 (pmc_history tss/days_of_data, sessions 'missed', profiles ftp/lthr, rides content_hash+UNIQUE, adaptations trigger_session_ids/status) + [BLOCKING] supabase db push
+
+**Wave 2** *(parallel, depend on 06-01)*
+
+- [ ] 06-02-PLAN.md — Plan persistence: dispatch_tool generate_plan hook writes plans+sessions rows, rewrites plan_id; save_profile lthr write-back
+- [ ] 06-03-PLAN.md — PMC recompute-from-scratch day-series module (gap-day decay, same-day sum, calendar days_of_data)
+- [ ] 06-04-PLAN.md — Adaptation idempotency (trigger_session_ids + missed status flip), live 30% shift guard, POST /adaptations/{id}/confirm, compliance None-guard
+
+**Wave 3** *(depends on 06-01 + 06-03)*
+
+- [ ] 06-05-PLAN.md — Rides pipeline: FTP key fix + profiles.ftp write-back, content-hash dedup, ride-session link, inline-await (Vercel), recompute_pmc_for_user
 
 ### Phase 7: Deploy Consolidation
 
@@ -270,7 +281,7 @@ Plans:
 | 3. Coaching Loop | 5/5 | Complete    | 2026-06-20 |
 | 4. UI and Calendar | 21/21 | Complete   | 2026-06-21 |
 | 5. During-Session and ZWO Export | 5/5 | Complete    | 2026-06-21 |
-| 6. Core Loop Persistence | 0/? | Not planned | - |
+| 6. Core Loop Persistence | 0/5 | Planned | - |
 | 7. Deploy Consolidation | 0/? | Not planned | - |
 | 8. Trust Model Integrity | 0/? | Not planned | - |
 | 9. Frontend Resilience | 0/? | Not planned | - |
