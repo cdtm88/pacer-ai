@@ -145,6 +145,64 @@ async def test_detect_signals_idempotent(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# WR-05: ride query window widened by the +/-1 day match tolerance
+# ---------------------------------------------------------------------------
+
+
+async def test_ride_query_window_includes_match_tolerance(monkeypatch):
+    """
+    WR-05: the rides query lower bound must be window_start - 1 day so a ride
+    the day before a session scheduled exactly on window_start is still loaded
+    (otherwise the session is falsely flagged missed).
+    """
+    import backend.routes.adaptations as adapt_module
+
+    today = datetime.date.today()
+    window_days = 7
+    expected_lower = (today - datetime.timedelta(days=window_days + 1)).isoformat()
+
+    rides_gte_calls: list[tuple] = []
+
+    empty = MagicMock()
+    empty.data = []
+
+    def _make_chain(record_gte=False):
+        chain = MagicMock()
+        chain.select.return_value = chain
+        chain.eq.return_value = chain
+        chain.in_.return_value = chain
+        chain.lte.return_value = chain
+        if record_gte:
+            def _capture_gte(field, value):
+                rides_gte_calls.append((field, value))
+                return chain
+            chain.gte = MagicMock(side_effect=_capture_gte)
+        else:
+            chain.gte.return_value = chain
+        chain.execute = AsyncMock(return_value=empty)
+        return chain
+
+    rides_chain = _make_chain(record_gte=True)
+    other_chain = _make_chain()
+
+    mock_client = MagicMock()
+    mock_client.table = MagicMock(
+        side_effect=lambda name: rides_chain if name == "rides" else other_chain
+    )
+
+    async def _mock_supabase():
+        return mock_client
+
+    monkeypatch.setattr(adapt_module, "_get_async_supabase", _mock_supabase)
+
+    await adapt_module.detect_signals(TEST_USER_ID, window_days=window_days)
+
+    assert ("ride_date", expected_lower) in rides_gte_calls, (
+        f"rides query must widen the window by the 1-day tolerance: {rides_gte_calls}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # CR-04: consumed-ids query only considers acted-on adaptations
 # ---------------------------------------------------------------------------
 

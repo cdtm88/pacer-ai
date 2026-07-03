@@ -165,11 +165,14 @@ async def detect_signals(user_id: str, window_days: int = 7) -> list[dict]:
     candidate_sessions = sessions_resp.data or []
 
     # Load all rides in the window to check for date matches.
+    # WR-05: widen the lower bound by the +/-1 day match tolerance of
+    # _find_matching_ride -- a session scheduled exactly on window_start whose
+    # ride happened the day before would otherwise be falsely flagged missed.
     rides_resp = await (
         supabase.table("rides")
         .select("id, ride_date, tss, session_id")
         .eq("user_id", user_id)
-        .gte("ride_date", window_start.isoformat())
+        .gte("ride_date", (window_start - timedelta(days=1)).isoformat())
         .lte("ride_date", today.isoformat())
         .execute()
     )
