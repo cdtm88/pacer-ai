@@ -97,11 +97,17 @@ async def _get_consumed_session_ids(supabase, user_id: str) -> set[str]:
     Pattern 5 consumed-ids lookup: session ids recorded in
     adaptations.trigger_session_ids for this user. A consumed session must
     never re-fire a signal.
+
+    CR-04: only adaptations that were actually acted on consume their trigger
+    sessions -- 'applied' rows and the currently-pending 'proposed' row.
+    Superseded proposals release their sessions so an ignored or replaced
+    macro proposal's signals can re-fire instead of being lost forever.
     """
     consumed_resp = await (
         supabase.table("adaptations")
         .select("trigger_session_ids")
         .eq("user_id", user_id)
+        .in_("status", ["applied", "proposed"])
         .execute()
     )
     consumed_ids: set[str] = set()

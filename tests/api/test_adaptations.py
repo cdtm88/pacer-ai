@@ -145,6 +145,75 @@ async def test_detect_signals_idempotent(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# CR-04: consumed-ids query only considers acted-on adaptations
+# ---------------------------------------------------------------------------
+
+
+async def test_consumed_ids_exclude_superseded_proposals(monkeypatch):
+    """
+    CR-04: the Pattern-5 consumed-ids pre-query must be scoped to
+    status in ('applied', 'proposed'). A superseded proposal must release its
+    trigger sessions so their signals can re-fire.
+    """
+    import backend.routes.adaptations as adapt_module
+
+    today = datetime.date.today()
+    yesterday = (today - datetime.timedelta(days=2)).isoformat()
+
+    sessions_data = [
+        {"id": "sess-001", "scheduled_date": yesterday, "tss_target": 60, "plan_id": None, "status": "planned"}
+    ]
+
+    adaptations_in_calls: list[tuple] = []
+
+    execute_consumed = MagicMock()
+    # DB-side status filter applied -- the superseded row's ids are NOT returned.
+    execute_consumed.data = []
+    execute_sessions = MagicMock()
+    execute_sessions.data = sessions_data
+    execute_rides = MagicMock()
+    execute_rides.data = []
+
+    adaptations_chain = MagicMock()
+    adaptations_chain.select.return_value = adaptations_chain
+    adaptations_chain.eq.return_value = adaptations_chain
+
+    def _capture_in(field, values):
+        adaptations_in_calls.append((field, values))
+        return adaptations_chain
+
+    adaptations_chain.in_ = MagicMock(side_effect=_capture_in)
+    adaptations_chain.execute = AsyncMock(return_value=execute_consumed)
+
+    other_chain = MagicMock()
+    other_chain.select.return_value = other_chain
+    other_chain.eq.return_value = other_chain
+    other_chain.in_.return_value = other_chain
+    other_chain.gte.return_value = other_chain
+    other_chain.lte.return_value = other_chain
+    other_chain.execute = AsyncMock(side_effect=[execute_sessions, execute_rides])
+
+    mock_client = MagicMock()
+    mock_client.table = MagicMock(
+        side_effect=lambda name: adaptations_chain if name == "adaptations" else other_chain
+    )
+
+    async def _mock_supabase():
+        return mock_client
+
+    monkeypatch.setattr(adapt_module, "_get_async_supabase", _mock_supabase)
+
+    signals = await adapt_module.detect_signals(TEST_USER_ID)
+
+    # The consumed-ids query is status-scoped to acted-on adaptations only.
+    assert ("status", ["applied", "proposed"]) in adaptations_in_calls, (
+        f"consumed-ids query missing status scope: {adaptations_in_calls}"
+    )
+    # With the superseded proposal excluded, the session's missed signal re-fires.
+    assert signals == [{"type": "missed", "session_id": "sess-001"}]
+
+
+# ---------------------------------------------------------------------------
 # Pattern 5: test_apply_micro_adjustment_missed_status_value
 # ---------------------------------------------------------------------------
 
@@ -825,6 +894,7 @@ async def test_mark_missed_synthesizes_signal_for_marked_session(monkeypatch):
     mock_client.table.return_value = mock_client
     mock_client.select.return_value = mock_client
     mock_client.eq.return_value = mock_client
+    mock_client.in_.return_value = mock_client
     mock_client.update.return_value = mock_client
     # First execute: ownership lookup; all later ones (status flip, consumed
     # pre-query) return empty data.
@@ -890,6 +960,7 @@ async def test_mark_missed_skips_synthesis_when_already_consumed(monkeypatch):
     mock_client.table.return_value = mock_client
     mock_client.select.return_value = mock_client
     mock_client.eq.return_value = mock_client
+    mock_client.in_.return_value = mock_client
     mock_client.update.return_value = mock_client
     mock_client.execute = AsyncMock(side_effect=[execute_session_lookup, execute_flip, execute_consumed])
 
