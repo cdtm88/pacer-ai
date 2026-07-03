@@ -271,16 +271,26 @@ async def push_all_sessions_to_calendar(user_id: str) -> None:
             .execute()
         )
         sessions = result.data or []
-        for session in sessions:
-            event_id = await push_session_to_calendar(user_id, session)
-            if event_id:
-                # Persist event_id back onto the session row (CAL-01).
-                await (
-                    supabase.table("sessions")
-                    .update({"calendar_event_id": event_id})
-                    .eq("id", session["id"])
-                    .execute()
-                )
+
+        # Bound aggregate latency (07-review CR-01): sequential per-session
+        # awaits with no concurrency cap could stack N * CALENDAR_API_TIMEOUT_SECS
+        # and blow past the function's maxDuration. Push concurrently under a
+        # semaphore instead.
+        sem = asyncio.Semaphore(5)  # bound concurrency against Google API rate limits
+
+        async def _push_one(session):
+            async with sem:
+                event_id = await push_session_to_calendar(user_id, session)
+                if event_id:
+                    # Persist event_id back onto the session row (CAL-01).
+                    await (
+                        supabase.table("sessions")
+                        .update({"calendar_event_id": event_id})
+                        .eq("id", session["id"])
+                        .execute()
+                    )
+
+        await asyncio.gather(*(_push_one(s) for s in sessions), return_exceptions=True)
     except Exception:
         logger.warning(
             "push_all_sessions_to_calendar failed for user %s", user_id, exc_info=True
