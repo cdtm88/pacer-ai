@@ -1,4 +1,6 @@
--- 0007: Add btree indexes on every user_id/FK column (2026-07-03).
+-- 0008: Add btree indexes on every user_id/FK column (2026-07-03).
+-- Numbered 0008 (not 0007) because 0007 is reserved for the oauth_states
+-- schema-drift repair this migration depends on -- see 0007_repair_oauth_states.sql.
 --
 -- Zero indexing statements existed across migrations 0001-0006. Every
 -- list/detail query filtering or joining on a user_id or foreign-key column
