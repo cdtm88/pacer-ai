@@ -31,7 +31,7 @@ import json
 import logging
 import os
 import re
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from typing import Optional
 
 import fitdecode
@@ -40,11 +40,11 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Up
 
 from backend.auth import get_current_user
 from backend.db import get_async_supabase as _get_async_supabase
+from backend.pmc_recompute import recompute_pmc_for_user
 from backend.utils import validate_uuid
 from backend.sports_science.compliance import validate_session_vs_actual
 from backend.sports_science.ftp import estimate_ftp_from_rides
 from backend.sports_science.metrics import compute_tss
-from backend.sports_science.pmc import update_pmc
 
 logger = logging.getLogger(__name__)
 
@@ -264,21 +264,23 @@ async def process_ride_background(
     ride_date: str,
 ) -> None:
     """
-    Background task: compute TSS, update PMC, persist results, trigger debrief.
+    Background pipeline: compute TSS, link the ride's session, persist results,
+    recompute the full PMC series, trigger debrief.
 
-    Called by FastAPI BackgroundTasks after the upload response is sent.
+    Task 3: inline-awaited from upload_fit (Vercel serverless constraint --
+    no BackgroundTasks, which Vercel freezes after the response is sent).
     All DB operations use the async Supabase singleton with SERVICE_ROLE_KEY.
 
-    Steps (D-15):
+    Steps:
     1. compute_tss from power_array + ftp_used
-    2. Load previous PMC state (prev_ctl, prev_atl, days_of_data)
-    3. update_pmc with today's TSS
-    4. Ride-session link (Pattern 4): match a planned session scheduled on the
+    2. Ride-session link (Pattern 4): match a planned session scheduled on the
        ride's own ride_date (not upload date), flip it to 'completed', link
        rides.session_id, and run validate_session_vs_actual (FIT-05)
-    5. UPDATE rides row with computed values
-    6. UPSERT pmc_history row (conflict: user_id + date)
-    7. Trigger ride_debrief conversation (D-23, best-effort)
+    3. UPDATE rides row with computed values
+    4. recompute_pmc_for_user: rebuild the user's full daily PMC series from
+       scratch (replaces the old single-EWMA-step-per-upload model, which
+       could not represent gap-day decay or same-day summation; FIT-04, TOOL-05)
+    5. Trigger ride_debrief conversation (D-23, best-effort)
     """
     try:
         supabase = await _get_async_supabase()
@@ -297,39 +299,7 @@ async def process_ride_background(
             np_watts = tss_result.value.get("np_watts")
             intensity_factor = tss_result.value.get("intensity_factor")
 
-        # --- Step 2: Load previous PMC state ---
-        prev_ctl = 0.0
-        prev_atl = 0.0
-        days_of_data = 0
-        try:
-            pmc_result = await (
-                supabase.table("pmc_history")
-                .select("ctl, atl, days_of_data")
-                .eq("user_id", user_id)
-                .order("date", desc=True)
-                .execute()
-            )
-            if pmc_result.data:
-                latest = pmc_result.data[0]
-                prev_ctl = float(latest.get("ctl", 0) or 0)
-                prev_atl = float(latest.get("atl", 0) or 0)
-                days_of_data = int(latest.get("days_of_data", 0) or 0)
-        except Exception as exc:
-            logger.warning("Failed to load PMC history: %s", exc)
-
-        # --- Step 3: Update PMC ---
-        pmc_updated = update_pmc(
-            prev_ctl,
-            prev_atl,
-            tss if tss is not None else 0.0,
-            days_of_data,
-        )
-        new_ctl = pmc_updated.value["ctl"]
-        new_atl = pmc_updated.value["atl"]
-        new_tsb = pmc_updated.value["tsb"]
-        tss_display_ready = pmc_updated.value["tss_display_ready"]
-
-        # --- Step 4: Ride-session link (Pattern 4, FIT-05, best-effort) ---
+        # --- Step 2: Ride-session link (Pattern 4, FIT-05, best-effort) ---
         # Match on the ride's own ride_date (not upload date) and status='planned'
         # only -- an already-consumed session can never match twice.
         compliance_result = None
@@ -361,7 +331,7 @@ async def process_ride_background(
         except Exception as exc:
             logger.info("Session compliance check skipped: %s", exc)
 
-        # --- Step 5: UPDATE rides row ---
+        # --- Step 3: UPDATE rides row ---
         ride_update: dict = {
             "tss": tss,
             "np_watts": np_watts,
@@ -386,29 +356,13 @@ async def process_ride_background(
         except Exception as exc:
             logger.error("Failed to update rides row %s: %s", ride_id, exc)
 
-        # --- Step 6: UPSERT pmc_history ---
-        try:
-            await (
-                supabase.table("pmc_history")
-                .upsert(
-                    {
-                        "user_id": user_id,
-                        "date": date.today().isoformat(),
-                        "ctl": new_ctl,
-                        "atl": new_atl,
-                        "tsb": new_tsb,
-                        "tss": tss if tss is not None else 0.0,
-                        "tss_display_ready": tss_display_ready,
-                        "days_of_data": days_of_data + 1,
-                    },
-                    on_conflict="user_id,date",
-                )
-                .execute()
-            )
-        except Exception as exc:
-            logger.error("Failed to upsert pmc_history for user %s: %s", user_id, exc)
+        # --- Step 4: Full PMC day-series recompute (FIT-04, TOOL-05) ---
+        # Replaces the old single-EWMA-step-per-upload model; recompute_pmc_for_user
+        # never raises (logs loudly and returns), so a PMC failure cannot fail this
+        # ride's upload.
+        await recompute_pmc_for_user(user_id, supabase)
 
-        # --- Step 7: Trigger ride debrief conversation (D-23, best-effort) ---
+        # --- Step 5: Trigger ride debrief conversation (D-23, best-effort) ---
         try:
             target_tss = None
             if compliance_result and compliance_result.value:
@@ -503,7 +457,13 @@ async def upload_fit(
     verified JWT (Authorization: Bearer header). Do NOT include user_id in the form
     data -- the frontend sends only the file field.
 
-    Returns: {"ride_id": str, "status": "processing"}
+    The ride pipeline (TSS, session link, PMC recompute, debrief) is inline-awaited
+    before responding (Vercel serverless constraint: no BackgroundTasks, which
+    Vercel freezes/kills after the response is sent).
+
+    Returns: {"ride_id": str, "status": "processed"}
+             or {"ride_id": str, "status": "duplicate", "duplicate": true} for a
+             byte-identical re-upload (T-06-06).
 
     Errors:
         401 if JWT is missing or invalid
@@ -645,9 +605,9 @@ async def upload_fit(
             },
         ) from exc
 
-    # --- Enqueue background pipeline (D-15) ---
-    background_tasks.add_task(
-        process_ride_background,
+    # --- Run the ride pipeline inline-awaited (Vercel serverless constraint: no
+    #     BackgroundTasks, which Vercel freezes/kills after the response is sent) ---
+    await process_ride_background(
         ride_id,
         user_id,
         parsed,
@@ -655,7 +615,7 @@ async def upload_fit(
         ride_date,
     )
 
-    return {"ride_id": ride_id, "status": "processing"}
+    return {"ride_id": ride_id, "status": "processed"}
 
 
 @router.get("/")
