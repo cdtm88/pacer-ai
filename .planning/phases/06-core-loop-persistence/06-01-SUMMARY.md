@@ -129,3 +129,9 @@ Migration 0005 is live on the linked Supabase project. Plans 06-02 through 06-05
 ---
 *Phase: 06-core-loop-persistence*
 *Completed: 2026-07-03*
+
+## Self-Check: PASSED
+- FOUND: supabase/migrations/0005_phase6_persistence.sql
+- FOUND: .planning/phases/06-core-loop-persistence/06-01-SUMMARY.md
+- FOUND commit: 6ee85b2
+- FOUND commit: 32e607e
