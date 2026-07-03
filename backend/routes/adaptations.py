@@ -64,17 +64,14 @@ def _parse_date(val) -> Optional[date]:
     if isinstance(val, datetime):
         return val.date()
     if isinstance(val, str):
-        # Try ISO date first, then ISO datetime
-        for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%SZ"):
-            try:
-                return datetime.strptime(val[:len(fmt)], fmt).date()
-            except ValueError:
-                continue
-        # Try splitting on T for datetimes with fractional seconds
+        # WR-03: the previous strptime loop sliced val by len(fmt) (the format
+        # string's length, not the length of a value that format would
+        # produce), so every attempt raised ValueError and only this fallback
+        # ever actually parsed a value. Drop the dead loop and parse directly.
         try:
             return datetime.fromisoformat(val.replace("Z", "+00:00")).date()
         except ValueError:
-            pass
+            return None
     return None
 
 
