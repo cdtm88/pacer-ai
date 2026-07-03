@@ -532,7 +532,26 @@ async def dispatch_tool(tool_use_block, audit_log: list, user_id: str | None = N
     inputs = tool_use_block.input
     tool_use_id = tool_use_block.id
 
-    if user_id is not None and name in {"save_profile", "generate_plan"}:
+    if name in {"save_profile", "generate_plan"}:
+        # WR-01: fail closed. Any LLM-emitted user_id is stripped unconditionally
+        # (Anthropic does not enforce additionalProperties: false, so the model
+        # can emit undeclared keys). Without a server-side identity these
+        # persistence tools must not run at all -- a service-role write keyed on
+        # an LLM-supplied user_id would be a prompt-injection cross-user write.
+        inputs = {k: v for k, v in inputs.items() if k != "user_id"}
+        if user_id is None:
+            error_text = f"server identity required for tool '{name}' (no user_id available)"
+            audit_log.append({
+                "tool_use_id": tool_use_id,
+                "name": name,
+                "error": error_text,
+            })
+            return {
+                "type": "tool_result",
+                "tool_use_id": tool_use_id,
+                "content": [{"type": "text", "text": f"Error: {error_text}"}],
+                "is_error": True,
+            }
         inputs = {**inputs, "user_id": user_id}
 
     fn = TOOL_REGISTRY.get(name)

@@ -439,6 +439,38 @@ async def test_dispatch_tool_generate_plan_uses_injected_user_id(monkeypatch):
     assert llm_supplied_user_id not in captured_user_ids
 
 
+async def test_dispatch_tool_fails_closed_without_server_identity():
+    """
+    WR-01: save_profile/generate_plan dispatched with user_id=None must fail
+    closed with an is_error tool_result -- an LLM-supplied user_id must never
+    reach a service-role write.
+    """
+    import backend.agent.tools as tools_module
+
+    for tool_name, tool_inputs in [
+        ("generate_plan", _generate_plan_inputs("llm-injected-user")),
+        ("save_profile", {
+            "user_id": "llm-injected-user",
+            "fitness_goals": "x",
+            "weekly_hours": 3.0,
+            "preferred_days": ["Tuesday"],
+            "back_status": "none",
+            "equipment": {},
+            "rpe_baseline": "beginner",
+        }),
+    ]:
+        block = _FakeToolUseBlock(tool_name, tool_inputs)
+        audit_log: list = []
+
+        tool_result = await tools_module.dispatch_tool(block, audit_log, user_id=None)
+
+        assert tool_result["is_error"] is True, (
+            f"{tool_name} with user_id=None must fail closed, got {tool_result}"
+        )
+        assert "server identity required" in tool_result["content"][0]["text"]
+        assert audit_log and "error" in audit_log[0]
+
+
 async def test_dispatch_tool_save_profile_unaffected_by_persistence_branch(monkeypatch):
     """save_profile dispatch is unaffected by the generate_plan persistence branch."""
     import backend.agent.tools as tools_module
