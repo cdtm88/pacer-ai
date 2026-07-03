@@ -253,6 +253,55 @@ async def test_save_profile_upserts(monkeypatch):
     assert result.methodology == "profile_persistence"
 
 
+def test_week1_rollforward_avoids_week2_collision():
+    """
+    WR-02: a Week-1 session whose weekday precedes confirm_date rolls +7 days,
+    which would land exactly on the Week-2 session for that weekday. The
+    resolver must place it on the earliest free date on/after confirm_date
+    instead -- no two sessions may ever share a scheduled_date.
+    """
+    import datetime
+    from backend.agent.tools import _resolve_all_scheduled_dates
+
+    confirm = datetime.date(2026, 7, 1)  # a Wednesday
+    sessions = [
+        {"week": 1, "day": "Tuesday"},   # 2026-06-30 < confirm -> rolls to 07-07
+        {"week": 1, "day": "Thursday"},  # 2026-07-02, no roll
+        {"week": 2, "day": "Tuesday"},   # 2026-07-07 (the collision slot)
+        {"week": 2, "day": "Thursday"},  # 2026-07-09
+    ]
+
+    dates = _resolve_all_scheduled_dates(confirm, sessions)
+
+    assert len(set(dates)) == len(dates), f"duplicate scheduled_dates: {dates}"
+    # No Week-1 session in the past.
+    for session, d in zip(sessions, dates):
+        if session["week"] == 1:
+            assert d >= confirm, f"Week-1 session scheduled in the past: {d}"
+    # The Week-2 Tuesday keeps its slot; the rolled Week-1 Tuesday moved elsewhere.
+    assert dates[2] == datetime.date(2026, 7, 7)
+    assert dates[0] != datetime.date(2026, 7, 7)
+
+
+def test_resolve_all_dates_no_roll_matches_single_resolver():
+    """WR-02 regression: sessions needing no roll keep _resolve_scheduled_date's result."""
+    import datetime
+    from backend.agent.tools import _resolve_all_scheduled_dates, _resolve_scheduled_date
+
+    confirm = datetime.date(2026, 6, 29)  # a Monday -- nothing rolls
+    sessions = [
+        {"week": w, "day": d}
+        for w in (1, 2, 3, 4)
+        for d in ("Tuesday", "Thursday", "Saturday")
+    ]
+
+    dates = _resolve_all_scheduled_dates(confirm, sessions)
+
+    for session, resolved in zip(sessions, dates):
+        assert resolved == _resolve_scheduled_date(confirm, session["week"], session["day"])
+    assert len(set(dates)) == len(dates)
+
+
 class _FakeToolUseBlock:
     """Minimal stand-in for an Anthropic tool_use content block."""
 

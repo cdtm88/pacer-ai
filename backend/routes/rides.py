@@ -311,6 +311,9 @@ async def process_ride_background(
                 .eq("user_id", user_id)
                 .eq("scheduled_date", ride_date)
                 .eq("status", "planned")
+                # WR-02: deterministic tiebreak if multiple planned sessions
+                # ever share a date -- never let the DB pick arbitrarily.
+                .order("id", desc=False)
                 .limit(1)
                 .execute()
             )

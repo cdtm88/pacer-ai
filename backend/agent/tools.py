@@ -435,6 +435,48 @@ def _resolve_scheduled_date(confirm_date: date, week: int, day_name: str) -> dat
     return target
 
 
+def _resolve_all_scheduled_dates(confirm_date: date, sessions: list[dict]) -> list[date]:
+    """
+    Resolve every session's (week, day) pair to an absolute date with
+    collision handling (WR-02).
+
+    A Week-1 session whose weekday precedes confirm_date is rolled +7 days,
+    which lands on the exact date of the Week-2 session for the same weekday.
+    When that (or any other) collision occurs, the rolled session is placed on
+    the earliest free date on/after confirm_date instead, so no two sessions
+    ever share a scheduled_date (two 'planned' rows on one date make the
+    ride-session link arbitrary and suppress legitimate missed signals).
+    """
+    monday_of_week1 = confirm_date - timedelta(days=confirm_date.weekday())
+    naive = [
+        monday_of_week1 + timedelta(weeks=s["week"] - 1, days=_DAY_INDEX[s["day"]])
+        for s in sessions
+    ]
+
+    resolved: list[date | None] = [None] * len(sessions)
+    used: set[date] = set()
+
+    # First pass: sessions needing no roll keep their naive date.
+    for i, (session, target) in enumerate(zip(sessions, naive)):
+        if not (session["week"] == 1 and target < confirm_date):
+            resolved[i] = target
+            used.add(target)
+
+    # Second pass: rolled Week-1 sessions. Prefer +7 days; on collision take
+    # the earliest free date on/after confirm_date.
+    for i, (session, target) in enumerate(zip(sessions, naive)):
+        if resolved[i] is None:
+            candidate = target + timedelta(days=7)
+            if candidate in used:
+                candidate = confirm_date
+                while candidate in used:
+                    candidate += timedelta(days=1)
+            resolved[i] = candidate
+            used.add(candidate)
+
+    return resolved
+
+
 async def _persist_generated_plan(user_id: str, plan_value: dict) -> None:
     """
     Persist a generate_plan() result as one `plans` row and one `sessions` row
@@ -471,11 +513,11 @@ async def _persist_generated_plan(user_id: str, plan_value: dict) -> None:
     plan_id = plans_insert.data[0]["id"]
 
     confirm_date = date.today()
+    # WR-02: resolve all dates together so a rolled Week-1 session never
+    # collides with the Week-2 session for the same weekday.
+    scheduled_dates = _resolve_all_scheduled_dates(confirm_date, sessions)
     session_rows = []
-    for session in sessions:
-        scheduled_date = _resolve_scheduled_date(
-            confirm_date, session["week"], session["day"]
-        )
+    for session, scheduled_date in zip(sessions, scheduled_dates):
         session_rows.append(
             {
                 "plan_id": plan_id,
