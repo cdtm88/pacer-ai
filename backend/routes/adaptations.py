@@ -543,13 +543,15 @@ async def apply_macro_replan(user_id: str, signals: list[dict]) -> dict:
     capacity_ratio = (recommended_ctl / current_ctl) if current_ctl > 0 else 0.8
 
     # Build "after" sessions with adjusted TSS and shifted dates (spread sessions out).
+    # Progressive spacing (session i shifts by i+2 days) so the shift is real enough for
+    # check_shift_limit's >1-day-per-session semantics to actually fire (ADAPT-03, D-19);
+    # a uniform +1-day shift can never exceed the guard's ">1 day" threshold.
     after_sessions = []
     for i, session in enumerate(before_sessions):
         original_tss = session.get("tss_target") or 0
         new_tss = round(original_tss * capacity_ratio, 1)
         sched = _parse_date(session.get("scheduled_date"))
-        # Shift each session out by 1 day to spread load; apply proportionally.
-        new_date = (sched + timedelta(days=1)).isoformat() if sched else session.get("scheduled_date")
+        new_date = (sched + timedelta(days=i + 2)).isoformat() if sched else session.get("scheduled_date")
         after_sessions.append({
             **session,
             "tss_target": new_tss,
@@ -574,9 +576,35 @@ async def apply_macro_replan(user_id: str, signals: list[dict]) -> dict:
                 f"User confirmation required before applying (D-19)."
             ),
         }
+
+        # OQ1: auto-supersede any prior pending proposal for this user before persisting
+        # the new one -- the simplest correct behaviour for staleness (RESEARCH A2),
+        # no separate rejection/expiry endpoint needed.
+        await (
+            supabase.table("adaptations")
+            .update({"status": "superseded"})
+            .eq("user_id", user_id)
+            .eq("status", "proposed")
+            .execute()
+        )
+
+        primary_trigger = signal_types[0] if signal_types else "underperformance"
+        adaptation_id = await log_adaptation(
+            user_id=user_id,
+            trigger=primary_trigger,
+            signal_count=len(signals),
+            scope="macro",
+            before_snapshot={"sessions": before_sessions},
+            after_snapshot={"sessions": after_sessions, "recommended_ctl": recommended_ctl},
+            explanation_text=change_summary["warning"],
+            status="proposed",
+            trigger_session_ids=[s["session_id"] for s in signals if s.get("session_id")],
+        )
+
         return {
             "status": "needs_confirmation",
             "scope": "macro",
+            "adaptation_id": adaptation_id,
             "change_summary": change_summary,
         }
 

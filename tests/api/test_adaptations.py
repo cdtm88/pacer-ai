@@ -297,6 +297,126 @@ def test_shift_limit():
 
 
 # ---------------------------------------------------------------------------
+# ADAPT-03/D-19: test_apply_macro_replan_shift_limit_fires + supersede
+# ---------------------------------------------------------------------------
+
+
+def _macro_upcoming_sessions(today):
+    return [
+        {"id": "sess-a", "scheduled_date": (today + datetime.timedelta(days=1)).isoformat(), "tss_target": 60, "duration_minutes": 60, "status": "planned"},
+        {"id": "sess-b", "scheduled_date": (today + datetime.timedelta(days=3)).isoformat(), "tss_target": 60, "duration_minutes": 60, "status": "planned"},
+        {"id": "sess-c", "scheduled_date": (today + datetime.timedelta(days=5)).isoformat(), "tss_target": 60, "duration_minutes": 60, "status": "planned"},
+    ]
+
+
+async def test_apply_macro_replan_shift_limit_fires(monkeypatch):
+    """
+    ADAPT-03, D-19: the fixed progressive-spacing generator produces a shift wide
+    enough for check_shift_limit's guard to fire. When it fires, needs_confirmation
+    is returned and NO session rows are updated with tss_target/scheduled_date.
+    """
+    import backend.routes.adaptations as adapt_module
+
+    today = datetime.date.today()
+    upcoming = _macro_upcoming_sessions(today)
+
+    execute_sessions = MagicMock()
+    execute_sessions.data = upcoming
+    execute_profiles = MagicMock()
+    execute_profiles.data = [{"constraints": {}}]
+    execute_pmc = MagicMock()
+    execute_pmc.data = [{"ctl": 50, "atl": 40}]
+    execute_supersede = MagicMock()
+    execute_supersede.data = []
+    execute_insert = MagicMock()
+    execute_insert.data = [{"id": "adaptation-macro-001"}]
+
+    mock_client = MagicMock()
+    mock_client.table.return_value = mock_client
+    mock_client.select.return_value = mock_client
+    mock_client.eq.return_value = mock_client
+    mock_client.gte.return_value = mock_client
+    mock_client.order.return_value = mock_client
+    mock_client.update.return_value = mock_client
+    mock_client.insert.return_value = mock_client
+    mock_client.execute = AsyncMock(side_effect=[
+        execute_sessions, execute_profiles, execute_pmc, execute_supersede, execute_insert,
+    ])
+
+    async def _mock_supabase():
+        return mock_client
+
+    monkeypatch.setattr(adapt_module, "_get_async_supabase", _mock_supabase)
+
+    signals = [_sig("missed", "sess-a"), _sig("missed", "sess-b")]
+    result = await adapt_module.apply_macro_replan(TEST_USER_ID, signals)
+
+    assert result["status"] == "needs_confirmation"
+    assert result["scope"] == "macro"
+    assert result["adaptation_id"] == "adaptation-macro-001"
+    assert result["change_summary"]["shift_check"]["requires_user_confirmation"] is True
+
+    # No sessions update call (tss_target/scheduled_date) was ever issued -- nothing applied.
+    session_update_calls = [
+        c for c in mock_client.update.call_args_list
+        if "tss_target" in c.args[0] and "scheduled_date" in c.args[0]
+    ]
+    assert session_update_calls == [], "guard fired -- sessions must not be updated"
+
+
+async def test_apply_macro_replan_supersedes_prior_proposal(monkeypatch):
+    """
+    OQ1: before persisting a new proposed macro replan, any prior status='proposed'
+    rows for this user are superseded.
+    """
+    import backend.routes.adaptations as adapt_module
+
+    today = datetime.date.today()
+    upcoming = _macro_upcoming_sessions(today)
+
+    execute_sessions = MagicMock()
+    execute_sessions.data = upcoming
+    execute_profiles = MagicMock()
+    execute_profiles.data = [{"constraints": {}}]
+    execute_pmc = MagicMock()
+    execute_pmc.data = [{"ctl": 50, "atl": 40}]
+    execute_supersede = MagicMock()
+    execute_supersede.data = []
+    execute_insert = MagicMock()
+    execute_insert.data = [{"id": "adaptation-macro-002"}]
+
+    mock_client = MagicMock()
+    mock_client.table.return_value = mock_client
+    mock_client.select.return_value = mock_client
+    mock_client.eq.return_value = mock_client
+    mock_client.gte.return_value = mock_client
+    mock_client.order.return_value = mock_client
+    mock_client.update.return_value = mock_client
+    mock_client.insert.return_value = mock_client
+    mock_client.execute = AsyncMock(side_effect=[
+        execute_sessions, execute_profiles, execute_pmc, execute_supersede, execute_insert,
+    ])
+
+    async def _mock_supabase():
+        return mock_client
+
+    monkeypatch.setattr(adapt_module, "_get_async_supabase", _mock_supabase)
+
+    signals = [_sig("missed", "sess-a"), _sig("missed", "sess-b")]
+    result = await adapt_module.apply_macro_replan(TEST_USER_ID, signals)
+
+    assert result["status"] == "needs_confirmation"
+
+    # A supersede UPDATE (status='superseded') happened before the new proposal's insert.
+    supersede_calls = [c for c in mock_client.update.call_args_list if c.args[0] == {"status": "superseded"}]
+    assert len(supersede_calls) == 1
+
+    proposed_inserts = [c for c in mock_client.insert.call_args_list if c.args[0].get("status") == "proposed"]
+    assert len(proposed_inserts) == 1
+    assert proposed_inserts[0].args[0]["trigger_session_ids"] == ["sess-a", "sess-b"]
+
+
+# ---------------------------------------------------------------------------
 # ADAPT-04: test_weekly_check
 # ---------------------------------------------------------------------------
 
