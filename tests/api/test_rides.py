@@ -110,8 +110,10 @@ def _make_background_mock(ride_id="test-ride-001"):
 async def test_upload_returns_200(monkeypatch):
     """
     FIT-01: POST /rides/upload with a valid .FIT file returns 200 with ride_id.
-    Background task is mocked to avoid live DB calls.
+    The ride pipeline is mocked to avoid live DB calls.
     Phase 4: request requires a valid JWT; user_id is no longer a form field.
+    Task 3: the pipeline is inline-awaited (Vercel-safe); the returned status
+    is 'processed', not the old BackgroundTasks-era 'processing'.
     """
     from backend.main import app
     import backend.routes.rides as rides_module
@@ -141,7 +143,8 @@ async def test_upload_returns_200(monkeypatch):
     assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
     body = response.json()
     assert "ride_id" in body, f"Expected 'ride_id' in response: {body}"
-    assert body["status"] == "processing", f"Expected status='processing': {body}"
+    assert body["status"] == "processed", f"Expected status='processed': {body}"
+    assert captured["called"] is True, "Expected process_ride_background to have run inline"
 
 
 # ---------------------------------------------------------------------------
@@ -743,7 +746,7 @@ async def test_fit_upload_integration(monkeypatch):
     Asserts:
     - HTTP 200 with ride_id
     - No 422 parse error
-    - Background task (driven synchronously here) produces TSS > 0
+    - The ride pipeline (mocked, inline-awaited per Task 3) produces TSS > 0
 
     DB is mocked to avoid live Supabase connections.
     """
@@ -756,7 +759,7 @@ async def test_fit_upload_integration(monkeypatch):
         "TSS > 0 assertion cannot be weakened -- fixture must be present."
     )
 
-    # Track background task args to assert TSS > 0 after driving it
+    # Track inline-awaited pipeline args to assert TSS > 0 after driving it
     bg_args: dict = {}
 
     async def capture_bg(ride_id, user_id, parsed, ftp_used, ride_date):
@@ -790,7 +793,7 @@ async def test_fit_upload_integration(monkeypatch):
     )
     body = response.json()
     assert "ride_id" in body, f"Expected 'ride_id' in body: {body}"
-    assert body.get("status") == "processing", f"Expected status='processing': {body}"
+    assert body.get("status") == "processed", f"Expected status='processed': {body}"
 
     # Drive TSS computation directly from the captured parsed dict (FIT-06 core assertion)
     from backend.sports_science.metrics import compute_tss
