@@ -9,8 +9,8 @@ def validate_session_vs_actual(planned: dict, actual: dict) -> ToolResult:
     Returns compliance_pct=None when planned_tss=0 to avoid division by zero (T-01-07).
     Flags: 'under_performed' if pct < 70, 'over_performed' if pct > 130.
     """
-    planned_tss = planned.get("tss", 0)
-    actual_tss = actual.get("tss", 0)
+    planned_tss = planned.get("tss") or 0
+    actual_tss = actual.get("tss") or 0
 
     # T-01-07: guard against zero-division
     compliance_pct = (actual_tss / planned_tss * 100) if planned_tss else None

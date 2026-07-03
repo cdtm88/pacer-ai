@@ -77,9 +77,28 @@ def _parse_date(val) -> Optional[date]:
     return None
 
 
+def _find_matching_ride(session_id: str, sched: date, rides_by_date: dict) -> Optional[dict]:
+    """Find a ride within +/-1 day of `sched`, preferring an explicit session_id link."""
+    for delta in [0, -1, 1]:
+        check_date = sched + timedelta(days=delta)
+        if check_date in rides_by_date:
+            day_rides = rides_by_date[check_date]
+            matched = next(
+                (r for r in day_rides if r.get("session_id") == session_id),
+                day_rides[0] if day_rides else None,
+            )
+            if matched:
+                return matched
+    return None
+
+
 async def detect_signals(user_id: str, window_days: int = 7) -> list[dict]:
     """
     ADAPT-01: Detect missed-session and underperformance signals for a user.
+
+    Idempotency (Pattern 5): a session id already present in any
+    `adaptations.trigger_session_ids` array for this user is skipped -- it has
+    already been consumed by a prior adaptation and must not re-fire.
 
     Missed-session check (D-16):
       Load planned sessions whose scheduled_date is past-due within `window_days`.
@@ -87,7 +106,7 @@ async def detect_signals(user_id: str, window_days: int = 7) -> list[dict]:
       If none found, emit {"type": "missed", "session_id": id}.
 
     Underperformance check (ADAPT-05, D-17):
-      Load recent rides within `window_days` that are matched to a planned session.
+      Load completed sessions within `window_days` that have a matching ride.
       For each, call validate_session_vs_actual(planned, actual).
       If compliance_pct is not None and < 60, emit
       {"type": "underperformance", "session_id": id, "compliance_pct": value}.
@@ -106,18 +125,28 @@ async def detect_signals(user_id: str, window_days: int = 7) -> list[dict]:
 
     signals: list[dict] = []
 
-    # --- Missed-session check ---
-    # Load planned sessions that are past-due within the window.
-    sessions_resp = await (
-        supabase.table("sessions")
-        .select("id, scheduled_date, tss_target, plan_id")
+    # --- Consumed-ids pre-query (Pattern 5, T-06-05): scoped to this user only. ---
+    consumed_resp = await (
+        supabase.table("adaptations")
+        .select("trigger_session_ids")
         .eq("user_id", user_id)
-        .eq("status", "planned")
-        .gte("scheduled_date", window_start.isoformat())
-        .lt("scheduled_date", today.isoformat())
         .execute()
     )
-    planned_sessions = sessions_resp.data or []
+    consumed_ids: set[str] = set()
+    for row in (consumed_resp.data or []):
+        consumed_ids.update(row.get("trigger_session_ids") or [])
+
+    # --- Load candidate sessions: both still-planned and already-completed. ---
+    sessions_resp = await (
+        supabase.table("sessions")
+        .select("id, scheduled_date, tss_target, plan_id, status")
+        .eq("user_id", user_id)
+        .in_("status", ["planned", "completed"])
+        .gte("scheduled_date", window_start.isoformat())
+        .lte("scheduled_date", today.isoformat())
+        .execute()
+    )
+    candidate_sessions = sessions_resp.data or []
 
     # Load all rides in the window to check for date matches.
     rides_resp = await (
@@ -137,29 +166,32 @@ async def detect_signals(user_id: str, window_days: int = 7) -> list[dict]:
         if rd is not None:
             rides_by_date.setdefault(rd, []).append(ride)
 
-    for session in planned_sessions:
+    for session in candidate_sessions:
+        if session["id"] in consumed_ids:
+            # Already consumed by a prior adaptation -- never re-emit (Pattern 5).
+            continue
+
         sched = _parse_date(session.get("scheduled_date"))
         if sched is None:
             continue
 
-        # Check for a matching ride within +/-1 day (D-16).
-        found_ride = None
-        for delta in [0, -1, 1]:
-            check_date = sched + timedelta(days=delta)
-            if check_date in rides_by_date:
-                # If session_id is explicitly linked, prefer that; otherwise any ride on that day.
-                day_rides = rides_by_date[check_date]
-                matched = next(
-                    (r for r in day_rides if r.get("session_id") == session["id"]),
-                    day_rides[0] if day_rides else None,
-                )
-                if matched:
-                    found_ride = matched
-                    break
+        status = session.get("status")
 
-        if found_ride is None:
-            signals.append({"type": "missed", "session_id": session["id"]})
-        else:
+        if status == "planned":
+            if sched >= today:
+                # Not yet due -- no signal.
+                continue
+            found_ride = _find_matching_ride(session["id"], sched, rides_by_date)
+            if found_ride is None:
+                signals.append({"type": "missed", "session_id": session["id"]})
+            # If a ride exists but the session is still 'planned' (not yet flipped to
+            # 'completed' by the upload pipeline), don't double-signal here.
+
+        elif status == "completed":
+            found_ride = _find_matching_ride(session["id"], sched, rides_by_date)
+            if found_ride is None:
+                continue
+
             # --- Underperformance check (ADAPT-05) ---
             # Use validate_session_vs_actual; threshold decision is the tool's compliance_pct.
             planned_tss = session.get("tss_target") or 0
@@ -289,12 +321,17 @@ async def log_adaptation(
     before_snapshot: dict,
     after_snapshot: dict,
     explanation_text: str,
+    status: str = "applied",
+    trigger_session_ids: Optional[list] = None,
 ) -> str:
     """
     TRANSP-02, D-20: Persist one adaptation event to the adaptations table.
 
     trigger must be one of: "missed", "underperformance", "overreaching"
     scope   must be one of: "micro", "macro"
+    status  must be one of: "applied", "proposed", "superseded" (Pattern 5/6)
+    trigger_session_ids records the specific sessions consumed by this adaptation
+    so detect_signals can skip them on future checks (Pattern 5, T-06-05).
 
     Returns:
         The new row's id (UUID string).
@@ -308,6 +345,8 @@ async def log_adaptation(
         "before_snapshot": before_snapshot,
         "after_snapshot": after_snapshot,
         "explanation_text": explanation_text,
+        "status": status,
+        "trigger_session_ids": trigger_session_ids or [],
     }).execute()
     if not result.data:
         raise RuntimeError("adaptations INSERT returned no rows -- check RLS and schema")
@@ -381,7 +420,7 @@ async def apply_micro_adjustment(user_id: str, signal: dict) -> dict:
     after_snapshot = {"sessions": after_sessions}
 
     signal_type = signal.get("type", "unknown")
-    session_id = signal.get("session_id", "unknown")
+    session_id = signal.get("session_id")
     compliance_pct = signal.get("compliance_pct")
 
     if signal_type == "missed":
@@ -389,6 +428,16 @@ async def apply_micro_adjustment(user_id: str, signal: dict) -> dict:
             f"Micro-adjustment triggered by missed session {session_id}. "
             f"Next {len(upcoming)} sessions reduced to 80% intensity to ease back in."
         )
+        if session_id:
+            # Flip the triggering session's status so detect_signals stops matching it
+            # via the 'planned' scan (Pattern 5). Dual-filtered for defence-in-depth.
+            await (
+                supabase.table("sessions")
+                .update({"status": "missed"})
+                .eq("id", session_id)
+                .eq("user_id", user_id)
+                .execute()
+            )
     else:
         explanation_text = (
             f"Micro-adjustment triggered by underperformance signal on session {session_id} "
@@ -404,6 +453,7 @@ async def apply_micro_adjustment(user_id: str, signal: dict) -> dict:
         before_snapshot=before_snapshot,
         after_snapshot=after_snapshot,
         explanation_text=explanation_text,
+        trigger_session_ids=[session_id] if session_id else [],
     )
 
     return {
@@ -493,13 +543,15 @@ async def apply_macro_replan(user_id: str, signals: list[dict]) -> dict:
     capacity_ratio = (recommended_ctl / current_ctl) if current_ctl > 0 else 0.8
 
     # Build "after" sessions with adjusted TSS and shifted dates (spread sessions out).
+    # Progressive spacing (session i shifts by i+2 days) so the shift is real enough for
+    # check_shift_limit's >1-day-per-session semantics to actually fire (ADAPT-03, D-19);
+    # a uniform +1-day shift can never exceed the guard's ">1 day" threshold.
     after_sessions = []
     for i, session in enumerate(before_sessions):
         original_tss = session.get("tss_target") or 0
         new_tss = round(original_tss * capacity_ratio, 1)
         sched = _parse_date(session.get("scheduled_date"))
-        # Shift each session out by 1 day to spread load; apply proportionally.
-        new_date = (sched + timedelta(days=1)).isoformat() if sched else session.get("scheduled_date")
+        new_date = (sched + timedelta(days=i + 2)).isoformat() if sched else session.get("scheduled_date")
         after_sessions.append({
             **session,
             "tss_target": new_tss,
@@ -524,9 +576,35 @@ async def apply_macro_replan(user_id: str, signals: list[dict]) -> dict:
                 f"User confirmation required before applying (D-19)."
             ),
         }
+
+        # OQ1: auto-supersede any prior pending proposal for this user before persisting
+        # the new one -- the simplest correct behaviour for staleness (RESEARCH A2),
+        # no separate rejection/expiry endpoint needed.
+        await (
+            supabase.table("adaptations")
+            .update({"status": "superseded"})
+            .eq("user_id", user_id)
+            .eq("status", "proposed")
+            .execute()
+        )
+
+        primary_trigger = signal_types[0] if signal_types else "underperformance"
+        adaptation_id = await log_adaptation(
+            user_id=user_id,
+            trigger=primary_trigger,
+            signal_count=len(signals),
+            scope="macro",
+            before_snapshot={"sessions": before_sessions},
+            after_snapshot={"sessions": after_sessions, "recommended_ctl": recommended_ctl},
+            explanation_text=change_summary["warning"],
+            status="proposed",
+            trigger_session_ids=[s["session_id"] for s in signals if s.get("session_id")],
+        )
+
         return {
             "status": "needs_confirmation",
             "scope": "macro",
+            "adaptation_id": adaptation_id,
             "change_summary": change_summary,
         }
 
@@ -536,6 +614,18 @@ async def apply_macro_replan(user_id: str, signals: list[dict]) -> dict:
             "tss_target": session["tss_target"],
             "scheduled_date": session["scheduled_date"],
         }).eq("id", session["id"]).execute()
+
+    # Flip every 'missed' signal's triggering session to status='missed' (Pattern 5),
+    # dual-filtered for defence-in-depth.
+    for sig in signals:
+        if sig.get("type") == "missed" and sig.get("session_id"):
+            await (
+                supabase.table("sessions")
+                .update({"status": "missed"})
+                .eq("id", sig["session_id"])
+                .eq("user_id", user_id)
+                .execute()
+            )
 
     signal_types = list({s.get("type") for s in signals})
     primary_trigger = signal_types[0] if signal_types else "underperformance"
@@ -558,6 +648,7 @@ async def apply_macro_replan(user_id: str, signals: list[dict]) -> dict:
         before_snapshot=before_snapshot,
         after_snapshot=after_snapshot,
         explanation_text=explanation_text,
+        trigger_session_ids=[s["session_id"] for s in signals if s.get("session_id")],
     )
 
     return {
@@ -646,6 +737,71 @@ async def check_adaptations(
         "scope": scope,
         "result": result,
     }
+
+
+@router.post("/{adaptation_id}/confirm")
+async def confirm_macro_replan(
+    adaptation_id: str = Path(...),
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """
+    D-19, Pattern 6: POST /adaptations/{adaptation_id}/confirm
+
+    Applies a stored 'proposed' macro-replan proposal exactly as it was persisted
+    (not a freshly recomputed version, which could differ if state changed in
+    between) and flips the adaptation's status to 'applied'.
+
+    T-06-04: dual-filters id + user_id + status='proposed' before any apply so a
+    foreign or non-proposed adaptation id can never be confirmed (IDOR mitigation).
+    user_id is sourced from the verified JWT.
+    """
+    user_id = current_user["user_id"]
+    validate_uuid(user_id, "user_id")
+    validate_uuid(adaptation_id, "adaptation_id")
+    supabase = await _get_async_supabase()
+
+    row_resp = await (
+        supabase.table("adaptations")
+        .select("*")
+        .eq("id", adaptation_id)
+        .eq("user_id", user_id)
+        .eq("status", "proposed")
+        .execute()
+    )
+    rows = row_resp.data or []
+    if not rows:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "proposal_not_found",
+                "detail": "No pending macro-replan proposal for this id.",
+            },
+        )
+
+    proposal = rows[0]
+    proposed_sessions = (proposal.get("after_snapshot") or {}).get("sessions") or []
+
+    for session in proposed_sessions:
+        await (
+            supabase.table("sessions")
+            .update({
+                "tss_target": session.get("tss_target"),
+                "scheduled_date": session.get("scheduled_date"),
+            })
+            .eq("id", session["id"])
+            .eq("user_id", user_id)
+            .execute()
+        )
+
+    await (
+        supabase.table("adaptations")
+        .update({"status": "applied"})
+        .eq("id", adaptation_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+
+    return {"status": "applied", "adaptation_id": adaptation_id}
 
 
 @router.post("/sessions/{session_id}/missed")

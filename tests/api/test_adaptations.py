@@ -55,13 +55,17 @@ async def test_missed_detection(monkeypatch):
 
     # The sessions table returns one past-due planned session.
     sessions_data = [
-        {"id": "sess-001", "scheduled_date": yesterday, "tss_target": 60, "plan_id": None}
+        {"id": "sess-001", "scheduled_date": yesterday, "tss_target": 60, "plan_id": None, "status": "planned"}
     ]
     # The rides table returns no rides (empty -- so no match).
     rides_data: list = []
 
-    # Mock the chained Supabase query. Two execute() calls in detect_signals:
-    # first for sessions, second for rides.
+    # No prior adaptations rows for this user -- nothing already consumed.
+    execute_consumed = MagicMock()
+    execute_consumed.data = []
+
+    # Mock the chained Supabase query. Three execute() calls in detect_signals:
+    # consumed-ids pre-query, then sessions, then rides.
     execute_sessions = MagicMock()
     execute_sessions.data = sessions_data
 
@@ -72,12 +76,13 @@ async def test_missed_detection(monkeypatch):
     mock_client.table.return_value = mock_client
     mock_client.select.return_value = mock_client
     mock_client.eq.return_value = mock_client
+    mock_client.in_.return_value = mock_client
     mock_client.gte.return_value = mock_client
     mock_client.lt.return_value = mock_client
     mock_client.lte.return_value = mock_client
     mock_client.order.return_value = mock_client
-    # Side effects: first call returns sessions, second returns rides.
-    mock_client.execute = AsyncMock(side_effect=[execute_sessions, execute_rides])
+    # Side effects: consumed-ids, then sessions, then rides.
+    mock_client.execute = AsyncMock(side_effect=[execute_consumed, execute_sessions, execute_rides])
 
     async def _mock_supabase():
         return mock_client
@@ -88,6 +93,130 @@ async def test_missed_detection(monkeypatch):
     assert len(signals) == 1
     assert signals[0]["type"] == "missed"
     assert signals[0]["session_id"] == "sess-001"
+
+
+# ---------------------------------------------------------------------------
+# Pattern 5: test_detect_signals_idempotent
+# ---------------------------------------------------------------------------
+
+
+async def test_detect_signals_idempotent(monkeypatch):
+    """
+    Pattern 5: a second detect_signals call over the same unchanged state emits
+    no signal for a session already recorded in some adaptations.trigger_session_ids.
+    """
+    import backend.routes.adaptations as adapt_module
+
+    today = datetime.date.today()
+    yesterday = (today - datetime.timedelta(days=2)).isoformat()
+
+    sessions_data = [
+        {"id": "sess-001", "scheduled_date": yesterday, "tss_target": 60, "plan_id": None, "status": "planned"}
+    ]
+    rides_data: list = []
+
+    # A prior adaptation already consumed sess-001.
+    execute_consumed = MagicMock()
+    execute_consumed.data = [{"trigger_session_ids": ["sess-001"]}]
+
+    execute_sessions = MagicMock()
+    execute_sessions.data = sessions_data
+    execute_rides = MagicMock()
+    execute_rides.data = rides_data
+
+    mock_client = MagicMock()
+    mock_client.table.return_value = mock_client
+    mock_client.select.return_value = mock_client
+    mock_client.eq.return_value = mock_client
+    mock_client.in_.return_value = mock_client
+    mock_client.gte.return_value = mock_client
+    mock_client.lt.return_value = mock_client
+    mock_client.lte.return_value = mock_client
+    mock_client.order.return_value = mock_client
+    mock_client.execute = AsyncMock(side_effect=[execute_consumed, execute_sessions, execute_rides])
+
+    async def _mock_supabase():
+        return mock_client
+
+    monkeypatch.setattr(adapt_module, "_get_async_supabase", _mock_supabase)
+
+    signals = await adapt_module.detect_signals(TEST_USER_ID)
+    assert signals == [], "session already in trigger_session_ids must not re-emit a signal"
+
+
+# ---------------------------------------------------------------------------
+# Pattern 5: test_apply_micro_adjustment_missed_status_value
+# ---------------------------------------------------------------------------
+
+
+async def test_apply_micro_adjustment_missed_status_value(monkeypatch):
+    """
+    A 'missed' signal consumed by apply_micro_adjustment must issue a sessions
+    UPDATE whose status payload is exactly 'missed' (schema-legal after migration 0005),
+    dual-filtered by id and user_id.
+    """
+    import backend.routes.adaptations as adapt_module
+
+    today = datetime.date.today()
+
+    upcoming = [
+        {"id": "sess-next-1", "scheduled_date": today.isoformat(), "tss_target": 60, "duration_minutes": 60, "status": "planned"},
+    ]
+    execute_upcoming = MagicMock()
+    execute_upcoming.data = upcoming
+    execute_generic = MagicMock()
+    execute_generic.data = [{"id": "adaptation-uuid-002"}]
+
+    update_calls: list[dict] = []
+
+    class _Chain:
+        def __init__(self, client):
+            self._client = client
+            self._filters: dict = {}
+
+        def eq(self, field, value):
+            self._filters[field] = value
+            return self
+
+        async def execute(self):
+            return execute_generic
+
+    mock_client = MagicMock()
+
+    def _update(payload):
+        update_calls.append({"payload": payload, "filters": {}})
+        chain = _Chain(mock_client)
+        original_eq = chain.eq
+
+        def _tracking_eq(field, value):
+            update_calls[-1]["filters"][field] = value
+            return chain
+
+        chain.eq = _tracking_eq
+        return chain
+
+    mock_client.table.return_value = mock_client
+    mock_client.select.return_value = mock_client
+    mock_client.eq.return_value = mock_client
+    mock_client.gte.return_value = mock_client
+    mock_client.order.return_value = mock_client
+    mock_client.insert.return_value = mock_client
+    mock_client.update = _update
+    mock_client.execute = AsyncMock(return_value=execute_upcoming)
+
+    async def _mock_supabase():
+        return mock_client
+
+    monkeypatch.setattr(adapt_module, "_get_async_supabase", _mock_supabase)
+
+    signal = _sig(type_="missed", session_id="sess-missed-001")
+    result = await adapt_module.apply_micro_adjustment(TEST_USER_ID, signal)
+
+    missed_updates = [c for c in update_calls if c["payload"].get("status") == "missed"]
+    assert len(missed_updates) == 1, "expected exactly one status='missed' UPDATE"
+    assert missed_updates[0]["filters"].get("id") == "sess-missed-001"
+    assert missed_updates[0]["filters"].get("user_id") == TEST_USER_ID
+    assert result["status"] == "applied"
 
 
 # ---------------------------------------------------------------------------
@@ -168,6 +297,126 @@ def test_shift_limit():
 
 
 # ---------------------------------------------------------------------------
+# ADAPT-03/D-19: test_apply_macro_replan_shift_limit_fires + supersede
+# ---------------------------------------------------------------------------
+
+
+def _macro_upcoming_sessions(today):
+    return [
+        {"id": "sess-a", "scheduled_date": (today + datetime.timedelta(days=1)).isoformat(), "tss_target": 60, "duration_minutes": 60, "status": "planned"},
+        {"id": "sess-b", "scheduled_date": (today + datetime.timedelta(days=3)).isoformat(), "tss_target": 60, "duration_minutes": 60, "status": "planned"},
+        {"id": "sess-c", "scheduled_date": (today + datetime.timedelta(days=5)).isoformat(), "tss_target": 60, "duration_minutes": 60, "status": "planned"},
+    ]
+
+
+async def test_apply_macro_replan_shift_limit_fires(monkeypatch):
+    """
+    ADAPT-03, D-19: the fixed progressive-spacing generator produces a shift wide
+    enough for check_shift_limit's guard to fire. When it fires, needs_confirmation
+    is returned and NO session rows are updated with tss_target/scheduled_date.
+    """
+    import backend.routes.adaptations as adapt_module
+
+    today = datetime.date.today()
+    upcoming = _macro_upcoming_sessions(today)
+
+    execute_sessions = MagicMock()
+    execute_sessions.data = upcoming
+    execute_profiles = MagicMock()
+    execute_profiles.data = [{"constraints": {}}]
+    execute_pmc = MagicMock()
+    execute_pmc.data = [{"ctl": 50, "atl": 40}]
+    execute_supersede = MagicMock()
+    execute_supersede.data = []
+    execute_insert = MagicMock()
+    execute_insert.data = [{"id": "adaptation-macro-001"}]
+
+    mock_client = MagicMock()
+    mock_client.table.return_value = mock_client
+    mock_client.select.return_value = mock_client
+    mock_client.eq.return_value = mock_client
+    mock_client.gte.return_value = mock_client
+    mock_client.order.return_value = mock_client
+    mock_client.update.return_value = mock_client
+    mock_client.insert.return_value = mock_client
+    mock_client.execute = AsyncMock(side_effect=[
+        execute_sessions, execute_profiles, execute_pmc, execute_supersede, execute_insert,
+    ])
+
+    async def _mock_supabase():
+        return mock_client
+
+    monkeypatch.setattr(adapt_module, "_get_async_supabase", _mock_supabase)
+
+    signals = [_sig("missed", "sess-a"), _sig("missed", "sess-b")]
+    result = await adapt_module.apply_macro_replan(TEST_USER_ID, signals)
+
+    assert result["status"] == "needs_confirmation"
+    assert result["scope"] == "macro"
+    assert result["adaptation_id"] == "adaptation-macro-001"
+    assert result["change_summary"]["shift_check"]["requires_user_confirmation"] is True
+
+    # No sessions update call (tss_target/scheduled_date) was ever issued -- nothing applied.
+    session_update_calls = [
+        c for c in mock_client.update.call_args_list
+        if "tss_target" in c.args[0] and "scheduled_date" in c.args[0]
+    ]
+    assert session_update_calls == [], "guard fired -- sessions must not be updated"
+
+
+async def test_apply_macro_replan_supersedes_prior_proposal(monkeypatch):
+    """
+    OQ1: before persisting a new proposed macro replan, any prior status='proposed'
+    rows for this user are superseded.
+    """
+    import backend.routes.adaptations as adapt_module
+
+    today = datetime.date.today()
+    upcoming = _macro_upcoming_sessions(today)
+
+    execute_sessions = MagicMock()
+    execute_sessions.data = upcoming
+    execute_profiles = MagicMock()
+    execute_profiles.data = [{"constraints": {}}]
+    execute_pmc = MagicMock()
+    execute_pmc.data = [{"ctl": 50, "atl": 40}]
+    execute_supersede = MagicMock()
+    execute_supersede.data = []
+    execute_insert = MagicMock()
+    execute_insert.data = [{"id": "adaptation-macro-002"}]
+
+    mock_client = MagicMock()
+    mock_client.table.return_value = mock_client
+    mock_client.select.return_value = mock_client
+    mock_client.eq.return_value = mock_client
+    mock_client.gte.return_value = mock_client
+    mock_client.order.return_value = mock_client
+    mock_client.update.return_value = mock_client
+    mock_client.insert.return_value = mock_client
+    mock_client.execute = AsyncMock(side_effect=[
+        execute_sessions, execute_profiles, execute_pmc, execute_supersede, execute_insert,
+    ])
+
+    async def _mock_supabase():
+        return mock_client
+
+    monkeypatch.setattr(adapt_module, "_get_async_supabase", _mock_supabase)
+
+    signals = [_sig("missed", "sess-a"), _sig("missed", "sess-b")]
+    result = await adapt_module.apply_macro_replan(TEST_USER_ID, signals)
+
+    assert result["status"] == "needs_confirmation"
+
+    # A supersede UPDATE (status='superseded') happened before the new proposal's insert.
+    supersede_calls = [c for c in mock_client.update.call_args_list if c.args[0] == {"status": "superseded"}]
+    assert len(supersede_calls) == 1
+
+    proposed_inserts = [c for c in mock_client.insert.call_args_list if c.args[0].get("status") == "proposed"]
+    assert len(proposed_inserts) == 1
+    assert proposed_inserts[0].args[0]["trigger_session_ids"] == ["sess-a", "sess-b"]
+
+
+# ---------------------------------------------------------------------------
 # ADAPT-04: test_weekly_check
 # ---------------------------------------------------------------------------
 
@@ -191,6 +440,7 @@ async def test_weekly_check(monkeypatch):
     mock_client.table.return_value = mock_client
     mock_client.select.return_value = mock_client
     mock_client.eq.return_value = mock_client
+    mock_client.in_.return_value = mock_client
     mock_client.gte.return_value = mock_client
     mock_client.lt.return_value = mock_client
     mock_client.lte.return_value = mock_client
@@ -235,12 +485,18 @@ async def test_intensity_from_tools(monkeypatch):
     yesterday = (today - datetime.timedelta(days=1)).isoformat()
 
     # A session with planned TSS 80; the ride only achieved 40 (50% compliance -> underperformance).
+    # Status 'completed' because the ride-upload pipeline flips a matched session to
+    # 'completed' before an underperformance signal can fire (Pattern 5).
     sessions_data = [
-        {"id": "sess-underperf", "scheduled_date": yesterday, "tss_target": 80, "plan_id": None}
+        {"id": "sess-underperf", "scheduled_date": yesterday, "tss_target": 80, "plan_id": None, "status": "completed"}
     ]
     rides_data = [
         {"id": "ride-001", "ride_date": yesterday, "tss": 40.0, "session_id": "sess-underperf"}
     ]
+
+    # No prior adaptations rows for this user -- nothing already consumed.
+    execute_consumed = MagicMock()
+    execute_consumed.data = []
 
     execute_sessions = MagicMock()
     execute_sessions.data = sessions_data
@@ -251,11 +507,12 @@ async def test_intensity_from_tools(monkeypatch):
     mock_client.table.return_value = mock_client
     mock_client.select.return_value = mock_client
     mock_client.eq.return_value = mock_client
+    mock_client.in_.return_value = mock_client
     mock_client.gte.return_value = mock_client
     mock_client.lt.return_value = mock_client
     mock_client.lte.return_value = mock_client
     mock_client.order.return_value = mock_client
-    mock_client.execute = AsyncMock(side_effect=[execute_sessions, execute_rides])
+    mock_client.execute = AsyncMock(side_effect=[execute_consumed, execute_sessions, execute_rides])
 
     async def _mock_supabase():
         return mock_client
@@ -399,3 +656,115 @@ async def test_get_adaptations_requires_auth():
         response = await client.get("/adaptations/")
 
     assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# T-06-04: POST /adaptations/{id}/confirm
+# ---------------------------------------------------------------------------
+
+
+async def test_confirm_macro_applies_stored_snapshot(monkeypatch):
+    """
+    Pattern 6: confirming a proposed macro replan applies the STORED after_snapshot
+    sessions verbatim (not a freshly recomputed one) and flips the adaptation's
+    status to 'applied'.
+    """
+    from backend.main import app
+    import backend.routes.adaptations as adapt_module
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
+
+    adaptation_id = "11111111-1111-1111-1111-111111111111"
+    proposal_row = {
+        "id": adaptation_id,
+        "user_id": TEST_USER_ID,
+        "status": "proposed",
+        "after_snapshot": {
+            "sessions": [
+                {"id": "sess-x", "tss_target": 42.0, "scheduled_date": "2026-07-10"},
+            ],
+        },
+    }
+
+    execute_select = MagicMock()
+    execute_select.data = [proposal_row]
+    execute_session_update = MagicMock()
+    execute_session_update.data = [{"id": "sess-x"}]
+    execute_status_update = MagicMock()
+    execute_status_update.data = [{"id": adaptation_id, "status": "applied"}]
+
+    mock_client = MagicMock()
+    mock_client.table.return_value = mock_client
+    mock_client.select.return_value = mock_client
+    mock_client.eq.return_value = mock_client
+    mock_client.update.return_value = mock_client
+    mock_client.execute = AsyncMock(side_effect=[execute_select, execute_session_update, execute_status_update])
+
+    async def _mock_supabase():
+        return mock_client
+
+    monkeypatch.setattr(adapt_module, "_get_async_supabase", _mock_supabase)
+
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        response = await client.post(
+            f"/adaptations/{adaptation_id}/confirm",
+            headers=auth_headers(),
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data == {"status": "applied", "adaptation_id": adaptation_id}
+
+    # The applied session payload matches the STORED snapshot verbatim.
+    session_update_calls = [c for c in mock_client.update.call_args_list if "tss_target" in c.args[0]]
+    assert len(session_update_calls) == 1
+    assert session_update_calls[0].args[0] == {"tss_target": 42.0, "scheduled_date": "2026-07-10"}
+
+    # The adaptation row itself flips to 'applied'.
+    status_update_calls = [c for c in mock_client.update.call_args_list if c.args[0] == {"status": "applied"}]
+    assert len(status_update_calls) == 1
+
+
+async def test_confirm_macro_idor_returns_404(monkeypatch):
+    """
+    T-06-04: an adaptation id that does not resolve under the id+user_id+status='proposed'
+    dual-filter (foreign owner, missing, or already applied/superseded) returns 404
+    proposal_not_found -- nothing is applied.
+    """
+    from backend.main import app
+    import backend.routes.adaptations as adapt_module
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
+
+    foreign_adaptation_id = "22222222-2222-2222-2222-222222222222"
+
+    execute_select = MagicMock()
+    execute_select.data = []  # dual-filter matched nothing for this user
+
+    mock_client = MagicMock()
+    mock_client.table.return_value = mock_client
+    mock_client.select.return_value = mock_client
+    mock_client.eq.return_value = mock_client
+    mock_client.update.return_value = mock_client
+    mock_client.execute = AsyncMock(return_value=execute_select)
+
+    async def _mock_supabase():
+        return mock_client
+
+    monkeypatch.setattr(adapt_module, "_get_async_supabase", _mock_supabase)
+
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        response = await client.post(
+            f"/adaptations/{foreign_adaptation_id}/confirm",
+            headers=auth_headers(),
+        )
+
+    assert response.status_code == 404
+    assert response.json()["detail"]["error"] == "proposal_not_found"
+    assert mock_client.update.call_args_list == [], "no update must occur on a 404 proposal lookup"
