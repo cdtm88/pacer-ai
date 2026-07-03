@@ -34,7 +34,7 @@ import json
 import os
 
 import anthropic
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel as _PydanticBaseModel
 
@@ -180,7 +180,6 @@ async def save_messages(
 
 @router.post("/plan-calendar-sync")
 async def onboarding_plan_calendar_sync(
-    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
 ) -> dict:
     """
@@ -189,17 +188,21 @@ async def onboarding_plan_calendar_sync(
     Called by the frontend after the onboarding agent finishes generating the
     initial plan and sessions are persisted to the database (CAL-01).
 
-    Fire-and-forget: pushes all planned sessions for this user to Google Calendar
-    as background work. A calendar failure never blocks this endpoint (CAL-04).
-    The helper is a no-op when the user has not connected Google Calendar.
+    Pushes all planned sessions for this user to Google Calendar, inline-awaited
+    before responding (Vercel serverless constraint: no BackgroundTasks, which
+    Vercel freezes/kills after the response is sent). A calendar failure never
+    blocks this endpoint (CAL-04). The helper is a no-op when the user has not
+    connected Google Calendar, and its Google API calls are individually
+    timeout-bounded so a stale/expired refresh token cannot stall this request.
 
-    Returns immediately with {"status": "scheduled"}.
+    Returns {"status": "completed"} once the push has finished (or no-opped).
     """
     user_id = current_user["user_id"]
-    # Register the push with FastAPI's BackgroundTasks so it runs after the
-    # response is sent and is tied to the worker's event loop lifecycle (CR-003).
-    background_tasks.add_task(push_all_sessions_to_calendar, user_id)
-    return {"status": "scheduled"}
+    # --- push_all_sessions_to_calendar inline-awaited (Vercel serverless
+    #     constraint: no BackgroundTasks, which Vercel freezes/kills after the
+    #     response is sent) ---
+    await push_all_sessions_to_calendar(user_id)
+    return {"status": "completed"}
 
 
 class OnboardingStartBody(_PydanticBaseModel):

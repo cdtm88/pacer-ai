@@ -16,6 +16,15 @@ Additional helper:
   - push_all_sessions_to_calendar(user_id): loads all planned sessions for the
     user and pushes each to the calendar. Used by the onboarding path for the
     initial plan push (CAL-01).
+
+Timeout (07-02, RESEARCH.md Pitfall 3): every synchronous Google Calendar API
+call is now wrapped in asyncio.wait_for(..., timeout=CALENDAR_API_TIMEOUT_SECS)
+around its asyncio.to_thread call. Since the onboarding and adaptations routes
+inline-await these helpers (no more BackgroundTasks under Vercel), a hanging or
+stalled call against a stale/expired refresh token could otherwise stall the
+HTTP response up to the function's maxDuration. A timeout raises
+asyncio.TimeoutError, which is caught by each helper's existing
+try/except-swallow (CAL-04) -- no new error surfacing.
 """
 
 import asyncio
@@ -28,6 +37,11 @@ from typing import Optional
 from backend.db import get_async_supabase as _get_async_supabase
 
 logger = logging.getLogger(__name__)
+
+# Bounded per-call timeout (seconds) for outbound Google Calendar API calls
+# (07-02, RESEARCH.md Pitfall 3). Keeps a stale/expired refresh token from
+# stalling an inline-awaited request up to the function's maxDuration.
+CALENDAR_API_TIMEOUT_SECS = 8.0
 
 
 # ---------------------------------------------------------------------------
@@ -159,7 +173,11 @@ async def push_session_to_calendar(user_id: str, session: dict) -> Optional[str]
             ).execute()
             return result.get("id", "")
 
-        event_id = await asyncio.to_thread(_insert)
+        # Bounded timeout (07-02, RESEARCH.md Pitfall 3): caught by the
+        # surrounding except Exception below (TimeoutError is an Exception).
+        event_id = await asyncio.wait_for(
+            asyncio.to_thread(_insert), timeout=CALENDAR_API_TIMEOUT_SECS
+        )
         return event_id or None
     except Exception:
         logger.warning(
@@ -192,7 +210,9 @@ async def update_calendar_event(user_id: str, event_id: str, session: dict) -> N
                 body=event_body,
             ).execute()
 
-        await asyncio.to_thread(_update)
+        # Bounded timeout (07-02, RESEARCH.md Pitfall 3): caught by the
+        # surrounding except Exception below (TimeoutError is an Exception).
+        await asyncio.wait_for(asyncio.to_thread(_update), timeout=CALENDAR_API_TIMEOUT_SECS)
     except Exception:
         logger.warning(
             "update_calendar_event failed for user %s event %s",
@@ -220,7 +240,9 @@ async def delete_calendar_event(user_id: str, event_id: str) -> None:
                 eventId=event_id,
             ).execute()
 
-        await asyncio.to_thread(_delete)
+        # Bounded timeout (07-02, RESEARCH.md Pitfall 3): caught by the
+        # surrounding except Exception below (TimeoutError is an Exception).
+        await asyncio.wait_for(asyncio.to_thread(_delete), timeout=CALENDAR_API_TIMEOUT_SECS)
     except Exception:
         logger.warning(
             "delete_calendar_event failed for user %s event %s",
