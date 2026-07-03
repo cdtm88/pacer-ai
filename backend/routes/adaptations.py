@@ -437,7 +437,13 @@ async def apply_micro_adjustment(user_id: str, signal: dict) -> dict:
         if new_tss is not None:
             update_payload["tss_target"] = new_tss
 
-        await supabase.table("sessions").update(update_payload).eq("id", session["id"]).execute()
+        await (
+            supabase.table("sessions")
+            .update(update_payload)
+            .eq("id", session["id"])
+            .eq("user_id", user_id)
+            .execute()
+        )
 
         after_sessions.append({
             **session,
@@ -646,7 +652,13 @@ async def apply_macro_replan(user_id: str, signals: list[dict]) -> dict:
         # CR-01: never write a scaled-from-NULL 0.0 over a NULL tss_target.
         if session.get("tss_target") is not None:
             update_payload["tss_target"] = session["tss_target"]
-        await supabase.table("sessions").update(update_payload).eq("id", session["id"]).execute()
+        await (
+            supabase.table("sessions")
+            .update(update_payload)
+            .eq("id", session["id"])
+            .eq("user_id", user_id)
+            .execute()
+        )
 
     # Flip every 'missed' signal's triggering session to status='missed' (Pattern 5),
     # dual-filtered for defence-in-depth.
