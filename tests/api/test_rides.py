@@ -440,11 +440,17 @@ def test_missing_fields():
 # ---------------------------------------------------------------------------
 
 
-async def test_tss_computed():
+async def test_tss_computed(monkeypatch):
     """
     FIT-04: process_ride_background computes TSS and fires a rides UPDATE
     with tss > 0 when given a valid parsed dict from the real fixture.
+
+    Task 3: the old single-step PMC upsert is gone; process_ride_background
+    now delegates the full PMC recompute to recompute_pmc_for_user (unit-
+    tested in isolation in tests/test_pmc_recompute.py, 06-03) -- here we
+    only assert the integration point is called with the right arguments.
     """
+    import backend.routes.rides as rides_module
     from backend.routes.rides import parse_fit_file, process_ride_background
 
     assert FIXTURE_PATH.exists(), f"Test fixture missing: {FIXTURE_PATH}"
@@ -454,7 +460,6 @@ async def test_tss_computed():
 
     # Track all calls to the rides mock
     update_payloads: list[dict] = []
-    upsert_payloads: list[dict] = []
 
     # Build a carefully tracked mock
     execute_result = MagicMock()
@@ -463,7 +468,6 @@ async def test_tss_computed():
     chain_mock = MagicMock()
     chain_mock.select.return_value = chain_mock
     chain_mock.insert.return_value = chain_mock
-    chain_mock.upsert.return_value = chain_mock
     chain_mock.update.return_value = chain_mock
     chain_mock.eq.return_value = chain_mock
     chain_mock.order.return_value = chain_mock
@@ -471,25 +475,19 @@ async def test_tss_computed():
     chain_mock.execute = AsyncMock(return_value=execute_result)
 
     # Intercept update calls to capture payloads
-    real_update = chain_mock.update
-
     def capture_update(payload):
         update_payloads.append(payload)
         return chain_mock
 
     chain_mock.update = capture_update
 
-    def capture_upsert(payload, **kwargs):
-        upsert_payloads.append(payload)
-        return chain_mock
-
-    chain_mock.upsert = capture_upsert
-
     client_mock = MagicMock()
     client_mock.table.return_value = chain_mock
     client_mock.storage = MagicMock()
 
-    import backend.routes.rides as rides_module
+    recompute_mock = AsyncMock()
+    monkeypatch.setattr(rides_module, "recompute_pmc_for_user", recompute_mock)
+
     original_get = rides_module._get_async_supabase
 
     async def mock_get_supabase():
@@ -520,13 +518,8 @@ async def test_tss_computed():
     assert "np_watts" in ride_payload, "rides UPDATE missing np_watts"
     assert "intensity_factor" in ride_payload, "rides UPDATE missing intensity_factor"
 
-    # Assert a pmc_history UPSERT was attempted
-    assert len(upsert_payloads) >= 1, (
-        "Expected at least one pmc_history UPSERT; background task did not update PMC"
-    )
-    pmc_payload = upsert_payloads[0]
-    assert "ctl" in pmc_payload, f"pmc_history UPSERT missing 'ctl': {pmc_payload}"
-    assert "atl" in pmc_payload, f"pmc_history UPSERT missing 'atl': {pmc_payload}"
+    # Assert the full PMC recompute was triggered for the user (Task 3)
+    recompute_mock.assert_awaited_once_with(TEST_USER_ID, client_mock)
 
 
 # ---------------------------------------------------------------------------
@@ -534,12 +527,13 @@ async def test_tss_computed():
 # ---------------------------------------------------------------------------
 
 
-async def test_session_compliance():
+async def test_session_compliance(monkeypatch):
     """
     FIT-05: When a training_sessions row exists for today, process_ride_background
     calls validate_session_vs_actual and its compliance_pct is included in the
     rides UPDATE payload.
     """
+    import backend.routes.rides as rides_module
     from backend.routes.rides import parse_fit_file, process_ride_background
 
     assert FIXTURE_PATH.exists(), f"Test fixture missing: {FIXTURE_PATH}"
@@ -549,7 +543,6 @@ async def test_session_compliance():
 
     # Build mock that returns a planned session on the training_sessions SELECT
     update_payloads: list[dict] = []
-    upsert_payloads: list[dict] = []
     call_count = {"n": 0}
 
     planned_session_row = {"tss": 50.0, "session_type": "endurance"}
@@ -571,20 +564,14 @@ async def test_session_compliance():
         update_payloads.append(payload)
         return chain_mock
 
-    def capture_upsert(payload, **kwargs):
-        upsert_payloads.append(payload)
-        return chain_mock
-
     chain_mock.update = capture_update
-    chain_mock.upsert = capture_upsert
 
-    # Decide which result to return based on call count
+    # Decide which result to return based on call count. Task 3: the old
+    # PMC-load select (previously call 1) is gone, so the sessions SELECT
+    # (ride_date + status='planned') is now the first DB call.
     async def execute_dispatch():
         call_count["n"] += 1
-        # First call: pmc_history SELECT -> empty (cold start)
-        # Second call: sessions SELECT (ride_date + status='planned') -> planned session
-        # All others: empty
-        if call_count["n"] == 2:
+        if call_count["n"] == 1:
             return execute_with_session
         return execute_empty
 
@@ -594,7 +581,8 @@ async def test_session_compliance():
     client_mock.table.return_value = chain_mock
     client_mock.storage = MagicMock()
 
-    import backend.routes.rides as rides_module
+    monkeypatch.setattr(rides_module, "recompute_pmc_for_user", AsyncMock())
+
     original_get = rides_module._get_async_supabase
 
     async def mock_get_supabase():
@@ -630,12 +618,13 @@ async def test_session_compliance():
 # ---------------------------------------------------------------------------
 
 
-async def test_session_link_flips_planned_session_to_completed():
+async def test_session_link_flips_planned_session_to_completed(monkeypatch):
     """
     Task 2: process_ride_background matches a session scheduled on the ride's
     own ride_date with status 'planned', flips it to 'completed', and sets
     rides.session_id -- replacing the old "first session today" fuzzy match.
     """
+    import backend.routes.rides as rides_module
     from backend.routes.rides import parse_fit_file, process_ride_background
 
     assert FIXTURE_PATH.exists(), f"Test fixture missing: {FIXTURE_PATH}"
@@ -648,7 +637,6 @@ async def test_session_link_flips_planned_session_to_completed():
 
     eq_calls: list[tuple] = []
     update_payloads: list[dict] = []
-    upsert_payloads: list[dict] = []
 
     execute_with_session = MagicMock()
     execute_with_session.data = [matched_session_row]
@@ -671,21 +659,15 @@ async def test_session_link_flips_planned_session_to_completed():
         update_payloads.append(payload)
         return chain_mock
 
-    def capture_upsert(payload, **kwargs):
-        upsert_payloads.append(payload)
-        return chain_mock
-
     chain_mock.update = capture_update
-    chain_mock.upsert = capture_upsert
 
     call_count = {"n": 0}
 
+    # Task 3: the old PMC-load select (previously call 1) is gone, so the
+    # sessions SELECT (ride_date + status='planned') is now the first DB call.
     async def execute_dispatch():
         call_count["n"] += 1
-        # Call 1: pmc_history SELECT -> empty (cold start)
-        # Call 2: sessions SELECT (ride_date + status='planned') -> matched session
-        # All others: empty
-        if call_count["n"] == 2:
+        if call_count["n"] == 1:
             return execute_with_session
         return execute_empty
 
@@ -695,7 +677,8 @@ async def test_session_link_flips_planned_session_to_completed():
     client_mock.table.return_value = chain_mock
     client_mock.storage = MagicMock()
 
-    import backend.routes.rides as rides_module
+    monkeypatch.setattr(rides_module, "recompute_pmc_for_user", AsyncMock())
+
     original_get = rides_module._get_async_supabase
 
     async def mock_get_supabase():
