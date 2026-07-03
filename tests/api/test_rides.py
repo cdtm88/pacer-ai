@@ -759,10 +759,11 @@ async def test_fit_upload_integration(monkeypatch):
     # Track background task args to assert TSS > 0 after driving it
     bg_args: dict = {}
 
-    async def capture_bg(ride_id, user_id, parsed, ftp_used):
+    async def capture_bg(ride_id, user_id, parsed, ftp_used, ride_date):
         bg_args["ride_id"] = ride_id
         bg_args["parsed"] = parsed
         bg_args["ftp_used"] = ftp_used
+        bg_args["ride_date"] = ride_date
 
     client_mock, _ = _make_rides_mock(ride_id="integration-ride-001")
     monkeypatch.setattr(rides_module, "_get_async_supabase", AsyncMock(return_value=client_mock))

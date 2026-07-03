@@ -25,6 +25,7 @@ Threat mitigations applied:
   T-03-15: ftp_used column records 150.0 for cold-start estimation
 """
 import asyncio
+import hashlib
 import io
 import json
 import logging
@@ -260,6 +261,7 @@ async def process_ride_background(
     user_id: str,
     parsed: dict,
     ftp_used: float,
+    ride_date: str,
 ) -> None:
     """
     Background task: compute TSS, update PMC, persist results, trigger debrief.
@@ -271,7 +273,9 @@ async def process_ride_background(
     1. compute_tss from power_array + ftp_used
     2. Load previous PMC state (prev_ctl, prev_atl, days_of_data)
     3. update_pmc with today's TSS
-    4. validate_session_vs_actual if a matched planned session exists (FIT-05)
+    4. Ride-session link (Pattern 4): match a planned session scheduled on the
+       ride's own ride_date (not upload date), flip it to 'completed', link
+       rides.session_id, and run validate_session_vs_actual (FIT-05)
     5. UPDATE rides row with computed values
     6. UPSERT pmc_history row (conflict: user_id + date)
     7. Trigger ride_debrief conversation (D-23, best-effort)
@@ -325,23 +329,35 @@ async def process_ride_background(
         new_tsb = pmc_updated.value["tsb"]
         tss_display_ready = pmc_updated.value["tss_display_ready"]
 
-        # --- Step 4: Validate session compliance (FIT-05, best-effort) ---
+        # --- Step 4: Ride-session link (Pattern 4, FIT-05, best-effort) ---
+        # Match on the ride's own ride_date (not upload date) and status='planned'
+        # only -- an already-consumed session can never match twice.
         compliance_result = None
+        matched_session_id: Optional[str] = None
         try:
-            # Look for a planned session for today matching this user
             session_result = await (
                 supabase.table("sessions")
-                .select("tss_target, type")
+                .select("id, tss_target, type")
                 .eq("user_id", user_id)
-                .eq("scheduled_date", date.today().isoformat())
+                .eq("scheduled_date", ride_date)
+                .eq("status", "planned")
+                .limit(1)
                 .execute()
             )
             if session_result.data:
-                planned_session = session_result.data[0]
+                matched_session = session_result.data[0]
                 compliance_result = validate_session_vs_actual(
-                    planned={"tss": planned_session.get("tss_target", 0)},
+                    planned={"tss": matched_session.get("tss_target", 0)},
                     actual={"tss": tss if tss is not None else 0.0},
                 )
+                await (
+                    supabase.table("sessions")
+                    .update({"status": "completed"})
+                    .eq("id", matched_session["id"])
+                    .eq("user_id", user_id)
+                    .execute()
+                )
+                matched_session_id = matched_session["id"]
         except Exception as exc:
             logger.info("Session compliance check skipped: %s", exc)
 
@@ -357,6 +373,8 @@ async def process_ride_background(
         }
         if compliance_result and compliance_result.value:
             ride_update["compliance_pct"] = compliance_result.value.get("compliance_pct")
+        if matched_session_id is not None:
+            ride_update["session_id"] = matched_session_id
 
         try:
             await (
@@ -456,6 +474,22 @@ def _sanitize_filename(raw_filename: str) -> str:
     return safe
 
 
+def _is_unique_violation(exc: Exception) -> bool:
+    """
+    Best-effort detection of a Postgres unique-constraint violation (SQLSTATE
+    23505) surfaced through the Supabase/postgrest client. The exact exception
+    class/shape varies across supabase-py versions, so this checks both a
+    `.code` attribute (if present) and the string representation (T-06-06).
+    """
+    text = str(exc)
+    code = getattr(exc, "code", None)
+    return (
+        code == "23505"
+        or "23505" in text
+        or "duplicate key value violates unique constraint" in text
+    )
+
+
 @router.post("/upload")
 async def upload_fit(
     background_tasks: BackgroundTasks,
@@ -505,18 +539,41 @@ async def upload_fit(
             },
         )
 
+    # --- Content-hash dedup pre-check (T-06-06): compute before further processing
+    #     so a byte-identical re-upload short-circuits without wasting FTP/storage/
+    #     insert work. The authoritative guard is the DB UNIQUE(user_id, content_hash)
+    #     constraint (caught below at insert time to close the concurrent-upload race). ---
+    content_hash = hashlib.sha256(file_bytes).hexdigest()
+    supabase = await _get_async_supabase()
+    try:
+        existing = await (
+            supabase.table("rides")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("content_hash", content_hash)
+            .execute()
+        )
+        if existing.data:
+            return {
+                "ride_id": existing.data[0]["id"],
+                "status": "duplicate",
+                "duplicate": True,
+            }
+    except Exception as exc:
+        logger.warning("Content-hash dedup pre-check failed (non-fatal, proceeding): %s", exc)
+
     # --- Resolve FTP (cold-start: 150W, is_estimated=True) ---
     ftp_used, is_estimated = await get_user_ftp(user_id)
 
-    # --- Sanitize filename (T-03-13: no path traversal) ---
-    safe_filename = _sanitize_filename(file.filename or "upload.fit")
-    storage_path = f"fits/{user_id}/{safe_filename}"
+    # --- Content-addressed Storage path (T-06-12): identical content always maps to
+    #     the same object, removing filename-collision/overwrite surprises. ---
+    storage_path = f"fits/{user_id}/{content_hash}.fit"
 
     # --- Upload raw bytes to Supabase Storage (best-effort) ---
     try:
         supabase = await _get_async_supabase()
         await supabase.storage.from_("fits").upload(
-            path=f"{user_id}/{safe_filename}",
+            path=f"{user_id}/{content_hash}.fit",
             file=file_bytes,
             file_options={"content-type": "application/octet-stream"},
         )
@@ -525,19 +582,20 @@ async def upload_fit(
         storage_path = None  # type: ignore[assignment]
 
     # --- INSERT stub rides row ---
+    # WR-009: use the ride's actual start_time from the FIT file so retroactive
+    # uploads are recorded on the day the ride occurred, not the upload date.
+    # Fall back to today only when no timestamp is present in the file.
+    fit_start_time: Optional[datetime] = parsed.get("start_time")
+    if fit_start_time is not None:
+        # Ensure timezone-aware for consistent isoformat output.
+        if fit_start_time.tzinfo is None:
+            fit_start_time = fit_start_time.replace(tzinfo=timezone.utc)
+        ride_date = fit_start_time.date().isoformat()
+    else:
+        ride_date = datetime.now(timezone.utc).date().isoformat()
+
     try:
         supabase = await _get_async_supabase()
-        # WR-009: use the ride's actual start_time from the FIT file so retroactive
-        # uploads are recorded on the day the ride occurred, not the upload date.
-        # Fall back to today only when no timestamp is present in the file.
-        fit_start_time: Optional[datetime] = parsed.get("start_time")
-        if fit_start_time is not None:
-            # Ensure timezone-aware for consistent isoformat output.
-            if fit_start_time.tzinfo is None:
-                fit_start_time = fit_start_time.replace(tzinfo=timezone.utc)
-            ride_date = fit_start_time.date().isoformat()
-        else:
-            ride_date = datetime.now(timezone.utc).date().isoformat()
         result = await (
             supabase.table("rides")
             .insert(
@@ -547,12 +605,37 @@ async def upload_fit(
                     "ride_date": ride_date,
                     "duration_secs": parsed["duration_secs"],
                     "ftp_used": ftp_used,
+                    "content_hash": content_hash,
                 }
             )
             .execute()
         )
         ride_id: str = result.data[0]["id"]
     except Exception as exc:
+        # T-06-06: a concurrent upload of the same content can race the pre-check
+        # SELECT above; the DB UNIQUE(user_id, content_hash) constraint is the
+        # authoritative guard -- catch its violation and fall back to duplicate=True
+        # instead of a 500.
+        if _is_unique_violation(exc):
+            logger.info("Duplicate content_hash race caught at insert for user %s", user_id)
+            try:
+                existing_after_race = await (
+                    supabase.table("rides")
+                    .select("id")
+                    .eq("user_id", user_id)
+                    .eq("content_hash", content_hash)
+                    .execute()
+                )
+                if existing_after_race.data:
+                    return {
+                        "ride_id": existing_after_race.data[0]["id"],
+                        "status": "duplicate",
+                        "duplicate": True,
+                    }
+            except Exception as lookup_exc:
+                logger.warning(
+                    "Post-race duplicate lookup failed (non-fatal): %s", lookup_exc
+                )
         logger.error("Failed to insert rides row: %s", exc)
         raise HTTPException(
             status_code=500,
@@ -569,6 +652,7 @@ async def upload_fit(
         user_id,
         parsed,
         ftp_used,
+        ride_date,
     )
 
     return {"ride_id": ride_id, "status": "processing"}
