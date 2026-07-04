@@ -28,7 +28,7 @@
 - [x] **TRUST-06**: An `audit_log` Postgres table is persisted with one row per tool dispatch (user_id, conversation_id, tool_use_id, tool_name, inputs, result, is_error, created_at), queryable by user_id + conversation_id, so TRUST-04's "verifiable in application logs" is literally true (Phase 8 / D-01)
 - [ ] **TRUST-07**: `generate_plan`'s trust-sensitive inputs (current_ctl, ftp_watts, ftp_confidence, load_targets, preferred_days) are injected server-side from verified DB / same-turn tool-result sources; any LLM-supplied values for these keys are discarded, preventing invented numbers from laundering through a tool call (Phase 8 / D-02 + D-07)
 - [x] **TRUST-08**: Bare-number attribution in the trust scanner uses numeric-token extraction with word/token boundaries plus float-tolerance comparison instead of a raw substring check, so "250" no longer matches inside "2500", "0.250", or a timestamp (Phase 8 / D-03)
-- [ ] **TRUST-09**: `tool_result_values` is seeded at the start of every turn from the persisted `audit_log` trail scoped to the current conversation, eliminating cross-turn false positives on the stateless serverless backend (Phase 8 / D-04)
+- [x] **TRUST-09**: `tool_result_values` is seeded at the start of every turn from the persisted `audit_log` trail scoped to the current conversation, eliminating cross-turn false positives on the stateless serverless backend (Phase 8 / D-04)
 
 ### Agent Core
 
@@ -174,7 +174,7 @@
 | TRUST-06 | Phase 8 | Complete |
 | TRUST-07 | Phase 8 | Pending |
 | TRUST-08 | Phase 8 | Complete |
-| TRUST-09 | Phase 8 | Pending |
+| TRUST-09 | Phase 8 | Complete |
 | ONBD-05 | Phase 8 | Pending |
 | PLAN-07 | Phase 8 | Pending |
 | TOOL-02 (amend) | Phase 8 | Pending |

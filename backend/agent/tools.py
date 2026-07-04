@@ -39,6 +39,7 @@ from backend.sports_science.types import ToolResult  # noqa: F401 – referenced
 from backend.sports_science.profile import save_profile
 from backend.sports_science.plan import generate_plan
 from backend.db import get_async_supabase as _get_async_supabase
+from backend.agent.audit import write_audit_entry
 
 # ---------------------------------------------------------------------------
 # Tool Registry
@@ -578,7 +579,12 @@ async def _persist_generated_plan(user_id: str, plan_value: dict) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def dispatch_tool(tool_use_block, audit_log: list, user_id: str | None = None) -> dict:
+async def dispatch_tool(
+    tool_use_block,
+    audit_log: list,
+    user_id: str | None = None,
+    conversation_id: str | None = None,
+) -> dict:
     """
     Dispatch one tool_use block and return an Anthropic tool_result content block.
 
@@ -610,6 +616,15 @@ async def dispatch_tool(tool_use_block, audit_log: list, user_id: str | None = N
                 "name": name,
                 "error": error_text,
             })
+            await write_audit_entry(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                tool_use_id=tool_use_id,
+                tool_name=name,
+                inputs=inputs,
+                result=None,
+                is_error=True,
+            )
             return {
                 "type": "tool_result",
                 "tool_use_id": tool_use_id,
@@ -625,6 +640,15 @@ async def dispatch_tool(tool_use_block, audit_log: list, user_id: str | None = N
             "name": name,
             "error": f"unknown tool '{name}'",
         })
+        await write_audit_entry(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            tool_use_id=tool_use_id,
+            tool_name=name,
+            inputs=inputs,
+            result=None,
+            is_error=True,
+        )
         return {
             "type": "tool_result",
             "tool_use_id": tool_use_id,
@@ -653,6 +677,15 @@ async def dispatch_tool(tool_use_block, audit_log: list, user_id: str | None = N
             "name": name,
             "result": result.model_dump(),
         })
+        await write_audit_entry(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            tool_use_id=tool_use_id,
+            tool_name=name,
+            inputs=inputs,
+            result=result.model_dump(),
+            is_error=False,
+        )
         return {
             "type": "tool_result",
             "tool_use_id": tool_use_id,
@@ -666,6 +699,15 @@ async def dispatch_tool(tool_use_block, audit_log: list, user_id: str | None = N
             "name": name,
             "error": str(exc),
         })
+        await write_audit_entry(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            tool_use_id=tool_use_id,
+            tool_name=name,
+            inputs=inputs,
+            result=None,
+            is_error=True,
+        )
         return {
             "type": "tool_result",
             "tool_use_id": tool_use_id,

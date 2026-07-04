@@ -38,6 +38,7 @@ async def sse_generator(
     _run_turn=None,
     assistant_sink: list | None = None,
     user_id: str | None = None,
+    conversation_id: str | None = None,
 ):
     """
     Async generator that drives run_turn and formats each event as an SSE frame.
@@ -62,6 +63,10 @@ async def sse_generator(
         user_id:        Authenticated user's UUID (260702-wev). Forwarded to
                         run_turn, which injects it server-side into
                         save_profile/generate_plan tool calls.
+        conversation_id: Conversation UUID (08-05). Forwarded to run_turn,
+                        which threads it into dispatch_tool for durable audit
+                        writes and uses it to seed tool_result_values from the
+                        prior turns' audit trail (TRUST-06/TRUST-09).
 
     Frame format per D-07:
       event: <event_type>\\ndata: <json>\\n\\n
@@ -85,6 +90,8 @@ async def sse_generator(
             kwargs["system"] = system_prompt
         if user_id is not None:
             kwargs["user_id"] = user_id
+        if conversation_id is not None:
+            kwargs["conversation_id"] = conversation_id
 
         async for event in fn(messages, client, model, scan_buffer, audit_log, **kwargs):
             event_type = event["event"]

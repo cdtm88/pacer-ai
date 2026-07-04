@@ -107,7 +107,7 @@ async def chat_stream(
     async def _stream_and_persist():
         """Yield SSE chunks and persist the new turns after the stream completes."""
         assistant_sink: list[str] = []
-        async for chunk in sse_generator(messages, model, _run_turn=run_turn, assistant_sink=assistant_sink, user_id=user_id):
+        async for chunk in sse_generator(messages, model, _run_turn=run_turn, assistant_sink=assistant_sink, user_id=user_id, conversation_id=conversation_id):
             yield chunk
         # Persist both turns after the stream is done (best-effort).
         try:

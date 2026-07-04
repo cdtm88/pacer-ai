@@ -29,6 +29,7 @@ import asyncio
 import json
 from typing import AsyncIterator
 
+from backend.agent.audit import load_prior_audit_values
 from backend.agent.tools import TOOL_SCHEMAS, dedup_key, dispatch_tool
 from backend.agent.trust import handle_violation
 
@@ -51,6 +52,7 @@ async def run_turn(
     audit_log: list,
     system: str = SYSTEM_PROMPT,  # D-22: injectable system prompt; defaults to module constant
     user_id: str | None = None,
+    conversation_id: str | None = None,
 ) -> AsyncIterator[dict]:
     """
     Drive a multi-turn Anthropic conversation with tool use.
@@ -73,6 +75,12 @@ async def run_turn(
         user_id:       Authenticated user's UUID (260702-wev). When provided, injected
                        server-side into save_profile/generate_plan tool calls via
                        dispatch_tool, overriding any LLM-supplied value.
+        conversation_id: Conversation UUID (08-05/TRUST-06/TRUST-09). When provided,
+                       threaded into dispatch_tool for durable per-call audit
+                       writes and used to seed tool_result_values from the
+                       conversation's prior-turn audit trail before the first
+                       trust scan, so a legitimate number established in an
+                       earlier (stateless) invocation is not re-flagged.
     """
     retries: int = 0
     tool_turns: int = 0
@@ -83,6 +91,16 @@ async def run_turn(
     # a later round's text may legitimately reference a number from an
     # earlier round's tool call, and must still be able to attribute it.
     tool_result_values: list[str] = []
+    # TRUST-09 / D-04: seed with prior turns' durable audit-trail results before
+    # the first scan. On a stateless serverless invocation, a number established
+    # in an earlier turn (and now only referenced qualitatively in this turn's
+    # prose) would otherwise be flagged as an unsourced trust violation. No-op
+    # (returns []) when conversation_id is None -- new conversations behave
+    # exactly as before this change.
+    if conversation_id is not None:
+        tool_result_values.extend(
+            await load_prior_audit_values(conversation_id, user_id=user_id)
+        )
 
     while retries <= MAX_RETRIES:
         text_buffer: list[str] = []
@@ -206,7 +224,12 @@ async def run_turn(
             else:
                 # D-12 / AGENT-02: dispatch unique blocks concurrently
                 result_blocks = await asyncio.gather(
-                    *[dispatch_tool(b, audit_log, user_id=user_id) for b in unique_blocks]
+                    *[
+                        dispatch_tool(
+                            b, audit_log, user_id=user_id, conversation_id=conversation_id
+                        )
+                        for b in unique_blocks
+                    ]
                 )
 
                 # Yield tool_result events and accumulate values for trust attribution
