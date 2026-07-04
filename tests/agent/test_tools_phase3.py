@@ -798,3 +798,123 @@ async def test_generate_plan_injection_uses_same_turn_ftp_and_load_entries(monke
         "max_weekly_increase": 4.0,
         "back_constraints_applied": False,
     }
+
+
+async def test_generate_plan_injection_discards_llm_hr_zones(monkeypatch):
+    """
+    CR-01 regression: dispatch_tool must discard any LLM-supplied hr_zones for
+    generate_plan and replace it with THIS turn's calculate_hr_zones audit_log
+    result, exactly like the other five trust-sensitive keys.
+    """
+    import backend.agent.tools as tools_module
+    from backend.sports_science.types import ToolResult
+
+    async def _mock_get_async_supabase():
+        return _MockClient_HrZones()
+
+    class _MockClient_HrZones:
+        def table(self, name):
+            if name in ("pmc_history", "profiles"):
+                return _MockSelectChain()
+            raise AssertionError(f"unexpected table queried: {name}")
+
+    monkeypatch.setattr(tools_module, "_get_async_supabase", _mock_get_async_supabase)
+
+    fake_generate_plan = MagicMock(
+        return_value=ToolResult(
+            value=None, unit="", methodology="mesocycle_plan_generation", inputs={}
+        )
+    )
+
+    real_hr_zones = [{"zone": 2, "lower_bpm": 118, "upper_bpm": 142}]
+    bogus_hr_zones = [{"zone": 2, "lower_bpm": 9999, "upper_bpm": 9999}]
+
+    audit_log: list = [
+        {
+            "tool_use_id": "toolu_hr",
+            "name": "calculate_hr_zones",
+            "result": {
+                "value": real_hr_zones,
+                "unit": "bpm",
+                "methodology": "Coggan/Allen HR zones from LTHR",
+                "inputs": {"lthr": 155.0},
+            },
+        },
+    ]
+
+    block = _FakeToolUseBlock(
+        "generate_plan",
+        {
+            "weekly_hours": 3.0,
+            "back_status": "none",
+            "hr_zones": bogus_hr_zones,
+        },
+    )
+
+    with patch.dict(tools_module.TOOL_REGISTRY, {"generate_plan": fake_generate_plan}):
+        tool_result = await tools_module.dispatch_tool(
+            block, audit_log, user_id="00000000-0000-0000-0000-000000000042"
+        )
+
+    assert tool_result["is_error"] is False
+    call_kwargs = fake_generate_plan.call_args.kwargs
+    assert call_kwargs["hr_zones"] == real_hr_zones
+    assert call_kwargs["hr_zones"] != bogus_hr_zones
+
+
+async def test_generate_plan_injection_hr_zones_defaults_empty_when_skipped(monkeypatch):
+    """
+    CR-01 regression: when no calculate_hr_zones tool ran this turn (onboarding
+    Branch C, which explicitly skips it), the injected hr_zones must default to
+    [] server-side rather than passing through whatever the LLM supplied.
+    """
+    import backend.agent.tools as tools_module
+    from backend.sports_science.types import ToolResult
+
+    class _MockClient_NoHr:
+        def table(self, name):
+            if name in ("pmc_history", "profiles"):
+                return _MockSelectChain()
+            raise AssertionError(f"unexpected table queried: {name}")
+
+    async def _mock_get_async_supabase():
+        return _MockClient_NoHr()
+
+    monkeypatch.setattr(tools_module, "_get_async_supabase", _mock_get_async_supabase)
+
+    fake_generate_plan = MagicMock(
+        return_value=ToolResult(
+            value=None, unit="", methodology="mesocycle_plan_generation", inputs={}
+        )
+    )
+
+    block = _FakeToolUseBlock(
+        "generate_plan",
+        {
+            "weekly_hours": 2.0,
+            "back_status": "none",
+            # No hr_zones key at all -- Branch C omits it entirely now that
+            # it's no longer a required schema field.
+        },
+    )
+    audit_log: list = []  # no calculate_hr_zones entry this turn
+
+    with patch.dict(tools_module.TOOL_REGISTRY, {"generate_plan": fake_generate_plan}):
+        tool_result = await tools_module.dispatch_tool(
+            block, audit_log, user_id="00000000-0000-0000-0000-000000000042"
+        )
+
+    assert tool_result["is_error"] is False
+    call_kwargs = fake_generate_plan.call_args.kwargs
+    assert call_kwargs["hr_zones"] == []
+
+
+def test_generate_plan_schema_hr_zones_not_required():
+    """
+    CR-01 regression: hr_zones must not be a required generate_plan schema
+    field (Branch C has no HR-zone tool result to supply this turn).
+    """
+    from backend.agent.tools import TOOL_SCHEMAS
+
+    generate_plan_schema = next(s for s in TOOL_SCHEMAS if s["name"] == "generate_plan")
+    assert "hr_zones" not in generate_plan_schema["input_schema"]["required"]

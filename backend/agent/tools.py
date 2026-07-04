@@ -337,13 +337,18 @@ TOOL_SCHEMAS: list[dict] = [
         "name": "generate_plan",
         "description": (
             "Returns a structured 4-week mesocycle training plan. "
-            "current_ctl, load_targets, ftp_confidence, and ftp_watts are supplied "
-            "by the server from the user's stored training history (pmc_history, "
-            "profiles) and this turn's prior tool results -- do not attempt to "
-            "provide them; any value you supply for these keys is discarded "
-            "(TRUST-07). "
-            "Must be called only after progress_load and calculate_hr_zones have been "
-            "called and their results are available (D-08 order). "
+            "current_ctl, load_targets, ftp_confidence, ftp_watts, and hr_zones are "
+            "supplied by the server from the user's stored training history "
+            "(pmc_history, profiles) and this turn's prior tool results -- do not "
+            "attempt to provide them; any value you supply for these keys is "
+            "discarded (TRUST-07/CR-01). hr_zones in particular is sourced from "
+            "THIS turn's calculate_hr_zones result when present, or an empty list "
+            "when no HR-zone tool was called this turn (e.g. onboarding Branch C, "
+            "where calculate_hr_zones is skipped entirely) -- omit it or pass "
+            "anything; it will be overridden either way. "
+            "Must be called only after progress_load have been called and its "
+            "results are available (D-08 order); calculate_hr_zones must also be "
+            "called first when HR zones apply to this user (Branches A/B). "
             "Never emit physiological plan numbers from your own reasoning -- call this "
             "tool and present its output to the user."
         ),
@@ -360,14 +365,17 @@ TOOL_SCHEMAS: list[dict] = [
                 },
                 "hr_zones": {
                     "type": "array",
-                    "description": "Output of calculate_hr_zones (list of zone dicts).",
+                    "description": (
+                        "Output of calculate_hr_zones (list of zone dicts). "
+                        "Server-injected/overridden (CR-01) -- optional; omit when "
+                        "no HR-zone tool was called this turn."
+                    ),
                     "items": {"type": "object"},
                 },
             },
             "required": [
                 "weekly_hours",
                 "back_status",
-                "hr_zones",
             ],
         },
     },
@@ -726,6 +734,14 @@ async def dispatch_tool(
             load_value = (load_entry or {}).get("value") if load_entry else None
             load_targets = load_value or {"recommended_ctl_target": current_ctl}
 
+            # hr_zones: CR-01. Just as ephemeral as ftp_watts/load_targets --
+            # sourced from THIS turn's in-memory audit_log entry for
+            # calculate_hr_zones. [] when no HR-zone tool ran this turn
+            # (e.g. onboarding Branch C, which explicitly skips
+            # calculate_hr_zones); never fall back to the LLM's supplied value.
+            hr_zones_entry = _last_audit_result(audit_log, "calculate_hr_zones")
+            hr_zones_value = (hr_zones_entry or {}).get("value") or []
+
             inputs = {
                 k: v
                 for k, v in inputs.items()
@@ -736,6 +752,7 @@ async def dispatch_tool(
                     "ftp_confidence",
                     "load_targets",
                     "preferred_days",
+                    "hr_zones",
                 }
             }
             inputs = {
@@ -745,6 +762,7 @@ async def dispatch_tool(
                 "ftp_confidence": ftp_confidence,
                 "load_targets": load_targets,
                 "preferred_days": preferred_days,
+                "hr_zones": hr_zones_value,
             }
 
         if asyncio.iscoroutinefunction(fn):
