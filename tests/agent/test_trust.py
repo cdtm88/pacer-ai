@@ -166,6 +166,66 @@ class TestScanBuffer:
         assert "300" in violation.matched_text
 
 
+class TestSubstringCollisionBypass:
+    """
+    D-03 / TRUST-08 regression: boundary-aware numeric-token + tolerance
+    matching closes the substring-attribution bypass where a bare number was
+    falsely attributed by the mere presence of a longer/unrelated digit run
+    (e.g. "2500", "0.250", or a timestamp) inside a tool_result_values string.
+    """
+
+    def test_longer_digit_run_does_not_attribute(self):
+        """250 must not be attributed merely because "2500" appears in a
+        tool result -- 250 is not a standalone numeric token inside 2500."""
+        from backend.agent.trust import scan_buffer
+
+        violation = scan_buffer("Your FTP is 250 watts.", ["2500"])
+        assert violation is not None
+        assert "250" in violation.matched_text
+
+    def test_decimal_substring_does_not_attribute(self):
+        """250 must not be attributed by "0.250" -- 250 != 0.250 and the
+        decimal token has its own boundaries."""
+        from backend.agent.trust import scan_buffer
+
+        violation = scan_buffer("Your FTP is 250 watts.", ["0.250"])
+        assert violation is not None
+        assert "250" in violation.matched_text
+
+    def test_real_json_attribution_still_passes(self):
+        """Real attribution survives the rewrite: 250 appears as a standalone
+        numeric token inside the JSON tool result value."""
+        from backend.agent.trust import scan_buffer
+
+        violation = scan_buffer(
+            "Your FTP is 250 watts.", ['{"ftp_watts": 250}']
+        )
+        assert violation is None
+
+    def test_bpm_range_json_attribution_still_passes(self):
+        """134 bpm is attributed via the standalone numeric token 134 inside
+        the JSON tool result value, unaffected by the neighboring 150."""
+        from backend.agent.trust import scan_buffer
+
+        violation = scan_buffer(
+            "Keep HR at 134 bpm.", ['{"lower_bpm": 134, "upper_bpm": 150}']
+        )
+        assert violation is None
+
+    def test_timestamp_digit_run_does_not_attribute(self):
+        """42 must not be attributed just because a timestamp string happens
+        to contain the digits "42" as part of a larger run (2024-01-01T00:04:20Z
+        contains no standalone 42 token at all -- confirming the boundary-aware
+        extraction ignores timestamp digit runs entirely)."""
+        from backend.agent.trust import scan_buffer
+
+        violation = scan_buffer(
+            "CTL is 42.", ['{"created_at": "2024-01-01T00:04:20Z"}']
+        )
+        assert violation is not None
+        assert "42" in violation.matched_text
+
+
 class TestTrustViolationDataclass:
     """TrustViolation dataclass properties."""
 
