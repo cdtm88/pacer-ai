@@ -45,7 +45,7 @@
 - [x] **ONBD-02**: Injury and back status established through the interview is persisted to the user profile and applied as back-protective plan constraints; it is never assumed or defaulted
 - [x] **ONBD-03**: The interview output is a persisted structured user profile stored in the database
 - [x] **ONBD-04**: The user sees a confirmation summary of their profile at the end of the interview before the plan is generated
-- [ ] **ONBD-05**: Onboarding collects the user's heart-rate baseline: an LTHR given directly, or a max-HR-derived LTHR estimate produced by a methodology-tagged tool call, or an explicit `hr_zones_available = false` flag with the existing RPE-only cold-start path used as fallback; the LLM never invents an LTHR (Phase 8 / D-05)
+- [x] **ONBD-05**: Onboarding collects the user's heart-rate baseline: an LTHR given directly, or a max-HR-derived LTHR estimate produced by a methodology-tagged tool call, or an explicit `hr_zones_available = false` flag with the existing RPE-only cold-start path used as fallback; the LLM never invents an LTHR (Phase 8 / D-05; live 3-branch onboarding conversation verification tracked in 08-UAT.md)
 
 ### Plan Generation
 
@@ -175,9 +175,9 @@
 | TRUST-07 | Phase 8 | Complete |
 | TRUST-08 | Phase 8 | Complete |
 | TRUST-09 | Phase 8 | Complete |
-| ONBD-05 | Phase 8 | Pending |
+| ONBD-05 | Phase 8 | Complete |
 | PLAN-07 | Phase 8 | Complete |
-| TOOL-02 (amend) | Phase 8 | Pending |
+| TOOL-02 (amend) | Phase 8 | Complete |
 | AGENT-01 | Phase 2 | Complete |
 | AGENT-02 | Phase 2 | Complete |
 | AGENT-03 | Phase 2 | Complete |
