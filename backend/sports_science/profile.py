@@ -101,6 +101,10 @@ async def save_profile(
             # value the rest of the app reads. Both columns are kept.
             "lthr": lthr_estimate,
             "constraints": constraints,
+            # D-05: explicit flag, derived server-side from LTHR presence (given or
+            # estimated via estimate_lthr_from_max_hr) -- true when an LTHR is known,
+            # false when the onboarding interview's "neither known" branch applies.
+            "hr_zones_available": lthr_estimate is not None,
         },
         on_conflict="user_id",
     ).execute()
