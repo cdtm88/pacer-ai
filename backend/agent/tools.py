@@ -337,6 +337,11 @@ TOOL_SCHEMAS: list[dict] = [
         "name": "generate_plan",
         "description": (
             "Returns a structured 4-week mesocycle training plan. "
+            "current_ctl, load_targets, ftp_confidence, and ftp_watts are supplied "
+            "by the server from the user's stored training history (pmc_history, "
+            "profiles) and this turn's prior tool results -- do not attempt to "
+            "provide them; any value you supply for these keys is discarded "
+            "(TRUST-07). "
             "Must be called only after progress_load and calculate_hr_zones have been "
             "called and their results are available (D-08 order). "
             "Never emit physiological plan numbers from your own reasoning -- call this "
@@ -353,35 +358,16 @@ TOOL_SCHEMAS: list[dict] = [
                     "type": "string",
                     "description": "Back health status: none, mild, or moderate.",
                 },
-                "current_ctl": {
-                    "type": "number",
-                    "description": "Current Chronic Training Load (from update_pmc).",
-                },
-                "load_targets": {
-                    "type": "object",
-                    "description": "Output of progress_load tool (dict with recommended_ctl_target).",
-                },
                 "hr_zones": {
                     "type": "array",
                     "description": "Output of calculate_hr_zones (list of zone dicts).",
                     "items": {"type": "object"},
                 },
-                "ftp_confidence": {
-                    "type": "string",
-                    "description": "FTP confidence level: insufficient_data, low, medium, or high (D-25).",
-                },
-                "ftp_watts": {
-                    "type": "number",
-                    "description": "FTP in watts (omit or null when ftp_confidence is insufficient_data).",
-                },
             },
             "required": [
                 "weekly_hours",
                 "back_status",
-                "current_ctl",
-                "load_targets",
                 "hr_zones",
-                "ftp_confidence",
             ],
         },
     },
