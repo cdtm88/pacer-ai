@@ -32,8 +32,18 @@ async def write_audit_entry(
     Insert one best-effort audit_log row for a single tool dispatch.
 
     Never raises -- a DB write failure must not break the user-facing
-    tool-call flow (D-14). Callers should fire this without awaiting its
-    outcome for correctness (it always "succeeds" from the caller's view).
+    tool-call flow (D-14): the internal try/except always swallows the
+    exception, so `await write_audit_entry(...)` completes normally (never
+    propagates, never blocks indefinitely) regardless of DB outcome.
+
+    WR-03: every call site in dispatch_tool does `await write_audit_entry(...)`
+    synchronously, in-line with the tool dispatch, and that is the correct,
+    intended usage -- NOT fire-and-forget (e.g. asyncio.create_task). Awaiting
+    it keeps audit writes ordered relative to the tool_result response and to
+    each other; a genuinely fire-and-forget call would risk reordering audit
+    writes across concurrent tool dispatches (D-12's asyncio.gather) with no
+    corresponding benefit, since this function already never raises or blocks
+    the caller on error.
 
     Args:
         user_id:         Authenticated user UUID, or None if unresolved
