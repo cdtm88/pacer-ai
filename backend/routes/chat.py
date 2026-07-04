@@ -37,8 +37,19 @@ Phase 4 note (04-13):
     agent responds to the user's actual typed message (UAT GAP 5 closed).
   - Both the user message and the assistant reply are persisted via save_messages
     after the stream completes, using the assistant_sink mechanism from 04-12.
+
+CR-03 note (08-REVIEW.md):
+  - conversation_id arrives as a raw client-supplied query param. Before it is
+    used for load_conversation, sse_generator, or save_messages, it is run
+    through onboarding.py's _resolve_conversation_id (format validation +
+    ownership check, WR-08/phase 07) -- reused here rather than reimplemented,
+    exactly as onboarding.py's /start endpoint already does for its own
+    optional conversation_id. A malformed or foreign id resolves to None, and
+    the request is rejected with an SSE error frame instead of writing durable
+    audit_log/messages rows under an unverified conversation_id.
 """
 
+import json
 import os
 
 from fastapi import APIRouter, Depends, Query
@@ -49,7 +60,12 @@ from fastapi.responses import StreamingResponse
 from backend.agent.loop import run_turn  # noqa: F401 (passed to sse_generator for test compat)
 from backend.auth import get_current_user
 from backend.routes._sse import sse_generator
-from backend.routes.onboarding import create_conversation, load_conversation, save_messages
+from backend.routes.onboarding import (
+    create_conversation,
+    load_conversation,
+    save_messages,
+    _resolve_conversation_id,
+)
 
 router = APIRouter()
 
@@ -85,11 +101,41 @@ async def chat_stream(
     the agent responds to the actual user input (UAT GAP 5). Falls back to an
     opening message only when there is no prior history and no incoming message.
 
+    CR-03: conversation_id is validated (format + ownership) via
+    onboarding.py's _resolve_conversation_id before it is used for any read or
+    write. A malformed or foreign id is rejected with an SSE error frame
+    rather than being trusted for load_conversation/save_messages/audit writes.
+
     After the stream completes, persists the user message and assistant reply via
     save_messages (best-effort; a persistence failure never breaks the response).
     """
     user_id = current_user["user_id"]
     model = os.environ.get("ANTHROPIC_MODEL", _DEFAULT_MODEL)
+
+    # CR-03: reject an unverified conversation_id before it reaches any
+    # read/write path (load_conversation, sse_generator's audit writes,
+    # save_messages) -- mirrors onboarding.py's WR-08 resolution.
+    resolved_conversation_id = await _resolve_conversation_id(user_id, conversation_id)
+    if resolved_conversation_id is None:
+        async def _invalid_conversation_stream():
+            error_data = json.dumps({
+                "code": "invalid_conversation_id",
+                "message": (
+                    "conversation_id is malformed or not owned by the "
+                    "authenticated user."
+                ),
+            })
+            yield f"event: error\ndata: {error_data}\n\n"
+
+        return StreamingResponse(
+            _invalid_conversation_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",  # Nginx: disables proxy response buffering (Pitfall 2)
+            },
+        )
+    conversation_id = resolved_conversation_id
 
     # Load last 20 messages from DB scoped to the owning user (defence-in-depth).
     try:
