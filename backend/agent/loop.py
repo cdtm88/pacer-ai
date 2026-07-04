@@ -29,6 +29,7 @@ import asyncio
 import json
 from typing import AsyncIterator
 
+from backend.agent.audit import load_prior_audit_values
 from backend.agent.tools import TOOL_SCHEMAS, dedup_key, dispatch_tool
 from backend.agent.trust import handle_violation
 
@@ -90,6 +91,16 @@ async def run_turn(
     # a later round's text may legitimately reference a number from an
     # earlier round's tool call, and must still be able to attribute it.
     tool_result_values: list[str] = []
+    # TRUST-09 / D-04: seed with prior turns' durable audit-trail results before
+    # the first scan. On a stateless serverless invocation, a number established
+    # in an earlier turn (and now only referenced qualitatively in this turn's
+    # prose) would otherwise be flagged as an unsourced trust violation. No-op
+    # (returns []) when conversation_id is None -- new conversations behave
+    # exactly as before this change.
+    if conversation_id is not None:
+        tool_result_values.extend(
+            await load_prior_audit_values(conversation_id, user_id=user_id)
+        )
 
     while retries <= MAX_RETRIES:
         text_buffer: list[str] = []
