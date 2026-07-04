@@ -579,6 +579,24 @@ async def _persist_generated_plan(user_id: str, plan_value: dict) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _last_audit_result(audit_log: list, tool_name: str) -> dict | None:
+    """
+    Returns the `result` dict (ToolResult.model_dump()) of the most recent
+    in-memory audit_log entry whose name == tool_name and that carries a
+    `result` key (skips error-only entries).
+
+    Used by generate_plan's server-side injection block (TRUST-07/D-02/D-07)
+    to source ftp_watts/ftp_confidence from estimate_ftp_from_rides and
+    load_targets from progress_load -- both are ephemeral (no durable table
+    stores them), so only THIS turn's in-memory audit_log entries are a
+    valid source (08-RESEARCH.md Pitfall 4).
+    """
+    for entry in reversed(audit_log):
+        if entry.get("name") == tool_name and "result" in entry:
+            return entry["result"]
+    return None
+
+
 async def dispatch_tool(
     tool_use_block,
     audit_log: list,
@@ -597,6 +615,13 @@ async def dispatch_tool(
       and generate_plan inputs (the only two TOOL_REGISTRY functions with a user_id
       parameter), overriding any value the LLM supplied. This is the authoritative
       identity source -- the LLM's tool schemas no longer declare user_id at all.
+    - Phase 8 Plan 06 (TRUST-07/D-02/D-07): for generate_plan only, five more
+      trust-sensitive inputs (current_ctl, ftp_watts, ftp_confidence,
+      load_targets, preferred_days) are always server-injected from
+      pmc_history/profiles/this-turn's audit_log -- any LLM-supplied values
+      for these keys are discarded. This runs inside the same try/except as
+      the tool call itself, so a DB failure here surfaces as an is_error
+      tool result (D-14) instead of propagating unhandled.
     """
     name = tool_use_block.name
     inputs = tool_use_block.input
@@ -657,6 +682,85 @@ async def dispatch_tool(
         }
 
     try:
+        if name == "generate_plan":
+            # Phase 8 Plan 06 (TRUST-07/D-02/D-07): server-side injection of
+            # generate_plan's five trust-sensitive inputs, extending the
+            # user_id allowlist block above at the same choke point
+            # (260702-wev precedent). user_id is guaranteed non-None here --
+            # the block above already returned an error otherwise.
+            supabase = await _get_async_supabase()
+
+            # current_ctl: durable in pmc_history, correct for both
+            # cold-start onboarding (0.0, no rows yet) and later
+            # coaching-chat re-plans -- always query the DB directly, never
+            # the in-memory audit_log, since update_pmc is not guaranteed to
+            # run in the same turn as generate_plan (Open Question 1
+            # resolution; query shape proven in routes/adaptations.py).
+            pmc_resp = await (
+                supabase.table("pmc_history")
+                .select("ctl")
+                .eq("user_id", user_id)
+                .order("date", desc=True)
+                .limit(1)
+                .execute()
+            )
+            pmc_rows = pmc_resp.data or []
+            current_ctl = float((pmc_rows[0].get("ctl") or 0) if pmc_rows else 0)
+
+            # preferred_days: durable in profiles (D-07).
+            profile_resp = await (
+                supabase.table("profiles")
+                .select("preferred_days")
+                .eq("user_id", user_id)
+                .execute()
+            )
+            profile_rows = profile_resp.data or []
+            preferred_days = (
+                (profile_rows[0].get("preferred_days") if profile_rows else None)
+                or []
+            )
+
+            # ftp_watts/ftp_confidence and load_targets: ephemeral -- no
+            # durable table stores them -- sourced from THIS turn's
+            # in-memory audit_log entries for estimate_ftp_from_rides and
+            # progress_load (D-08's tool order guarantees they already ran
+            # earlier in this same turn when applicable). Cold-start-safe
+            # fallback when no same-turn entry exists (Pitfall 4); never
+            # fall back to the LLM's supplied values for these keys.
+            ftp_entry = _last_audit_result(audit_log, "estimate_ftp_from_rides")
+            ftp_value = (ftp_entry or {}).get("value") or {}
+            ftp_watts = ftp_value.get("ftp")
+            ftp_confidence = (
+                ftp_value.get("confidence")
+                or ((ftp_entry or {}).get("inputs") or {}).get("confidence")
+                or "insufficient_data"
+            )
+
+            load_entry = _last_audit_result(audit_log, "progress_load")
+            load_value = (load_entry or {}).get("value") if load_entry else None
+            load_targets = load_value or {"recommended_ctl_target": current_ctl}
+
+            inputs = {
+                k: v
+                for k, v in inputs.items()
+                if k
+                not in {
+                    "current_ctl",
+                    "ftp_watts",
+                    "ftp_confidence",
+                    "load_targets",
+                    "preferred_days",
+                }
+            }
+            inputs = {
+                **inputs,
+                "current_ctl": current_ctl,
+                "ftp_watts": ftp_watts,
+                "ftp_confidence": ftp_confidence,
+                "load_targets": load_targets,
+                "preferred_days": preferred_days,
+            }
+
         if asyncio.iscoroutinefunction(fn):
             # log_capability_gap (and any future async tool) is awaited directly.
             result: ToolResult = await fn(**inputs)

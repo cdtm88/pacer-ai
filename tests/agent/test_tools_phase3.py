@@ -327,10 +327,41 @@ def _generate_plan_inputs(user_id_in_llm_input: str = "user_supplied_should_be_i
     }
 
 
+class _MockSelectChain:
+    """
+    Chainable select() query stub for the pmc_history/profiles lookups the
+    generate_plan server-injection block (TRUST-07) issues before calling
+    the tool function. Returns empty data by default so current_ctl /
+    preferred_days fall back to their cold-start-safe defaults (0.0 / [])
+    in tests that don't care about the injected values themselves.
+    """
+
+    def __init__(self, data=None):
+        self._data = data if data is not None else []
+
+    def select(self, *args, **kwargs):
+        return self
+
+    def eq(self, *args, **kwargs):
+        return self
+
+    def order(self, *args, **kwargs):
+        return self
+
+    def limit(self, *args, **kwargs):
+        return self
+
+    async def execute(self):
+        return MagicMock(data=self._data)
+
+
 def _mock_persistence_supabase(plan_id: str, session_id_prefix: str = "sess"):
     """
     Mock Supabase client whose plans/sessions inserts return fixed ids.
     Distinguishes plans vs sessions inserts by inspecting the table name.
+    pmc_history/profiles route to _MockSelectChain (TRUST-07 injection
+    reads), since dispatch_tool now queries them for every generate_plan
+    dispatch regardless of what the LLM's tool_use block supplied.
     """
     class _MockQuery:
         def __init__(self, table_name):
@@ -352,6 +383,8 @@ def _mock_persistence_supabase(plan_id: str, session_id_prefix: str = "sess"):
 
     class _MockClient:
         def table(self, name):
+            if name in ("pmc_history", "profiles"):
+                return _MockSelectChain()
             return _MockQuery(name)
 
     return _MockClient()
@@ -415,6 +448,8 @@ async def test_persist_generated_plan_writes_tss_target(monkeypatch):
 
     class _MockClient:
         def table(self, name):
+            if name in ("pmc_history", "profiles"):
+                return _MockSelectChain()
             return _MockQuery(name)
 
     async def _mock_get_async_supabase():
@@ -469,6 +504,8 @@ async def test_dispatch_tool_generate_plan_uses_injected_user_id(monkeypatch):
 
     class _MockClient:
         def table(self, name):
+            if name in ("pmc_history", "profiles"):
+                return _MockSelectChain()
             return _MockQuery(name)
 
     async def _mock_get_async_supabase():
