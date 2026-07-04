@@ -638,6 +638,125 @@ async def test_save_profile_moderate_back_constraints(monkeypatch):
     assert constraints.get("load_ramp_flag_threshold_pct") == 10
 
 
+async def test_dispatch_tool_save_profile_overrides_lthr_from_tool_result(monkeypatch):
+    """
+    CR-02 regression: when THIS turn's audit_log carries an
+    estimate_lthr_from_max_hr result (Branch B), dispatch_tool must override
+    any LLM-supplied lthr_estimate with the tool's actual value -- a
+    fabricated LLM-supplied lthr_estimate must never reach save_profile.
+    """
+    import backend.agent.tools as tools_module
+
+    upsert_calls: list = []
+
+    class _MockTable:
+        def upsert(self, data, on_conflict=None):
+            upsert_calls.append(data)
+            return self
+
+        async def execute(self):
+            return MagicMock(data=[{"id": "profile-cr02-001"}])
+
+    mock_client = MagicMock()
+    mock_client.table.return_value = _MockTable()
+    monkeypatch.setattr(
+        __import__("backend.sports_science.profile", fromlist=["_supabase_client"]),
+        "_supabase_client",
+        mock_client,
+    )
+
+    real_lthr = 162.0
+    fabricated_lthr = 999.0
+
+    audit_log: list = [
+        {
+            "tool_use_id": "toolu_lthr",
+            "name": "estimate_lthr_from_max_hr",
+            "result": {
+                "value": {"lthr": real_lthr},
+                "unit": "bpm",
+                "methodology": "LTHR estimated from max HR",
+                "inputs": {"max_hr": 185.0},
+            },
+        },
+    ]
+
+    block = _FakeToolUseBlock(
+        "save_profile",
+        {
+            "user_id": "attacker-supplied",
+            "fitness_goals": "general fitness",
+            "weekly_hours": 3.0,
+            "preferred_days": ["Tuesday", "Thursday"],
+            "back_status": "none",
+            "equipment": {},
+            "rpe_baseline": "beginner",
+            "lthr_estimate": fabricated_lthr,
+        },
+    )
+
+    tool_result = await tools_module.dispatch_tool(
+        block, audit_log, user_id="00000000-0000-0000-0000-000000000042"
+    )
+
+    assert tool_result["is_error"] is False
+    assert len(upsert_calls) == 1
+    assert upsert_calls[0]["lthr_estimate"] == real_lthr
+    assert upsert_calls[0]["lthr_estimate"] != fabricated_lthr
+
+
+async def test_dispatch_tool_save_profile_keeps_llm_lthr_when_no_tool_call(monkeypatch):
+    """
+    CR-02 regression: Branch A (user-stated LTHR, no estimate_lthr_from_max_hr
+    call expected this turn) must retain the LLM-supplied lthr_estimate as-is --
+    it is a legitimate self-report, not a computed value that needs override.
+    """
+    import backend.agent.tools as tools_module
+
+    upsert_calls: list = []
+
+    class _MockTable:
+        def upsert(self, data, on_conflict=None):
+            upsert_calls.append(data)
+            return self
+
+        async def execute(self):
+            return MagicMock(data=[{"id": "profile-cr02-002"}])
+
+    mock_client = MagicMock()
+    mock_client.table.return_value = _MockTable()
+    monkeypatch.setattr(
+        __import__("backend.sports_science.profile", fromlist=["_supabase_client"]),
+        "_supabase_client",
+        mock_client,
+    )
+
+    self_reported_lthr = 158.0
+
+    block = _FakeToolUseBlock(
+        "save_profile",
+        {
+            "user_id": "u1",
+            "fitness_goals": "general fitness",
+            "weekly_hours": 3.0,
+            "preferred_days": ["Tuesday", "Thursday"],
+            "back_status": "none",
+            "equipment": {},
+            "rpe_baseline": "beginner",
+            "lthr_estimate": self_reported_lthr,
+        },
+    )
+    audit_log: list = []  # no estimate_lthr_from_max_hr entry -- Branch A
+
+    tool_result = await tools_module.dispatch_tool(
+        block, audit_log, user_id="00000000-0000-0000-0000-000000000042"
+    )
+
+    assert tool_result["is_error"] is False
+    assert len(upsert_calls) == 1
+    assert upsert_calls[0]["lthr_estimate"] == self_reported_lthr
+
+
 # ---------------------------------------------------------------------------
 # TRUST-07 (D-02/D-07): generate_plan server-side injection
 # ---------------------------------------------------------------------------

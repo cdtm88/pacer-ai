@@ -764,6 +764,21 @@ async def dispatch_tool(
                 "preferred_days": preferred_days,
                 "hr_zones": hr_zones_value,
             }
+        elif name == "save_profile":
+            # CR-02: lthr_estimate is the one save_profile field that is
+            # tool-derived in onboarding Branch B (estimate_lthr_from_max_hr).
+            # When this turn's audit_log carries that tool's result, override
+            # any LLM-supplied lthr_estimate unconditionally so a fabricated
+            # value can never reach profiles.lthr_estimate/profiles.lthr.
+            # Branch A (user-stated LTHR) and Branch C (no LTHR) have no
+            # estimate_lthr_from_max_hr entry this turn, so the LLM-supplied
+            # value (a legitimate self-report, or None/omitted) passes
+            # through as-is -- it is not a computed value in those branches.
+            lthr_entry = _last_audit_result(audit_log, "estimate_lthr_from_max_hr")
+            if lthr_entry is not None:
+                lthr_value = (lthr_entry.get("value") or {}).get("lthr")
+                inputs = {k: v for k, v in inputs.items() if k != "lthr_estimate"}
+                inputs = {**inputs, "lthr_estimate": lthr_value}
 
         if asyncio.iscoroutinefunction(fn):
             # log_capability_gap (and any future async tool) is awaited directly.
