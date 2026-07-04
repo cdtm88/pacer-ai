@@ -20,7 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: During-Session and ZWO Export** - iOS-safe session stepper with wake lock, ZWO file generator with Zwift acceptance test (completed 2026-06-21)
 - [x] **Phase 6: Core Loop Persistence** - Persist generated plans as sessions rows, fix FTP/PMC correctness, link rides to sessions, idempotent adaptations (completed 2026-07-03)
 - [x] **Phase 7: Deploy Consolidation** - Vercel is the sole deploy target: remove Railway artifacts, make SSE and background FIT processing serverless-safe, resolve config conflicts, env docs, DB indexes (completed 2026-07-03)
-- [ ] **Phase 8: Trust Model Integrity** - Persist audit log, scan tool inputs, tighten attribution, collect LTHR, correct HR zones and load constraints
+- [x] **Phase 8: Trust Model Integrity** - Persist audit log, scan tool inputs, tighten attribution, collect LTHR, correct HR zones and load constraints (completed 2026-07-04)
 - [ ] **Phase 9: Frontend Resilience** - Chat SSE recovery and history reload, session persistence staleness, iOS export/auth fixes, contract mismatches, error boundary
 - [ ] **Phase 10: Hygiene and Safety Nets** - Repair stale tests, contract tests, SSE token exchange, rate limiting, CI, repo cleanup
 
@@ -247,7 +247,7 @@ Plans:
 **Goal:** The trust model is airtight and verifiable: audit log persisted per turn (TRUST-04), tool inputs scanned so invented numbers cannot launder through tool calls, bare-number attribution uses word-boundary and tolerance matching instead of substring, prior-turn numbers seeded to kill cross-turn false positives, LTHR (or explicit RPE-only fallback) collected in onboarding, HR zone constants match the claimed Coggan methodology, Zone 2 targets safe for a returning beginner, and generate_plan consumes current_ctl/load_targets/preferred_days so back-protective caps actually constrain sessions.
 **Requirements**: TRUST-06, TRUST-07, TRUST-08, TRUST-09, ONBD-05, PLAN-07, TOOL-02 (amend); re-verifies TRUST-03, TRUST-04, TRUST-05, PLAN-06
 **Depends on:** Phase 7
-**Plans:** 5/7 plans executed
+**Plans:** 7/7 plans complete
 
 Plans:
 **Wave 1**
@@ -263,8 +263,8 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 08-06-PLAN.md — generate_plan server-side value injection (TRUST-07)
-- [ ] 08-07-PLAN.md — onboarding LTHR collection + hr_zones_available flag (ONBD-05)
+- [x] 08-06-PLAN.md — generate_plan server-side value injection (TRUST-07)
+- [x] 08-07-PLAN.md — onboarding LTHR collection + hr_zones_available flag (ONBD-05)
 
 ### Phase 9: Frontend Resilience
 
@@ -299,6 +299,6 @@ Plans:
 | 5. During-Session and ZWO Export | 5/5 | Complete    | 2026-06-21 |
 | 6. Core Loop Persistence | 5/5 | Complete    | 2026-07-03 |
 | 7. Deploy Consolidation | 4/4 | Complete    | 2026-07-03 |
-| 8. Trust Model Integrity | 5/7 | In Progress|  |
+| 8. Trust Model Integrity | 7/7 | Complete   | 2026-07-04 |
 | 9. Frontend Resilience | 0/? | Not planned | - |
 | 10. Hygiene and Safety Nets | 0/? | Not planned | - |
