@@ -467,17 +467,17 @@ ALTER TABLE public.profiles
 | A3 | `gap_ratio >= 0.5` (current CTL less than half the recommended target) is the right "true beginner" threshold for D-07's flat-volume-ramp trigger | Code Examples (D-07 progression) | Untested threshold with no external citation — pure engineering judgment. If set too low, most legitimate users get the conservative flat ramp unnecessarily; if too high, at-risk beginners don't get it. This is explicitly "Claude's Discretion" per CONTEXT.md and needs a decision (not just acceptance) during planning, possibly with a quick sanity check against a few `(current_ctl, target_ctl)` example scenarios |
 | A4 | An `audit_log` row per tool call (not batched per turn) is acceptable write volume | Architecture Patterns / Pattern 1 | CONTEXT.md's D-01 already locks per-call writes over batching (deliberately, for partial-turn survivability), so this is not a new assumption — restating for completeness. No action needed unless write volume becomes a real concern post-launch (unlikely at this project's scale) |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Should `dispatch_tool`'s new `generate_plan` interception query the DB synchronously inline, or reuse the existing this-turn `audit_log` list for `current_ctl` too (instead of a fresh `pmc_history` query)?**
+1. **RESOLVED — Should `dispatch_tool`'s new `generate_plan` interception query the DB synchronously inline, or reuse the existing this-turn `audit_log` list for `current_ctl` too (instead of a fresh `pmc_history` query)?**
    - What we know: `current_ctl` is durable in `pmc_history` and queryable independent of same-turn tool calls (unlike `ftp_confidence`/`load_targets`, which only exist as ephemeral tool outputs).
    - What's unclear: Whether `update_pmc` is ever called in the same turn as `generate_plan` during onboarding (D-08's stated order for onboarding is `save_profile -> progress_load -> calculate_hr_zones -> generate_plan`, which does NOT include `update_pmc` — meaning for a first-time onboarding plan, `current_ctl` should come from the DB query, correctly returning 0 for a true cold start).
-   - Recommendation: Always query `pmc_history` directly for `current_ctl` (durable, correct for both cold-start onboarding and later coaching-chat re-plans); use this-turn `audit_log` only for `ftp_confidence`/`load_targets` (ephemeral, no durable store). This is reflected in the Code Examples above.
+   - Resolution: Always query `pmc_history` directly for `current_ctl` (durable, correct for both cold-start onboarding and later coaching-chat re-plans); use this-turn `audit_log` only for `ftp_confidence`/`load_targets` (ephemeral, no durable store). Reflected in the Code Examples above and incorporated into Plan 08-06 (cited in that plan's key_links as "Open Question 1 resolution").
 
-2. **Does the `messages` table's `role` CHECK constraint (`'user'|'assistant'|'tool'`) need to actually gain a writer now, or can it stay unused?**
+2. **RESOLVED — Does the `messages` table's `role` CHECK constraint (`'user'|'assistant'|'tool'`) need to actually gain a writer now, or can it stay unused?**
    - What we know: Nothing currently writes `role='tool'`; D-01/D-04 route around this by using the new `audit_log` table instead.
    - What's unclear: Whether any other in-flight or planned work (outside Phase 8's scope) depends on `messages.role='tool'` ever being populated.
-   - Recommendation: Leave `messages.role='tool'` unused for this phase — do not add a writer for it. If a future phase needs full conversational-turn tool-call replay (not just trust-attribution values), that's a separate concern from what TRUST-04/03 require here.
+   - Resolution: Leave `messages.role='tool'` unused for this phase — no plan adds a writer for it. If a future phase needs full conversational-turn tool-call replay (not just trust-attribution values), that's a separate concern from what TRUST-04/03 require here.
 
 ## Environment Availability
 

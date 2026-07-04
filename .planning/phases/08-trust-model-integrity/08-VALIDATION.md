@@ -38,6 +38,8 @@ created: 2026-07-04
 
 ## Per-Task Verification Map
 
+**Note:** This table is intentionally plan-level (one row per requirement), not task-level — it existed to guarantee every proposed requirement had an automated test mapped *before* the planner finalized task granularity. The planner split some rows into multiple tasks (e.g. Plan 03 has 3 tasks, Plan 05 has 3 tasks). This is not a coverage gap: every one of the 16 final tasks across `08-01-PLAN.md` through `08-07-PLAN.md` carries its own `<automated>` verify command directly in the plan file, which is what `/gsd-execute-phase` actually consumes. Treat the PLAN.md files as the authoritative source for task-level verification; this table remains the requirement-level cross-check.
+
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
 | 08-01-01 | 01 | 1 | TRUST-06 | T-08-01 | `audit_log` row written per tool dispatch, queryable by user_id+conversation_id | unit | `pytest tests/agent/test_audit.py -x` | ❌ W0 | ⬜ pending |
