@@ -26,7 +26,7 @@
 - [x] **TRUST-04**: Every physiological number in any plan or chat message is traceable to a tool-library call verifiable in application logs
 - [x] **TRUST-05**: When the agent needs a quantitative method the tool library lacks, it calls `log_capability_gap`, surfaces a brief chat note, and falls back to qualitative reasoning; it never improvises a number
 - [x] **TRUST-06**: An `audit_log` Postgres table is persisted with one row per tool dispatch (user_id, conversation_id, tool_use_id, tool_name, inputs, result, is_error, created_at), queryable by user_id + conversation_id, so TRUST-04's "verifiable in application logs" is literally true (Phase 8 / D-01)
-- [ ] **TRUST-07**: `generate_plan`'s trust-sensitive inputs (current_ctl, ftp_watts, ftp_confidence, load_targets, preferred_days) are injected server-side from verified DB / same-turn tool-result sources; any LLM-supplied values for these keys are discarded, preventing invented numbers from laundering through a tool call (Phase 8 / D-02 + D-07)
+- [x] **TRUST-07**: `generate_plan`'s trust-sensitive inputs (current_ctl, ftp_watts, ftp_confidence, load_targets, preferred_days) are injected server-side from verified DB / same-turn tool-result sources; any LLM-supplied values for these keys are discarded, preventing invented numbers from laundering through a tool call (Phase 8 / D-02 + D-07)
 - [x] **TRUST-08**: Bare-number attribution in the trust scanner uses numeric-token extraction with word/token boundaries plus float-tolerance comparison instead of a raw substring check, so "250" no longer matches inside "2500", "0.250", or a timestamp (Phase 8 / D-03)
 - [x] **TRUST-09**: `tool_result_values` is seeded at the start of every turn from the persisted `audit_log` trail scoped to the current conversation, eliminating cross-turn false positives on the stateless serverless backend (Phase 8 / D-04)
 
@@ -55,7 +55,7 @@
 - [x] **PLAN-04**: Every session has an explicit plan: objective, structure (warm-up / main set / cool-down), targets (RPE/HR early; power later), and duration
 - [x] **PLAN-05**: Back-protective constraints surfaced in the interview are reflected in the plan: initial volume cap, no prolonged standing efforts early, no sprint efforts early, and a flag if load ramps too fast
 - [x] **PLAN-06**: Every physiological number in a generated plan is traceable to a tool-library call (satisfies TRUST-04)
-- [ ] **PLAN-07**: `generate_plan` consumes `current_ctl` and `load_targets` for CTL-gap-aware weekly progression and `preferred_days` for real session scheduling, so back-protective and low-base-fitness caps actually constrain the generated sessions instead of being accepted-and-ignored (Phase 8 / D-07)
+- [x] **PLAN-07**: `generate_plan` consumes `current_ctl` and `load_targets` for CTL-gap-aware weekly progression and `preferred_days` for real session scheduling, so back-protective and low-base-fitness caps actually constrain the generated sessions instead of being accepted-and-ignored (Phase 8 / D-07)
 
 ### FIT File Ingestion
 
@@ -172,11 +172,11 @@
 | TRUST-04 | Phase 2 | Complete |
 | TRUST-05 | Phase 2 | Complete |
 | TRUST-06 | Phase 8 | Complete |
-| TRUST-07 | Phase 8 | Pending |
+| TRUST-07 | Phase 8 | Complete |
 | TRUST-08 | Phase 8 | Complete |
 | TRUST-09 | Phase 8 | Complete |
 | ONBD-05 | Phase 8 | Pending |
-| PLAN-07 | Phase 8 | Pending |
+| PLAN-07 | Phase 8 | Complete |
 | TOOL-02 (amend) | Phase 8 | Pending |
 | AGENT-01 | Phase 2 | Complete |
 | AGENT-02 | Phase 2 | Complete |

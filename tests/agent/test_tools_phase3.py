@@ -12,7 +12,7 @@ save_profile unit test: mock _get_async_supabase (async Supabase write).
 asyncio_mode = auto (pytest.ini) -- no @pytest.mark.asyncio needed.
 """
 import json
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 # ---------------------------------------------------------------------------
@@ -327,10 +327,41 @@ def _generate_plan_inputs(user_id_in_llm_input: str = "user_supplied_should_be_i
     }
 
 
+class _MockSelectChain:
+    """
+    Chainable select() query stub for the pmc_history/profiles lookups the
+    generate_plan server-injection block (TRUST-07) issues before calling
+    the tool function. Returns empty data by default so current_ctl /
+    preferred_days fall back to their cold-start-safe defaults (0.0 / [])
+    in tests that don't care about the injected values themselves.
+    """
+
+    def __init__(self, data=None):
+        self._data = data if data is not None else []
+
+    def select(self, *args, **kwargs):
+        return self
+
+    def eq(self, *args, **kwargs):
+        return self
+
+    def order(self, *args, **kwargs):
+        return self
+
+    def limit(self, *args, **kwargs):
+        return self
+
+    async def execute(self):
+        return MagicMock(data=self._data)
+
+
 def _mock_persistence_supabase(plan_id: str, session_id_prefix: str = "sess"):
     """
     Mock Supabase client whose plans/sessions inserts return fixed ids.
     Distinguishes plans vs sessions inserts by inspecting the table name.
+    pmc_history/profiles route to _MockSelectChain (TRUST-07 injection
+    reads), since dispatch_tool now queries them for every generate_plan
+    dispatch regardless of what the LLM's tool_use block supplied.
     """
     class _MockQuery:
         def __init__(self, table_name):
@@ -352,6 +383,8 @@ def _mock_persistence_supabase(plan_id: str, session_id_prefix: str = "sess"):
 
     class _MockClient:
         def table(self, name):
+            if name in ("pmc_history", "profiles"):
+                return _MockSelectChain()
             return _MockQuery(name)
 
     return _MockClient()
@@ -415,6 +448,8 @@ async def test_persist_generated_plan_writes_tss_target(monkeypatch):
 
     class _MockClient:
         def table(self, name):
+            if name in ("pmc_history", "profiles"):
+                return _MockSelectChain()
             return _MockQuery(name)
 
     async def _mock_get_async_supabase():
@@ -469,6 +504,8 @@ async def test_dispatch_tool_generate_plan_uses_injected_user_id(monkeypatch):
 
     class _MockClient:
         def table(self, name):
+            if name in ("pmc_history", "profiles"):
+                return _MockSelectChain()
             return _MockQuery(name)
 
     async def _mock_get_async_supabase():
@@ -599,3 +636,165 @@ async def test_save_profile_moderate_back_constraints(monkeypatch):
     constraints = upsert_calls[0]["constraints"]
     assert constraints["back_issues"] is True
     assert constraints.get("load_ramp_flag_threshold_pct") == 10
+
+
+# ---------------------------------------------------------------------------
+# TRUST-07 (D-02/D-07): generate_plan server-side injection
+# ---------------------------------------------------------------------------
+
+
+async def test_generate_plan_injection_discards_llm_values(monkeypatch):
+    """
+    TRUST-07: dispatch_tool's generate_plan-only injection block discards any
+    LLM-supplied current_ctl/ftp_watts/ftp_confidence/load_targets/preferred_days
+    and replaces them with server-verified values -- current_ctl from the
+    latest pmc_history row, preferred_days from profiles, and (with no
+    same-turn estimate_ftp_from_rides/progress_load audit_log entry) the
+    cold-start-safe fallback for ftp_confidence/ftp_watts/load_targets
+    (08-RESEARCH.md Pitfall 4).
+    """
+    import backend.agent.tools as tools_module
+    from backend.sports_science.types import ToolResult
+
+    known_ctl = 12.0
+    known_preferred_days = ["Monday", "Wednesday"]
+
+    class _MockClient:
+        def table(self, name):
+            if name == "pmc_history":
+                return _MockSelectChain([{"ctl": known_ctl}])
+            if name == "profiles":
+                return _MockSelectChain([{"preferred_days": known_preferred_days}])
+            raise AssertionError(f"unexpected table queried: {name}")
+
+    async def _mock_get_async_supabase():
+        return _MockClient()
+
+    monkeypatch.setattr(tools_module, "_get_async_supabase", _mock_get_async_supabase)
+
+    # result.value is None (falsy) so dispatch_tool's persistence branch is
+    # skipped -- this test is only about input injection, not persistence.
+    fake_generate_plan = MagicMock(
+        return_value=ToolResult(
+            value=None, unit="", methodology="mesocycle_plan_generation", inputs={}
+        )
+    )
+
+    bogus_inputs = {
+        "weekly_hours": 3.0,
+        "back_status": "none",
+        "hr_zones": [{"zone": 2, "lower_bpm": 120, "upper_bpm": 145}],
+        # Bogus LLM-supplied values for the five trust-sensitive keys --
+        # every one of these must be discarded and replaced.
+        "current_ctl": 999,
+        "ftp_watts": 999,
+        "ftp_confidence": "high",
+        "load_targets": {"recommended_ctl_target": 999},
+        "preferred_days": ["Xday"],
+    }
+    block = _FakeToolUseBlock("generate_plan", bogus_inputs)
+    audit_log: list = []
+
+    with patch.dict(tools_module.TOOL_REGISTRY, {"generate_plan": fake_generate_plan}):
+        tool_result = await tools_module.dispatch_tool(
+            block, audit_log, user_id="00000000-0000-0000-0000-000000000042"
+        )
+
+    assert tool_result["is_error"] is False
+    assert fake_generate_plan.call_count == 1
+    call_kwargs = fake_generate_plan.call_args.kwargs
+
+    assert call_kwargs["current_ctl"] == known_ctl
+    assert call_kwargs["preferred_days"] == known_preferred_days
+    assert call_kwargs["ftp_confidence"] == "insufficient_data"
+    assert call_kwargs["ftp_watts"] is None
+    assert call_kwargs["load_targets"] == {"recommended_ctl_target": known_ctl}
+
+    # The bogus LLM-supplied values must be nowhere in the actual call.
+    assert call_kwargs["current_ctl"] != 999
+    assert call_kwargs["ftp_watts"] != 999
+    assert call_kwargs["ftp_confidence"] != "high"
+    assert call_kwargs["load_targets"] != {"recommended_ctl_target": 999}
+    assert call_kwargs["preferred_days"] != ["Xday"]
+
+
+async def test_generate_plan_injection_uses_same_turn_ftp_and_load_entries(monkeypatch):
+    """
+    TRUST-07: when THIS turn's audit_log already has estimate_ftp_from_rides
+    and progress_load results (the D-08-mandated order), generate_plan's
+    injected ftp_watts/ftp_confidence/load_targets come from those results,
+    not the cold-start fallback.
+    """
+    import backend.agent.tools as tools_module
+    from backend.sports_science.types import ToolResult
+
+    class _MockClient:
+        def table(self, name):
+            if name == "pmc_history":
+                return _MockSelectChain([{"ctl": 5.0}])
+            if name == "profiles":
+                return _MockSelectChain([])
+            raise AssertionError(f"unexpected table queried: {name}")
+
+    async def _mock_get_async_supabase():
+        return _MockClient()
+
+    monkeypatch.setattr(tools_module, "_get_async_supabase", _mock_get_async_supabase)
+
+    fake_generate_plan = MagicMock(
+        return_value=ToolResult(
+            value=None, unit="", methodology="mesocycle_plan_generation", inputs={}
+        )
+    )
+
+    audit_log: list = [
+        {
+            "tool_use_id": "toolu_ftp",
+            "name": "estimate_ftp_from_rides",
+            "result": {
+                "value": {"ftp": 210.5, "cp": 210.5, "wprime": 18000.0, "confidence": "medium"},
+                "unit": "watts",
+                "methodology": "2-parameter Critical Power model (Morton 1996)",
+                "inputs": {"quality_efforts": 8, "required": 4, "confidence": "medium"},
+            },
+        },
+        {
+            "tool_use_id": "toolu_load",
+            "name": "progress_load",
+            "result": {
+                "value": {
+                    "recommended_ctl_target": 9.0,
+                    "max_weekly_increase": 4.0,
+                    "back_constraints_applied": False,
+                },
+                "unit": "CTL",
+                "methodology": "CTL ramp ceiling 8pts/week; back-protective JSONB constraints applied",
+                "inputs": {"current_ctl": 5.0, "target_ctl": 9.0, "constraints": {}},
+            },
+        },
+    ]
+
+    block = _FakeToolUseBlock(
+        "generate_plan",
+        {
+            "weekly_hours": 3.0,
+            "back_status": "none",
+            "hr_zones": [{"zone": 2, "lower_bpm": 120, "upper_bpm": 145}],
+        },
+    )
+
+    with patch.dict(tools_module.TOOL_REGISTRY, {"generate_plan": fake_generate_plan}):
+        tool_result = await tools_module.dispatch_tool(
+            block, audit_log, user_id="00000000-0000-0000-0000-000000000042"
+        )
+
+    assert tool_result["is_error"] is False
+    call_kwargs = fake_generate_plan.call_args.kwargs
+    assert call_kwargs["current_ctl"] == 5.0
+    assert call_kwargs["ftp_watts"] == 210.5
+    assert call_kwargs["ftp_confidence"] == "medium"
+    assert call_kwargs["load_targets"] == {
+        "recommended_ctl_target": 9.0,
+        "max_weekly_increase": 4.0,
+        "back_constraints_applied": False,
+    }
