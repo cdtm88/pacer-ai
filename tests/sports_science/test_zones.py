@@ -1,6 +1,10 @@
 # tests/sports_science/test_zones.py
 import pytest
-from backend.sports_science.zones import calculate_power_zones, calculate_hr_zones
+from backend.sports_science.zones import (
+    calculate_power_zones,
+    calculate_hr_zones,
+    estimate_lthr_from_max_hr,
+)
 from backend.sports_science.types import ToolResult
 
 
@@ -118,3 +122,21 @@ def test_returns_tool_result():
     assert power_result.inputs["ftp"] == 200.0
     assert "lthr" in hr_result.inputs
     assert hr_result.inputs["lthr"] == 155.0
+
+
+def test_estimate_lthr_from_max_hr():
+    """D-05/ONBD-05: estimate_lthr_from_max_hr(185) returns round(185*0.875)=162 bpm
+    as a methodology-tagged ToolResult -- the LLM never derives this number itself."""
+    result = estimate_lthr_from_max_hr(185)
+
+    assert isinstance(result, ToolResult)
+    result_dict = result.model_dump()
+    assert set(["value", "unit", "methodology", "inputs"]).issubset(result_dict.keys())
+
+    assert result.unit == "bpm"
+    assert result.inputs["max_hr"] == 185
+
+    lthr = result.value.get("lthr") if isinstance(result.value, dict) else None
+    assert lthr == 162, f"expected round(185*0.875)=162, got {result.value}"
+
+    assert "max hr" in result.methodology.lower() or "max_hr" in result.methodology.lower()
