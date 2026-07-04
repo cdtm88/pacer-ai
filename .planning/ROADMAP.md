@@ -247,7 +247,7 @@ Plans:
 **Goal:** The trust model is airtight and verifiable: audit log persisted per turn (TRUST-04), tool inputs scanned so invented numbers cannot launder through tool calls, bare-number attribution uses word-boundary and tolerance matching instead of substring, prior-turn numbers seeded to kill cross-turn false positives, LTHR (or explicit RPE-only fallback) collected in onboarding, HR zone constants match the claimed Coggan methodology, Zone 2 targets safe for a returning beginner, and generate_plan consumes current_ctl/load_targets/preferred_days so back-protective caps actually constrain sessions.
 **Requirements**: TRUST-06, TRUST-07, TRUST-08, TRUST-09, ONBD-05, PLAN-07, TOOL-02 (amend); re-verifies TRUST-03, TRUST-04, TRUST-05, PLAN-06
 **Depends on:** Phase 7
-**Plans:** 4/7 plans executed
+**Plans:** 5/7 plans executed
 
 Plans:
 **Wave 1**
@@ -259,7 +259,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 08-05-PLAN.md — conversation_id threading + durable audit writes + cross-turn seeding (TRUST-06 wiring, TRUST-09)
+- [x] 08-05-PLAN.md — conversation_id threading + durable audit writes + cross-turn seeding (TRUST-06 wiring, TRUST-09)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -299,6 +299,6 @@ Plans:
 | 5. During-Session and ZWO Export | 5/5 | Complete    | 2026-06-21 |
 | 6. Core Loop Persistence | 5/5 | Complete    | 2026-07-03 |
 | 7. Deploy Consolidation | 4/4 | Complete    | 2026-07-03 |
-| 8. Trust Model Integrity | 4/7 | In Progress|  |
+| 8. Trust Model Integrity | 5/7 | In Progress|  |
 | 9. Frontend Resilience | 0/? | Not planned | - |
 | 10. Hygiene and Safety Nets | 0/? | Not planned | - |
