@@ -225,6 +225,55 @@ class TestSubstringCollisionBypass:
         assert violation is not None
         assert "42" in violation.matched_text
 
+    def test_wr04_short_date_component_does_not_attribute(self):
+        """
+        WR-04 regression: a short standalone date/time component embedded in a
+        JSON string value (e.g. day-of-month "4" in an ISO date) must not
+        falsely attribute an unrelated hallucinated number that happens to
+        equal it. Unlike the pre-existing timestamp test (which relies on "42"
+        not appearing standalone in that particular timestamp), this exercises
+        the general case the JSON-parse rewrite closes structurally: "4"
+        legitimately appears standalone in "2026-07-04" once split on
+        non-digit boundaries, but it lives inside a JSON string value
+        (created_at), not a JSON number leaf, so it must never be attributed.
+        """
+        from backend.agent.trust import scan_buffer
+
+        violation = scan_buffer(
+            "CTL is 4.", ['{"created_at": "2026-07-04"}']
+        )
+        assert violation is not None, (
+            "A hallucinated CTL of 4 must still be flagged even though '4' "
+            "appears standalone inside the JSON string date value '2026-07-04'"
+        )
+        assert "4" in violation.matched_text
+
+    def test_wr04_real_json_number_leaf_still_attributes(self):
+        """
+        WR-04 regression: a real JSON number leaf alongside a date string in
+        the same tool result must still correctly attribute -- the date-string
+        exclusion must not also suppress legitimate numeric attribution.
+        """
+        from backend.agent.trust import scan_buffer
+
+        violation = scan_buffer(
+            "Your CTL is 42.",
+            ['{"created_at": "2026-07-04", "ctl": 42}'],
+        )
+        assert violation is None
+
+    def test_wr04_non_json_string_still_uses_legacy_fallback(self):
+        """
+        WR-04 regression: a tool_result_values entry that is not valid JSON
+        (e.g. a bare prose string) must still fall back to the legacy
+        boundary-aware regex token scan, preserving pre-existing behavior for
+        non-JSON call sites.
+        """
+        from backend.agent.trust import scan_buffer
+
+        violation = scan_buffer("Your FTP is 250 watts.", ["250 watts"])
+        assert violation is None
+
 
 class TestTrustViolationDataclass:
     """TrustViolation dataclass properties."""

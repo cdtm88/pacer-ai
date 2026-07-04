@@ -28,6 +28,7 @@ Invariants:
     the tightest matched_text for attribution checking.
 """
 
+import json
 import re
 from dataclasses import dataclass
 from typing import Optional, Any
@@ -100,11 +101,54 @@ _NUMERIC_TOKEN = re.compile(r"(?<![\d.])-?\d+(?:\.\d+)?(?!\d)")
 NUMERIC_TOLERANCE = 0.01
 
 
+def _collect_numeric_leaves(obj: Any) -> "list[float]":
+    """
+    WR-04: recursively collect numeric LEAF values from a parsed JSON
+    structure (dict/list/int/float/bool/str/None), ignoring string values
+    entirely.
+
+    tool_result_values entries are JSON-serialised tool outputs (dicts with
+    dict/list/scalar values). A JSON string value (e.g. a date/timestamp such
+    as "2024-01-01T00:04:20Z") is never walked into for digit extraction here
+    -- only genuine JSON number literals are collected -- which structurally
+    prevents an unrelated digit run embedded in a date/timestamp string from
+    ever being treated as an attributable physiological number (closing the
+    general class of collision the prior raw-regex-over-the-whole-string
+    approach was vulnerable to, not just the one timestamp shape a prior
+    regression test happened to cover).
+
+    bool is excluded explicitly since bool is a subclass of int in Python and
+    would otherwise be misidentified as a numeric leaf.
+    """
+    numbers: list[float] = []
+    if isinstance(obj, dict):
+        for v in obj.values():
+            numbers.extend(_collect_numeric_leaves(v))
+    elif isinstance(obj, list):
+        for item in obj:
+            numbers.extend(_collect_numeric_leaves(item))
+    elif isinstance(obj, bool):
+        pass  # bool is a subclass of int -- never a physiological number
+    elif isinstance(obj, (int, float)):
+        numbers.append(float(obj))
+    return numbers
+
+
 def _is_attributed(candidate_str: str, tool_result_values: "list[str]") -> bool:
     """
     Return True iff candidate_str parses as a float and matches -- within
-    NUMERIC_TOLERANCE -- a boundary-aware numeric token found in any
-    tool_result_values string.
+    NUMERIC_TOLERANCE -- a numeric value found in any tool_result_values
+    string.
+
+    WR-04: each tool_result_values string is first tried as JSON. When it
+    parses, only genuine JSON number leaves are compared against (see
+    _collect_numeric_leaves) -- digits embedded inside a JSON string value
+    (e.g. a date/timestamp) are structurally invisible to this comparison,
+    since they live inside a str leaf, not a number leaf. When a value is not
+    valid JSON (e.g. a bare prose string like "250 watts" from older/simpler
+    call sites), attribution falls back to the previous boundary-aware
+    numeric-token regex extraction over the raw string (D-03/TRUST-08),
+    preserving existing behavior for non-JSON inputs.
 
     Pure/synchronous: no I/O, no side effects. Unparseable candidates or
     tokens are ignored (treated as non-matching), never raised.
@@ -114,6 +158,18 @@ def _is_attributed(candidate_str: str, tool_result_values: "list[str]") -> bool:
     except ValueError:
         return False
     for val in tool_result_values:
+        try:
+            parsed = json.loads(val)
+        except (ValueError, TypeError):
+            parsed = None
+
+        if parsed is not None:
+            for number in _collect_numeric_leaves(parsed):
+                if abs(candidate - number) <= NUMERIC_TOLERANCE:
+                    return True
+            continue
+
+        # Fallback: val is not valid JSON -- legacy boundary-aware token scan.
         for token_match in _NUMERIC_TOKEN.finditer(val):
             try:
                 if abs(candidate - float(token_match.group(0))) <= NUMERIC_TOLERANCE:
