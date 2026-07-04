@@ -1,14 +1,18 @@
 # agent/trust.py
 """
-Trust-model response scanner for PacerAI (TRUST-03, TRUST-04, TRUST-05).
+Trust-model response scanner for PacerAI (TRUST-03, TRUST-04, TRUST-05, TRUST-08).
 
 scan_buffer: Synchronous, pure (no I/O). Scans buffered assistant text for
 unsourced physiological numbers using two complementary regex patterns:
   - PHYSIO_PATTERN_A: number followed by unit (core case: "250 watts", "85 TSS")
   - PHYSIO_PATTERN_B: unit followed by number ("Zone 4", "CTL 42", "TSS should be 85")
 
-Numbers that appear verbatim as a substring of any string in tool_result_values
-(values returned by tools this turn) are considered attributed and NOT violations.
+A number is considered attributed (not a violation) when it matches -- within
+NUMERIC_TOLERANCE -- a boundary-aware numeric token extracted from a
+tool_result_values string (values returned by tools this turn). This is a
+numeric-token + tolerance compare (TRUST-08, D-03), not a raw substring check:
+"250" is no longer attributed by the mere presence of "2500", "0.250", or a
+timestamp digit run inside a tool result string.
 
 handle_violation: Async hook called by the loop on a genuine violation. Awaits
 log_capability_gap to satisfy TRUST-05. Does not surface the internal method_name
@@ -80,6 +84,45 @@ PHYSIO_PATTERN = re.compile(
 )
 
 
+# ---------------------------------------------------------------------------
+# Numeric-token extraction with tolerance (D-03 / TRUST-08).
+#
+# Replaces raw substring membership (`s in val`) for attribution checks. The
+# boundary-aware lookaround -- (?<![\d.]) ... (?!\d) -- prevents "25" from
+# matching inside "2500" or "0.250": each extracted token must stand on its
+# own numeric boundaries, not be a substring of a larger digit run. Combined
+# with a float-tolerance compare, this closes the substring-collision bypass
+# where any tool result containing an unrelated number (or a timestamp digit
+# run) could "attribute" an unrelated hallucinated value.
+# ---------------------------------------------------------------------------
+
+_NUMERIC_TOKEN = re.compile(r"(?<![\d.])-?\d+(?:\.\d+)?(?!\d)")
+NUMERIC_TOLERANCE = 0.01
+
+
+def _is_attributed(candidate_str: str, tool_result_values: "list[str]") -> bool:
+    """
+    Return True iff candidate_str parses as a float and matches -- within
+    NUMERIC_TOLERANCE -- a boundary-aware numeric token found in any
+    tool_result_values string.
+
+    Pure/synchronous: no I/O, no side effects. Unparseable candidates or
+    tokens are ignored (treated as non-matching), never raised.
+    """
+    try:
+        candidate = float(candidate_str)
+    except ValueError:
+        return False
+    for val in tool_result_values:
+        for token_match in _NUMERIC_TOKEN.finditer(val):
+            try:
+                if abs(candidate - float(token_match.group(0))) <= NUMERIC_TOLERANCE:
+                    return True
+            except ValueError:
+                continue
+    return False
+
+
 @dataclass
 class TrustViolation:
     """Represents an unsourced physiological number detected by scan_buffer."""
@@ -99,12 +142,15 @@ def scan_buffer(
     Scan assistant text for unsourced physiological numbers.
 
     Runs Pattern A (number+unit) first, then Pattern B (unit+number).
-    A match is attributed (not a violation) if:
-      - The full matched text is a substring of any tool_result_value string, OR
-      - For Pattern B: the extracted number is a substring of any tool_result_value.
+    A match is attributed (not a violation) if the bare numeric candidate
+    (Pattern A's leading number, Pattern B's extracted number group) matches
+    -- within NUMERIC_TOLERANCE -- a boundary-aware numeric token found in any
+    tool_result_values string (see _is_attributed / TRUST-08).
 
     This handles the common false-positive case where Claude echoes a tool result
-    value in running text (RESEARCH.md Pitfall 1).
+    value in running text (RESEARCH.md Pitfall 1), while closing the substring-
+    collision bypass where an unrelated digit run (e.g. "2500", "0.250", or a
+    timestamp) could falsely attribute a different number (D-03).
 
     Args:
         text:               Full buffered assistant text for this turn.
@@ -122,13 +168,12 @@ def scan_buffer(
         matched = match.group(0).strip()
         # Tool results are structured JSON (e.g. {"lower_bpm": 134}), so a
         # number+unit phrase like "134 bpm" never appears verbatim in a tool
-        # result string. Fall back to the bare number, mirroring Pattern B's
-        # [full_match, synthetic, num] attribution candidates (260702-vsp).
+        # result string. Extract the bare leading number and check attribution
+        # via numeric-token + tolerance match (260702-vsp bare-number fallback,
+        # D-03/TRUST-08 boundary-aware rewrite).
         number_match = re.match(r"\d+(?:\.\d+)?", matched)
         bare_number = number_match.group(0) if number_match else matched
-        if not any(
-            s in val for val in tool_result_values for s in (matched, bare_number)
-        ):
+        if not _is_attributed(bare_number, tool_result_values):
             return TrustViolation(
                 matched_text=matched,
                 pattern=PHYSIO_PATTERN_A.pattern,
@@ -139,22 +184,17 @@ def scan_buffer(
         groups = match.groups()
         # Determine which sub-pattern matched and extract the number
         if groups[0] is not None:       # zone N
-            unit, num = groups[0], groups[1]
+            num = groups[1]
         elif groups[2] is not None:     # Z4
-            unit, num = groups[2], groups[3]
+            num = groups[3]
         else:                           # TSS|FTP|CTL|ATL|TSB + number
-            unit, num = groups[4], groups[5]
+            num = groups[5]
 
         full_match = match.group(0).strip()
-        synthetic = f"{num} {unit}"  # e.g. "42 CTL", "4 Zone"
 
-        # Attribution: full match, synthetic number+unit, or bare number in tool results
-        attributed = any(
-            s in val
-            for val in tool_result_values
-            for s in [full_match, synthetic, num]
-        )
-        if not attributed:
+        # Attribution: extracted number matched via numeric-token + tolerance
+        # compare against tool_result_values (D-03/TRUST-08).
+        if not _is_attributed(num, tool_result_values):
             return TrustViolation(
                 matched_text=full_match,
                 pattern=PHYSIO_PATTERN_B.pattern,
