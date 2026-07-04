@@ -468,3 +468,127 @@ async def test_profile_persisted(monkeypatch):
     # Verify ToolResult
     assert result.value["saved"] is True, f"Expected saved=True, got {result.value}"
     assert result.value["profile_id"] == "profile-uuid-003"
+
+
+async def test_save_profile_persists_hr_zones_available_true_when_lthr_given(monkeypatch):
+    """
+    D-05: save_profile writes hr_zones_available=True to the profiles upsert when
+    lthr_estimate is present (LTHR given directly, or estimated via
+    estimate_lthr_from_max_hr -- either way lthr_estimate is set by the caller).
+    """
+    import backend.sports_science.profile as profile_module
+
+    captured_payload = {}
+
+    execute_result = MagicMock()
+    execute_result.data = [{"id": "profile-uuid-hr-true"}]
+
+    mock_client = MagicMock()
+    mock_client.table.return_value = mock_client
+
+    def capture_upsert(data, **kwargs):
+        captured_payload.update(data)
+        return mock_client
+
+    mock_client.upsert.side_effect = capture_upsert
+    mock_client.execute = AsyncMock(return_value=execute_result)
+
+    monkeypatch.setattr(profile_module, "_supabase_client", mock_client)
+
+    from backend.sports_science.profile import save_profile
+
+    await save_profile(
+        user_id=TEST_USER_ID,
+        fitness_goals="weight loss",
+        weekly_hours=4.0,
+        preferred_days=["Monday", "Wednesday"],
+        back_status="none",
+        equipment={"trainer": "Wahoo Kickr Core", "platform": "Zwift"},
+        rpe_baseline="beginner",
+        lthr_estimate=160.0,
+    )
+
+    assert captured_payload.get("hr_zones_available") is True, (
+        f"Expected hr_zones_available=True when lthr_estimate is given, "
+        f"got {captured_payload.get('hr_zones_available')!r}"
+    )
+
+
+async def test_save_profile_persists_hr_zones_available_false_when_lthr_none(monkeypatch):
+    """
+    D-05: save_profile writes hr_zones_available=False to the profiles upsert when
+    lthr_estimate is None (neither LTHR nor max-HR known -- the onboarding
+    "neither known" branch), so plan generation falls back to the RPE-only path.
+    """
+    import backend.sports_science.profile as profile_module
+
+    captured_payload = {}
+
+    execute_result = MagicMock()
+    execute_result.data = [{"id": "profile-uuid-hr-false"}]
+
+    mock_client = MagicMock()
+    mock_client.table.return_value = mock_client
+
+    def capture_upsert(data, **kwargs):
+        captured_payload.update(data)
+        return mock_client
+
+    mock_client.upsert.side_effect = capture_upsert
+    mock_client.execute = AsyncMock(return_value=execute_result)
+
+    monkeypatch.setattr(profile_module, "_supabase_client", mock_client)
+
+    from backend.sports_science.profile import save_profile
+
+    await save_profile(
+        user_id=TEST_USER_ID,
+        fitness_goals="weight loss",
+        weekly_hours=4.0,
+        preferred_days=["Monday", "Wednesday"],
+        back_status="none",
+        equipment={"trainer": "Wahoo Kickr Core", "platform": "Zwift"},
+        rpe_baseline="beginner",
+        lthr_estimate=None,
+    )
+
+    assert captured_payload.get("hr_zones_available") is False, (
+        f"Expected hr_zones_available=False when lthr_estimate is None, "
+        f"got {captured_payload.get('hr_zones_available')!r}"
+    )
+
+
+def test_onboarding_prompt_covers_lthr_question_and_branches():
+    """
+    D-05 (ONBD-05): ONBOARDING_SYSTEM_PROMPT must ask a heart-rate baseline question
+    (LTHR / max HR), reference the estimate_lthr_from_max_hr tool for the max-HR branch,
+    and describe the neither-known RPE-only fallback -- closing the onboarding LTHR gap
+    documented in CONTEXT.md defect #5.
+    """
+    from backend.routes.onboarding import ONBOARDING_SYSTEM_PROMPT as prompt
+
+    low = prompt.lower()
+
+    # The HR baseline question itself (LTHR or max/resting HR).
+    assert "lactate threshold" in low or "lthr" in low, (
+        "Prompt must ask about LTHR / lactate threshold heart rate"
+    )
+    assert "max heart rate" in low or "max hr" in low, (
+        "Prompt must ask about max heart rate as the alternative to LTHR"
+    )
+
+    # Branch B: routed through the registered estimator tool, never invented by the LLM.
+    assert "estimate_lthr_from_max_hr" in prompt, (
+        "Prompt must reference the estimate_lthr_from_max_hr tool for the max-HR branch"
+    )
+
+    # Branch C: neither known -> RPE-only fallback, no HR-zone tool call.
+    assert "rpe" in low, "Prompt must describe the RPE-only fallback for the neither-known branch"
+    assert "skip calculate_hr_zones" in low or "skip" in low, (
+        "Prompt must instruct skipping calculate_hr_zones when neither LTHR nor max HR is known"
+    )
+
+    # Confirmation gate must still be present and intact (D-03 / ONBD-04 regression guard).
+    assert "Here is what I have" in prompt
+    assert "TOOL ORDER" in prompt
+    assert "save_profile" in prompt and "calculate_hr_zones" in prompt and "generate_plan" in prompt
