@@ -250,12 +250,19 @@ Plans:
 **Plans:** 7 plans
 
 Plans:
+**Wave 1**
 
 - [ ] 08-01-PLAN.md — Audit storage layer: audit_log migration + audit.py (write/reload) + schema push (TRUST-06 storage)
 - [ ] 08-02-PLAN.md — Attribution matching rewrite: numeric-token + tolerance replaces substring (TRUST-08)
 - [ ] 08-03-PLAN.md — HR zone constants fix + Zone 2 safety + estimate_lthr_from_max_hr tool (TOOL-02 amend, ONBD-05 estimator)
 - [ ] 08-04-PLAN.md — generate_plan CTL-gap progression + preferred_days computation (PLAN-07)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 08-05-PLAN.md — conversation_id threading + durable audit writes + cross-turn seeding (TRUST-06 wiring, TRUST-09)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 08-06-PLAN.md — generate_plan server-side value injection (TRUST-07)
 - [ ] 08-07-PLAN.md — onboarding LTHR collection + hr_zones_available flag (ONBD-05)
 
