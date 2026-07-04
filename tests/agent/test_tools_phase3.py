@@ -3,7 +3,8 @@
 Phase 3 tool registry and sports_science unit tests.
 
 TRUST-02: TOOL_REGISTRY and TOOL_SCHEMAS must have the same name set and
-exactly 10 entries after adding save_profile and generate_plan.
+exactly 11 entries after adding save_profile, generate_plan, and (Phase 08
+Plan 03) estimate_lthr_from_max_hr.
 
 generate_plan unit tests: call the sync function directly (no mocking).
 save_profile unit test: mock _get_async_supabase (async Supabase write).
@@ -22,7 +23,8 @@ from unittest.mock import AsyncMock, MagicMock
 def test_trust02_still_passes_after_new_tools():
     """
     TRUST-02: TOOL_REGISTRY and TOOL_SCHEMAS must have exactly the same names.
-    After Wave 1, both must have 10 entries: 8 original + save_profile + generate_plan.
+    After Wave 1, both must have 11 entries: 8 original + save_profile +
+    generate_plan + estimate_lthr_from_max_hr (Phase 08 Plan 03, D-05).
     """
     from backend.agent.tools import TOOL_REGISTRY, TOOL_SCHEMAS
 
@@ -32,14 +34,15 @@ def test_trust02_still_passes_after_new_tools():
     assert schema_names == registry_names, (
         f"TRUST-02: schema names {schema_names} != registry keys {registry_names}"
     )
-    assert len(TOOL_REGISTRY) == 10, (
-        f"Expected 10 tools in TOOL_REGISTRY, got {len(TOOL_REGISTRY)}"
+    assert len(TOOL_REGISTRY) == 11, (
+        f"Expected 11 tools in TOOL_REGISTRY, got {len(TOOL_REGISTRY)}"
     )
-    assert len(TOOL_SCHEMAS) == 10, (
-        f"Expected 10 schemas in TOOL_SCHEMAS, got {len(TOOL_SCHEMAS)}"
+    assert len(TOOL_SCHEMAS) == 11, (
+        f"Expected 11 schemas in TOOL_SCHEMAS, got {len(TOOL_SCHEMAS)}"
     )
     assert "save_profile" in registry_names
     assert "generate_plan" in registry_names
+    assert "estimate_lthr_from_max_hr" in registry_names
 
 
 # ---------------------------------------------------------------------------
