@@ -402,3 +402,113 @@ async def test_user_id_injected_server_side_through_run_turn(no_op_scanner):
         "Injection must augment, not replace, the LLM-supplied args"
     )
     assert "done" in [ev["event"] for ev in events]
+
+
+# ---------------------------------------------------------------------------
+# 08-05 / TRUST-09 / D-04: cross-turn tool_result_values seeding from the
+# persisted audit trail eliminates false positives on a stateless invocation
+# where the number was established in a PRIOR turn, not this one.
+# ---------------------------------------------------------------------------
+
+
+async def test_cross_turn_seed_suppresses_false_positive():
+    """
+    A number present only in a PRIOR turn's audit trail (e.g. an FTP estimate
+    established last turn) must be attributed this turn via seeding, even
+    though this turn's stream makes NO tool call at all. Uses the REAL
+    scan_buffer (not no_op_scanner) so real attribution logic is exercised.
+
+    backend.agent.loop.load_prior_audit_values is patched (AsyncMock) to
+    simulate a Plan 01 audit_log reload returning last turn's persisted
+    tool-result JSON.
+    """
+    import json
+    from backend.agent.loop import run_turn
+    from backend.agent.trust import scan_buffer
+    from tests.agent.conftest import _build_stream, _delta_event, _final_msg
+
+    text = "Your FTP is 250 watts based on last week's estimate."
+    stream = _build_stream(
+        delta_events=[_delta_event(text)],
+        final_msg=_final_msg(
+            stop_reason="end_turn",
+            content=[MagicMock(type="text", text=text)],
+        ),
+    )
+
+    prior_result_json = json.dumps(
+        {"value": {"ftp": 250}, "unit": "watts", "methodology": "critical_power_model"}
+    )
+
+    with patch(
+        "backend.agent.loop.load_prior_audit_values",
+        AsyncMock(return_value=[prior_result_json]),
+    ) as mock_load:
+        client = build_fake_client(stream)
+        messages = [{"role": "user", "content": "What's my FTP?"}]
+        audit_log = []
+
+        events = [
+            ev async for ev in run_turn(
+                messages, client, "claude-test", scan_buffer, audit_log,
+                conversation_id="22222222-2222-2222-2222-222222222222",
+            )
+        ]
+
+    mock_load.assert_awaited_once()
+
+    violation_events = [
+        ev for ev in events
+        if ev["event"] == "error" and ev["data"].get("code") in ("trust_violation", "max_retries")
+    ]
+    assert not violation_events, (
+        f"Expected no violation (250 seeded from prior turn's audit trail), "
+        f"got: {violation_events}"
+    )
+    assert "done" in [ev["event"] for ev in events]
+
+
+async def test_cross_turn_seed_control_without_conversation_id_still_violates():
+    """
+    Control: with conversation_id=None (no seeding is possible), the identical
+    violating text -- with no in-turn tool call and no seeded prior values --
+    still raises a trust_violation. This proves the suppression in the
+    previous test comes from cross-turn seeding, not from some unrelated
+    change to scan_buffer or run_turn.
+    """
+    from backend.agent.loop import run_turn, MAX_RETRIES
+    from backend.agent.trust import scan_buffer
+    from tests.agent.conftest import _build_stream, _delta_event, _final_msg
+
+    text = "Your FTP is 250 watts based on last week's estimate."
+
+    def make_stream():
+        return _build_stream(
+            delta_events=[_delta_event(text)],
+            final_msg=_final_msg(
+                stop_reason="end_turn",
+                content=[MagicMock(type="text", text=text)],
+            ),
+        )
+
+    # MAX_RETRIES + 2 streams so the loop has enough fake responses to exhaust
+    # retries without running out (mirrors test_retry_limit's stream count).
+    streams = [make_stream() for _ in range(MAX_RETRIES + 2)]
+    client = build_fake_client(*streams)
+    messages = [{"role": "user", "content": "What's my FTP?"}]
+    audit_log = []
+
+    events = [
+        ev async for ev in run_turn(
+            messages, client, "claude-test", scan_buffer, audit_log,
+            conversation_id=None,
+        )
+    ]
+
+    violation_events = [
+        ev for ev in events
+        if ev["event"] == "error" and ev["data"].get("code") == "trust_violation"
+    ]
+    assert violation_events, (
+        "Expected trust_violation without seeding (conversation_id=None control)"
+    )
