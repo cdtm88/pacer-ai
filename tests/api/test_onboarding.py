@@ -556,3 +556,39 @@ async def test_save_profile_persists_hr_zones_available_false_when_lthr_none(mon
         f"Expected hr_zones_available=False when lthr_estimate is None, "
         f"got {captured_payload.get('hr_zones_available')!r}"
     )
+
+
+def test_onboarding_prompt_covers_lthr_question_and_branches():
+    """
+    D-05 (ONBD-05): ONBOARDING_SYSTEM_PROMPT must ask a heart-rate baseline question
+    (LTHR / max HR), reference the estimate_lthr_from_max_hr tool for the max-HR branch,
+    and describe the neither-known RPE-only fallback -- closing the onboarding LTHR gap
+    documented in CONTEXT.md defect #5.
+    """
+    from backend.routes.onboarding import ONBOARDING_SYSTEM_PROMPT as prompt
+
+    low = prompt.lower()
+
+    # The HR baseline question itself (LTHR or max/resting HR).
+    assert "lactate threshold" in low or "lthr" in low, (
+        "Prompt must ask about LTHR / lactate threshold heart rate"
+    )
+    assert "max heart rate" in low or "max hr" in low, (
+        "Prompt must ask about max heart rate as the alternative to LTHR"
+    )
+
+    # Branch B: routed through the registered estimator tool, never invented by the LLM.
+    assert "estimate_lthr_from_max_hr" in prompt, (
+        "Prompt must reference the estimate_lthr_from_max_hr tool for the max-HR branch"
+    )
+
+    # Branch C: neither known -> RPE-only fallback, no HR-zone tool call.
+    assert "rpe" in low, "Prompt must describe the RPE-only fallback for the neither-known branch"
+    assert "skip calculate_hr_zones" in low or "skip" in low, (
+        "Prompt must instruct skipping calculate_hr_zones when neither LTHR nor max HR is known"
+    )
+
+    # Confirmation gate must still be present and intact (D-03 / ONBD-04 regression guard).
+    assert "Here is what I have" in prompt
+    assert "TOOL ORDER" in prompt
+    assert "save_profile" in prompt and "calculate_hr_zones" in prompt and "generate_plan" in prompt
