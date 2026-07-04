@@ -245,13 +245,19 @@ Plans:
 ### Phase 8: Trust Model Integrity
 
 **Goal:** The trust model is airtight and verifiable: audit log persisted per turn (TRUST-04), tool inputs scanned so invented numbers cannot launder through tool calls, bare-number attribution uses word-boundary and tolerance matching instead of substring, prior-turn numbers seeded to kill cross-turn false positives, LTHR (or explicit RPE-only fallback) collected in onboarding, HR zone constants match the claimed Coggan methodology, Zone 2 targets safe for a returning beginner, and generate_plan consumes current_ctl/load_targets/preferred_days so back-protective caps actually constrain sessions.
-**Requirements**: TBD
+**Requirements**: TRUST-06, TRUST-07, TRUST-08, TRUST-09, ONBD-05, PLAN-07, TOOL-02 (amend); re-verifies TRUST-03, TRUST-04, TRUST-05, PLAN-06
 **Depends on:** Phase 7
-**Plans:** 0 plans
+**Plans:** 7 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 8 to break down)
+- [ ] 08-01-PLAN.md — Audit storage layer: audit_log migration + audit.py (write/reload) + schema push (TRUST-06 storage)
+- [ ] 08-02-PLAN.md — Attribution matching rewrite: numeric-token + tolerance replaces substring (TRUST-08)
+- [ ] 08-03-PLAN.md — HR zone constants fix + Zone 2 safety + estimate_lthr_from_max_hr tool (TOOL-02 amend, ONBD-05 estimator)
+- [ ] 08-04-PLAN.md — generate_plan CTL-gap progression + preferred_days computation (PLAN-07)
+- [ ] 08-05-PLAN.md — conversation_id threading + durable audit writes + cross-turn seeding (TRUST-06 wiring, TRUST-09)
+- [ ] 08-06-PLAN.md — generate_plan server-side value injection (TRUST-07)
+- [ ] 08-07-PLAN.md — onboarding LTHR collection + hr_zones_available flag (ONBD-05)
 
 ### Phase 9: Frontend Resilience
 

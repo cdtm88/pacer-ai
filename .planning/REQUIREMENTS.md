@@ -8,7 +8,7 @@
 ### Sports-Science Tool Library
 
 - [x] **TOOL-01**: `calculate_power_zones(ftp)` returns 7 Coggan/Allen power zones with boundary values, zone names, and methodology string
-- [x] **TOOL-02**: `calculate_hr_zones(max_hr_or_lthr)` returns HR zones with boundary values and methodology string
+- [x] **TOOL-02**: `calculate_hr_zones(max_hr_or_lthr)` returns HR zones with boundary values and methodology string (Phase 8 amendment: `HR_ZONE_BOUNDARIES` corrected to true Coggan/Allen 68/83/94/105% of LTHR so the claimed methodology string is honest and Zone 2 is safe for a returning beginner — D-06)
 - [x] **TOOL-03**: `estimate_ftp_from_rides(rides)` returns FTP estimate, confidence level (low/medium/high), and methodology string; requires minimum 4 quality efforts before emitting any estimate
 - [x] **TOOL-04**: `compute_tss(ride)` returns TSS, IF, and NP for a ride; NP calculation includes zeros, applies spike filter (clip power > FTP*3), uses NP not average power; returns null for rides under 10 minutes
 - [x] **TOOL-05**: `update_pmc(tss_history)` returns CTL (fitness), ATL (fatigue), and TSB (form) using Banister/PMC EWMA model; cold-start guard: does not emit TSB values until 28+ days of data
@@ -25,6 +25,10 @@
 - [x] **TRUST-03**: Every assistant response is parsed before display; any response containing an unsourced physiological number (watts, zones, TSS, FTP, CTL/ATL/TSB values) triggers a retry and capability-gap log entry
 - [x] **TRUST-04**: Every physiological number in any plan or chat message is traceable to a tool-library call verifiable in application logs
 - [x] **TRUST-05**: When the agent needs a quantitative method the tool library lacks, it calls `log_capability_gap`, surfaces a brief chat note, and falls back to qualitative reasoning; it never improvises a number
+- [ ] **TRUST-06**: An `audit_log` Postgres table is persisted with one row per tool dispatch (user_id, conversation_id, tool_use_id, tool_name, inputs, result, is_error, created_at), queryable by user_id + conversation_id, so TRUST-04's "verifiable in application logs" is literally true (Phase 8 / D-01)
+- [ ] **TRUST-07**: `generate_plan`'s trust-sensitive inputs (current_ctl, ftp_watts, ftp_confidence, load_targets, preferred_days) are injected server-side from verified DB / same-turn tool-result sources; any LLM-supplied values for these keys are discarded, preventing invented numbers from laundering through a tool call (Phase 8 / D-02 + D-07)
+- [ ] **TRUST-08**: Bare-number attribution in the trust scanner uses numeric-token extraction with word/token boundaries plus float-tolerance comparison instead of a raw substring check, so "250" no longer matches inside "2500", "0.250", or a timestamp (Phase 8 / D-03)
+- [ ] **TRUST-09**: `tool_result_values` is seeded at the start of every turn from the persisted `audit_log` trail scoped to the current conversation, eliminating cross-turn false positives on the stateless serverless backend (Phase 8 / D-04)
 
 ### Agent Core
 
@@ -41,6 +45,7 @@
 - [x] **ONBD-02**: Injury and back status established through the interview is persisted to the user profile and applied as back-protective plan constraints; it is never assumed or defaulted
 - [x] **ONBD-03**: The interview output is a persisted structured user profile stored in the database
 - [x] **ONBD-04**: The user sees a confirmation summary of their profile at the end of the interview before the plan is generated
+- [ ] **ONBD-05**: Onboarding collects the user's heart-rate baseline: an LTHR given directly, or a max-HR-derived LTHR estimate produced by a methodology-tagged tool call, or an explicit `hr_zones_available = false` flag with the existing RPE-only cold-start path used as fallback; the LLM never invents an LTHR (Phase 8 / D-05)
 
 ### Plan Generation
 
@@ -50,6 +55,7 @@
 - [x] **PLAN-04**: Every session has an explicit plan: objective, structure (warm-up / main set / cool-down), targets (RPE/HR early; power later), and duration
 - [x] **PLAN-05**: Back-protective constraints surfaced in the interview are reflected in the plan: initial volume cap, no prolonged standing efforts early, no sprint efforts early, and a flag if load ramps too fast
 - [x] **PLAN-06**: Every physiological number in a generated plan is traceable to a tool-library call (satisfies TRUST-04)
+- [ ] **PLAN-07**: `generate_plan` consumes `current_ctl` and `load_targets` for CTL-gap-aware weekly progression and `preferred_days` for real session scheduling, so back-protective and low-base-fitness caps actually constrain the generated sessions instead of being accepted-and-ignored (Phase 8 / D-07)
 
 ### FIT File Ingestion
 
@@ -165,6 +171,13 @@
 | TRUST-03 | Phase 2 | Complete |
 | TRUST-04 | Phase 2 | Complete |
 | TRUST-05 | Phase 2 | Complete |
+| TRUST-06 | Phase 8 | Pending |
+| TRUST-07 | Phase 8 | Pending |
+| TRUST-08 | Phase 8 | Pending |
+| TRUST-09 | Phase 8 | Pending |
+| ONBD-05 | Phase 8 | Pending |
+| PLAN-07 | Phase 8 | Pending |
+| TOOL-02 (amend) | Phase 8 | Pending |
 | AGENT-01 | Phase 2 | Complete |
 | AGENT-02 | Phase 2 | Complete |
 | AGENT-03 | Phase 2 | Complete |
@@ -223,8 +236,8 @@
 
 **Coverage:**
 
-- v1 requirements: 63 total
-- Mapped to phases: 63
+- v1 requirements: 63 total (original) + 6 Phase 8 hardening requirements (TRUST-06, TRUST-07, TRUST-08, TRUST-09, ONBD-05, PLAN-07) + TOOL-02 amendment = 69 mapped
+- Mapped to phases: 69
 - Unmapped: 0 ✓
 
 ---
