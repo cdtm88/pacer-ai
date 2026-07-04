@@ -103,6 +103,45 @@ def test_preferred_days_empty_list_falls_back_to_default():
     assert days_used == set(_DEFAULT_DAYS[:n_sessions])
 
 
+def test_preferred_days_shorter_than_n_sessions_cycles_not_drops():
+    """
+    WR-01 regression: when preferred_days is non-empty but shorter than the
+    computed session count, _build_sessions must cycle through preferred_days
+    to reach n_sessions rather than silently truncating the week down to
+    len(preferred_days) sessions -- 2 preferred days with n_sessions=4 must
+    still produce 4 sessions per week (each week has exactly one session per
+    day-slot), not 2.
+    """
+    result = generate_plan(
+        user_id="u1",
+        weekly_hours=4.0,  # -> n_sessions=4
+        back_status="none",
+        current_ctl=18.0,
+        load_targets={"recommended_ctl_target": 20.0},
+        hr_zones=[{"zone": 2, "lower_bpm": 120, "upper_bpm": 145}],
+        ftp_confidence="insufficient_data",
+        ftp_watts=None,
+        preferred_days=["Monday", "Wednesday"],  # only 2 supplied
+    )
+    sessions = result.value["sessions"]
+    week1_sessions = [s for s in sessions if s["week"] == 1]
+
+    assert len(week1_sessions) == 4, (
+        f"Expected 4 sessions in week 1 (n_sessions from weekly_hours=4.0), "
+        f"got {len(week1_sessions)}: {[s['day'] for s in week1_sessions]}"
+    )
+    days_used = {s["day"] for s in week1_sessions}
+    assert days_used == {"Monday", "Wednesday"}, (
+        f"Expected sessions to cycle through the 2 supplied preferred_days, "
+        f"got {days_used}"
+    )
+    # Cycled, not truncated: Monday and Wednesday must each appear twice.
+    day_counts = {day: sum(1 for s in week1_sessions if s["day"] == day) for day in days_used}
+    assert day_counts == {"Monday": 2, "Wednesday": 2}, (
+        f"Expected each preferred day to be used twice (cycled), got {day_counts}"
+    )
+
+
 # --------------------------------------------------------------------------- #
 # D-07 CTL-gap-aware progression
 # --------------------------------------------------------------------------- #

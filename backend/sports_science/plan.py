@@ -124,7 +124,15 @@ def _build_sessions(
     sessions = []
     # Preferred days cycling (D-07: real per-user scheduling, falling back to
     # the default day set only when preferred_days is empty/None).
-    days = (preferred_days or _DEFAULT_DAYS)[:n_sessions]
+    # WR-01: when preferred_days is non-empty but shorter than n_sessions,
+    # cycle through it (rather than truncating n_sessions down to
+    # len(preferred_days)) so every planned session still gets a day --
+    # e.g. 2 preferred days with n_sessions=4 yields
+    # [day0, day1, day0, day1], not a silently-dropped 2-session week.
+    if preferred_days:
+        days = [preferred_days[i % len(preferred_days)] for i in range(n_sessions)]
+    else:
+        days = _DEFAULT_DAYS[:n_sessions]
 
     for week in range(1, 5):
         for i, day in enumerate(days):
