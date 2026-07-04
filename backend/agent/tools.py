@@ -578,7 +578,12 @@ async def _persist_generated_plan(user_id: str, plan_value: dict) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def dispatch_tool(tool_use_block, audit_log: list, user_id: str | None = None) -> dict:
+async def dispatch_tool(
+    tool_use_block,
+    audit_log: list,
+    user_id: str | None = None,
+    conversation_id: str | None = None,
+) -> dict:
     """
     Dispatch one tool_use block and return an Anthropic tool_result content block.
 
