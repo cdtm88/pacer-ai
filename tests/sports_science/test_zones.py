@@ -1,6 +1,10 @@
 # tests/sports_science/test_zones.py
 import pytest
-from backend.sports_science.zones import calculate_power_zones, calculate_hr_zones
+from backend.sports_science.zones import (
+    calculate_power_zones,
+    calculate_hr_zones,
+    estimate_lthr_from_max_hr,
+)
 from backend.sports_science.types import ToolResult
 
 
@@ -70,6 +74,53 @@ def test_zone_boundary_no_overlap(ftp, power, expected_zone):
     )
 
 
+@pytest.mark.parametrize("lthr,bpm,expected_zone", [
+    (200, 100, 1),   # well below Z1 upper (136) -> Z1
+    (200, 136, 2),   # 0.68 LTHR boundary -> Z2 (136 >= 136, 136 < 166); exact lower boundary of Z2
+    (200, 165, 2),   # just below Z2 upper (166) -> still Z2
+    (200, 166, 3),   # 0.83 LTHR boundary -> Z3 (166 >= 166, 166 < 188); Z2 upper is exclusive
+    (200, 188, 4),   # 0.94 LTHR boundary -> Z4 (188 >= 188, 188 < 210)
+    (200, 210, 5),   # 1.05 LTHR boundary -> Z5 (open-ended top zone)
+])
+def test_hr_zone_boundary_no_overlap(lthr, bpm, expected_zone):
+    """D-06: No bpm value resolves to two HR zones. Corrected 0.68/0.83/0.94/1.05
+    fractions of LTHR (mirrors test_zone_boundary_no_overlap for power zones)."""
+    result = calculate_hr_zones(lthr)
+    zones = result.value
+
+    matched_zones = []
+    for z in zones:
+        lower = z["lower_bpm"]
+        upper = z["upper_bpm"]
+        if upper is None:
+            # Z5: open ended -- >= lower only
+            if bpm >= lower:
+                matched_zones.append(z["zone"])
+        else:
+            # Exclusive upper bound: >= lower AND < upper
+            if bpm >= lower and bpm < upper:
+                matched_zones.append(z["zone"])
+
+    assert len(matched_zones) == 1, (
+        f"{bpm}bpm at LTHR={lthr} matched zones {matched_zones}, expected exactly zone {expected_zone}"
+    )
+    assert matched_zones[0] == expected_zone, (
+        f"{bpm}bpm at LTHR={lthr} matched zone {matched_zones[0]}, expected zone {expected_zone}"
+    )
+
+
+def test_hr_zone2_ceiling_is_beginner_safe():
+    """D-06 beginner-safety regression guard: Zone 2 (Endurance) upper_bpm must
+    reflect 0.83*LTHR, not the old mislabeled 0.90*LTHR. This test would fail
+    against the pre-fix (0.81/0.90) HR_ZONE_BOUNDARIES."""
+    result = calculate_hr_zones(200.0)
+    zones = result.value
+
+    zone2 = next(z for z in zones if z["zone"] == 2)
+    assert zone2["name"] == "Endurance"
+    assert zone2["upper_bpm"] == round(0.83 * 200.0) == 166
+
+
 def test_hr_zones_lthr155():
     """TOOL-02: calculate_hr_zones(155) returns HR zones with boundaries and methodology."""
     result = calculate_hr_zones(155.0)
@@ -118,3 +169,21 @@ def test_returns_tool_result():
     assert power_result.inputs["ftp"] == 200.0
     assert "lthr" in hr_result.inputs
     assert hr_result.inputs["lthr"] == 155.0
+
+
+def test_estimate_lthr_from_max_hr():
+    """D-05/ONBD-05: estimate_lthr_from_max_hr(185) returns round(185*0.875)=162 bpm
+    as a methodology-tagged ToolResult -- the LLM never derives this number itself."""
+    result = estimate_lthr_from_max_hr(185)
+
+    assert isinstance(result, ToolResult)
+    result_dict = result.model_dump()
+    assert set(["value", "unit", "methodology", "inputs"]).issubset(result_dict.keys())
+
+    assert result.unit == "bpm"
+    assert result.inputs["max_hr"] == 185
+
+    lthr = result.value.get("lthr") if isinstance(result.value, dict) else None
+    assert lthr == 162, f"expected round(185*0.875)=162, got {result.value}"
+
+    assert "max hr" in result.methodology.lower() or "max_hr" in result.methodology.lower()

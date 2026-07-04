@@ -1,5 +1,5 @@
 # sports_science/zones.py
-from .constants import POWER_ZONE_BOUNDARIES, HR_ZONE_BOUNDARIES
+from .constants import POWER_ZONE_BOUNDARIES, HR_ZONE_BOUNDARIES, LTHR_FROM_MAX_HR_RATIO
 from .types import ToolResult
 
 
@@ -50,4 +50,25 @@ def calculate_hr_zones(max_hr_or_lthr: float) -> ToolResult:
         unit="bpm",
         methodology="Coggan/Allen HR zones from LTHR",
         inputs={"lthr": max_hr_or_lthr},
+    )
+
+
+def estimate_lthr_from_max_hr(max_hr: float) -> ToolResult:
+    """D-05/ONBD-05: rough LTHR estimate from a user-reported max HR.
+
+    Pure function (no DB, no Anthropic import -- TRUST-01 boundary preserved).
+    Low-confidence estimate: a measured lactate-threshold test is more
+    accurate. The ratio lives in constants.py so it is auditable and
+    methodology-tagged, never invented by the LLM.
+    """
+    lthr = round(max_hr * LTHR_FROM_MAX_HR_RATIO)
+
+    return ToolResult(
+        value={"lthr": lthr},
+        unit="bpm",
+        methodology=(
+            f"LTHR estimated as {LTHR_FROM_MAX_HR_RATIO} of max HR "
+            "(rough estimate; a measured lactate-threshold test is more accurate)"
+        ),
+        inputs={"max_hr": max_hr},
     )

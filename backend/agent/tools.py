@@ -34,6 +34,7 @@ from backend.sports_science import (
     validate_session_vs_actual,
     log_capability_gap,
 )
+from backend.sports_science.zones import estimate_lthr_from_max_hr
 from backend.sports_science.types import ToolResult  # noqa: F401 – referenced in type hints below
 from backend.sports_science.profile import save_profile
 from backend.sports_science.plan import generate_plan
@@ -54,6 +55,7 @@ TOOL_REGISTRY: dict = {
     "log_capability_gap": log_capability_gap,
     "save_profile": save_profile,
     "generate_plan": generate_plan,
+    "estimate_lthr_from_max_hr": estimate_lthr_from_max_hr,
 }
 
 # ---------------------------------------------------------------------------
@@ -95,6 +97,26 @@ TOOL_SCHEMAS: list[dict] = [
                 },
             },
             "required": ["max_hr_or_lthr"],
+        },
+    },
+    {
+        "name": "estimate_lthr_from_max_hr",
+        "description": (
+            "Estimates Lactate Threshold Heart Rate (LTHR) from a user-reported max HR "
+            "using a rough %-of-max-HR heuristic. Call this whenever the user reports a "
+            "max HR but not a measured LTHR — never estimate the LTHR number yourself. "
+            "This is a low-confidence estimate; a measured lactate-threshold test is "
+            "always preferred when available."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "max_hr": {
+                    "type": "number",
+                    "description": "User-reported maximum heart rate in bpm.",
+                },
+            },
+            "required": ["max_hr"],
         },
     },
     {
