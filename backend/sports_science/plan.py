@@ -70,18 +70,39 @@ def _build_power_targets(ftp_watts: float) -> dict:
     }
 
 
+def _is_true_beginner_ramp(current_ctl: float, load_targets: dict) -> bool:
+    """
+    True when current CTL is far below the recommended target -- i.e. a
+    genuine low-base-fitness beginner, not just someone slightly under target.
+    Cold start (current_ctl == 0, the common case for a brand-new user with
+    no ride history) always qualifies.
+
+    Threshold (gap_ratio >= 0.5) is Claude's Discretion per CONTEXT.md,
+    confirmed at 0.5 during planning (08-RESEARCH.md Assumption A3).
+    """
+    target = load_targets.get("recommended_ctl_target", current_ctl) or 0.0
+    if target <= 0:
+        return False
+    gap_ratio = (target - current_ctl) / target
+    return current_ctl <= 0 or gap_ratio >= 0.5
+
+
 def _build_sessions(
     weekly_hours: float,
     back_status: str,
     hr_zones: list[dict],
     ftp_confidence: str,
     ftp_watts: float | None,
+    preferred_days: list[str] | None = None,
+    current_ctl: float = 0.0,
+    load_targets: dict | None = None,
 ) -> list[dict]:
     """Build the full 4-week session list."""
     n_sessions = _sessions_per_week(weekly_hours)
     zone2_targets = _build_zone2_targets(hr_zones)
     use_power = ftp_confidence not in ("insufficient_data", "low") and ftp_watts is not None
     is_back_moderate = back_status == "moderate"
+    is_beginner_ramp = _is_true_beginner_ramp(current_ctl, load_targets or {})
 
     # Base duration per session from weekly_hours (distribute hours across sessions)
     # Convert weekly_hours to minutes, split across sessions
@@ -90,9 +111,20 @@ def _build_sessions(
     # Clamp reasonable range
     base_duration = max(20, min(base_duration, 90))
 
+    # Week 1's conservative duration cap (D-07: also reused to flatten weeks
+    # 2-3 below when a true-beginner CTL-gap ramp is detected). When BOTH the
+    # true-beginner-ramp condition AND back_status=='moderate' hold, tighten
+    # the cap further below the existing 30-minute back-moderate cap.
+    week1_duration = min(base_duration, 45)
+    if is_back_moderate:
+        week1_duration = min(week1_duration, 30)
+    if is_beginner_ramp and is_back_moderate:
+        week1_duration = min(week1_duration, 20)
+
     sessions = []
-    # Preferred days cycling (use first n_sessions from default)
-    days = _DEFAULT_DAYS[:n_sessions]
+    # Preferred days cycling (D-07: real per-user scheduling, falling back to
+    # the default day set only when preferred_days is empty/None).
+    days = (preferred_days or _DEFAULT_DAYS)[:n_sessions]
 
     for week in range(1, 5):
         for i, day in enumerate(days):
@@ -100,9 +132,7 @@ def _build_sessions(
 
             # Week 1: conservative policy
             if week == 1:
-                duration = min(duration, 45)
-                if is_back_moderate:
-                    duration = min(duration, 30)
+                duration = week1_duration
                 session_type = "endurance"
                 rpe = 3
                 power_targets = None  # Week 1 always HR/RPE only
@@ -118,7 +148,11 @@ def _build_sessions(
 
             # Week 2
             elif week == 2:
-                if is_back_moderate:
+                if is_beginner_ramp:
+                    # D-07: true low-base beginner -- flatten volume, hold the
+                    # same conservative cap as week 1 instead of ramping up.
+                    duration = week1_duration
+                elif is_back_moderate:
                     duration = min(duration, 30)
                 session_type = "endurance"
                 rpe = 4
@@ -135,6 +169,9 @@ def _build_sessions(
 
             # Week 3
             elif week == 3:
+                if is_beginner_ramp:
+                    # D-07: flatten -- same conservative cap as week 1.
+                    duration = week1_duration
                 session_type = "endurance" if i % 2 == 0 else "strength"
                 rpe = 5
                 power_targets = _build_power_targets(ftp_watts) if use_power else None
@@ -191,11 +228,15 @@ def _build_sessions(
     return sessions
 
 
-def _applied_constraints(back_status: str) -> list[str]:
+def _applied_constraints(back_status: str, is_beginner_ramp: bool) -> list[str]:
     """Build the constraints_applied list."""
     constraints = ["week1_conservative", "week4_40pct_recovery"]
     if back_status == "moderate":
         constraints.append("back_protective")
+    if is_beginner_ramp:
+        # D-07: observable marker when the CTL-gap-aware flat ramp is active,
+        # so it is verifiable in the plan output (not just internal logic).
+        constraints.append("ctl_gap_flat_ramp")
     return constraints
 
 
@@ -208,6 +249,7 @@ def generate_plan(
     hr_zones: list[dict],
     ftp_confidence: str,
     ftp_watts: float | None,
+    preferred_days: list[str] | None = None,
 ) -> ToolResult:
     """
     TOOL-09: Generate a structured 4-week base mesocycle plan.
@@ -224,11 +266,24 @@ def generate_plan(
         hr_zones:       Output of calculate_hr_zones (list of zone dicts).
         ftp_confidence: "insufficient_data" | "low" | "medium" | "high" (D-25 gate).
         ftp_watts:      FTP in watts (None when ftp_confidence is insufficient_data).
+        preferred_days: User's preferred training days (D-07); falls back to
+                        _DEFAULT_DAYS when empty/None. Defaults to None so
+                        existing callers that do not yet pass it keep working.
 
     Returns:
         ToolResult with a 4-week session list and metadata.
     """
-    sessions = _build_sessions(weekly_hours, back_status, hr_zones, ftp_confidence, ftp_watts)
+    sessions = _build_sessions(
+        weekly_hours,
+        back_status,
+        hr_zones,
+        ftp_confidence,
+        ftp_watts,
+        preferred_days=preferred_days,
+        current_ctl=current_ctl,
+        load_targets=load_targets,
+    )
+    is_beginner_ramp = _is_true_beginner_ramp(current_ctl, load_targets or {})
 
     return ToolResult(
         value={
@@ -236,7 +291,7 @@ def generate_plan(
             "mesocycle_weeks": 4,
             "sessions": sessions,
             "week4_volume_reduction_pct": 40,
-            "constraints_applied": _applied_constraints(back_status),
+            "constraints_applied": _applied_constraints(back_status, is_beginner_ramp),
             "methodology": "4-week base mesocycle; Week 1 conservative; Week 4 -40% recovery",
         },
         unit="",
