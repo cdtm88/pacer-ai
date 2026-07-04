@@ -494,7 +494,9 @@ def _resolve_all_scheduled_dates(confirm_date: date, sessions: list[dict]) -> li
     return resolved
 
 
-async def _persist_generated_plan(user_id: str, plan_value: dict) -> None:
+async def _persist_generated_plan(
+    user_id: str, plan_value: dict, ftp_confidence: str | None = None
+) -> None:
     """
     Persist a generate_plan() result as one `plans` row and one `sessions` row
     per generated session, then mutate plan_value in place so the caller's
@@ -503,6 +505,14 @@ async def _persist_generated_plan(user_id: str, plan_value: dict) -> None:
     Mutates:
       - plan_value["plan_id"] -> the inserted plans.id
       - plan_value["sessions"][i]["id"] -> the inserted sessions.id, in order
+
+    Args:
+        ftp_confidence: WR-02. generate_plan()'s return value never carries
+            ftp_confidence (plan.py's ToolResult.value has no such key) --
+            the server-injected value lives in dispatch_tool's local `inputs`
+            dict at the call site, so callers must pass it explicitly rather
+            than reading it off plan_value (which is always None there,
+            silently writing plans.ftp_confidence as NULL on every row).
 
     Exceptions propagate deliberately (no swallow-and-log): the outer
     try/except in dispatch_tool already gives D-14 "never silently swallowed"
@@ -518,10 +528,10 @@ async def _persist_generated_plan(user_id: str, plan_value: dict) -> None:
                 "user_id": user_id,
                 "sessions": sessions,
                 "mesocycle_weeks": plan_value.get("mesocycle_weeks", 4),
-                # generate_plan's return value does not carry ftp_confidence
-                # (it lives on ToolResult.inputs, which _persist_generated_plan
-                # does not receive); left None when unavailable.
-                "ftp_confidence": plan_value.get("ftp_confidence"),
+                # WR-02: ftp_confidence is passed explicitly by the caller
+                # (dispatch_tool's server-injected inputs["ftp_confidence"]),
+                # not read off plan_value (which never carries this key).
+                "ftp_confidence": ftp_confidence,
                 "status": "active",
             }
         )
@@ -793,7 +803,13 @@ async def dispatch_tool(
         # try/except here -- a persistence failure propagates to the outer except
         # below, which already gives D-14 "never silently swallowed" semantics.
         if name == "generate_plan" and user_id is not None and result.value:
-            await _persist_generated_plan(user_id, result.value)
+            # WR-02: pass the server-injected ftp_confidence explicitly --
+            # result.value never carries this key (see _persist_generated_plan
+            # docstring), so relying on plan_value.get("ftp_confidence") wrote
+            # NULL to plans.ftp_confidence on every row.
+            await _persist_generated_plan(
+                user_id, result.value, ftp_confidence=inputs.get("ftp_confidence")
+            )
 
         audit_log.append({
             "tool_use_id": tool_use_id,

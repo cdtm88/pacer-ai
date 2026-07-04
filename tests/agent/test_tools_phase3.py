@@ -473,6 +473,72 @@ async def test_persist_generated_plan_writes_tss_target(monkeypatch):
         assert row["tss_target"] > 0
 
 
+async def test_persist_generated_plan_writes_ftp_confidence(monkeypatch):
+    """
+    WR-02 regression: _persist_generated_plan must write the server-injected
+    ftp_confidence to the plans row, not NULL. Uses a same-turn
+    estimate_ftp_from_rides audit_log entry so the injected ftp_confidence is
+    a real, non-fallback value ("high"), and confirms it lands on the actual
+    Supabase insert payload for the "plans" table.
+    """
+    import backend.agent.tools as tools_module
+
+    captured_plans_payload: dict = {}
+
+    class _MockQuery:
+        def __init__(self, table_name):
+            self._table_name = table_name
+            self._payload = None
+
+        def insert(self, payload):
+            self._payload = payload
+            if self._table_name == "plans":
+                captured_plans_payload.update(payload)
+            return self
+
+        async def execute(self):
+            if self._table_name == "plans":
+                return MagicMock(data=[{"id": "mock-plan-uuid-ftpconf"}])
+            rows = [{"id": f"sess-{i}"} for i in range(len(self._payload))]
+            return MagicMock(data=rows)
+
+    class _MockClient:
+        def table(self, name):
+            if name in ("pmc_history", "profiles"):
+                return _MockSelectChain()
+            return _MockQuery(name)
+
+    async def _mock_get_async_supabase():
+        return _MockClient()
+
+    monkeypatch.setattr(tools_module, "_get_async_supabase", _mock_get_async_supabase)
+
+    audit_log: list = [
+        {
+            "tool_use_id": "toolu_ftp",
+            "name": "estimate_ftp_from_rides",
+            "result": {
+                "value": {"ftp": 220.0, "cp": 220.0, "wprime": 19000.0, "confidence": "high"},
+                "unit": "watts",
+                "methodology": "2-parameter Critical Power model (Morton 1996)",
+                "inputs": {"quality_efforts": 10, "required": 4, "confidence": "high"},
+            },
+        },
+    ]
+
+    block = _FakeToolUseBlock("generate_plan", _generate_plan_inputs())
+
+    tool_result = await tools_module.dispatch_tool(
+        block, audit_log, user_id="00000000-0000-0000-0000-000000000042"
+    )
+
+    assert tool_result["is_error"] is False
+    assert captured_plans_payload.get("ftp_confidence") == "high", (
+        f"Expected plans row ftp_confidence == 'high' (server-injected value), "
+        f"got {captured_plans_payload.get('ftp_confidence')!r}"
+    )
+
+
 async def test_dispatch_tool_generate_plan_uses_injected_user_id(monkeypatch):
     """
     T-06-02 (regression): the persisted user_id must be the dispatch-injected
