@@ -1,6 +1,6 @@
 # tests/sports_science/test_ftp.py
 import pytest
-from backend.sports_science.ftp import estimate_ftp_from_rides
+from backend.sports_science.ftp import estimate_ftp_from_rides, _is_quality_effort
 from backend.sports_science.types import ToolResult
 
 
@@ -86,3 +86,40 @@ def test_methodology_string(sample_quality_efforts):
     """methodology must reference the CP model."""
     result = estimate_ftp_from_rides(sample_quality_efforts)
     assert "Critical Power" in result.methodology
+
+
+# --------------------------------------------------------------------------- #
+# Gap closure (01-06): two-pass quality-effort filter reachable for beginners
+# --------------------------------------------------------------------------- #
+
+
+def test_deconditioned_beginner_gets_estimate():
+    """A deconditioned-beginner effort set (all below the flat 150W floor)
+    must produce a real FTP estimate once the two-pass ratio re-filter is
+    live -- this is the project's explicit target persona (SC2, TOOL-03/06/10).
+    """
+    rides = [
+        {"duration_secs": 1200, "mean_power_watts": 140},
+        {"duration_secs": 600, "mean_power_watts": 145},
+        {"duration_secs": 300, "mean_power_watts": 148},
+        {"duration_secs": 180, "mean_power_watts": 149},
+    ]
+    result = estimate_ftp_from_rides(rides)
+    assert result.value is not None, (
+        "Deconditioned-beginner effort set must yield a real FTP estimate, "
+        "not None -- this is the project's stated target persona"
+    )
+    assert 50 <= result.value["ftp"] <= 500
+    assert result.value["confidence"] == "low"
+    assert result.inputs["quality_efforts"] == 4
+
+
+def test_quality_effort_ratio_branch_is_live():
+    """_is_quality_effort's 85%-of-estimate ratio branch must be reachable
+    and correct when called with a non-None best_ftp_estimate."""
+    assert _is_quality_effort(
+        {"duration_secs": 300, "mean_power_watts": 180}, best_ftp_estimate=200
+    ), "180W >= 0.85*200=170W should be a quality effort"
+    assert not _is_quality_effort(
+        {"duration_secs": 300, "mean_power_watts": 100}, best_ftp_estimate=200
+    ), "100W < 0.85*200=170W should not be a quality effort"
