@@ -392,6 +392,124 @@ class TestHandleViolation:
         await handle_violation(violation)  # if it doesn't raise, GAP-03 preserved
 
 
+class TestSelfReportedAttribution:
+    """
+    08-08 / D-02 / D-05: self_reported_values is a distinct attribution
+    channel from tool_result_values -- closes the ONBD-05 Branch A gap where
+    a user-stated LTHR echoed in the D-03 confirmation summary (no tool call)
+    was always flagged as an unsourced trust_violation.
+    """
+
+    def test_collect_self_reported_values_keeps_user_string_content(self):
+        from backend.agent.trust import collect_self_reported_values
+
+        messages = [
+            {"role": "user", "content": "My LTHR is 165 bpm, from a recent lab test."},
+        ]
+        assert collect_self_reported_values(messages) == [
+            "My LTHR is 165 bpm, from a recent lab test."
+        ]
+
+    def test_collect_self_reported_values_excludes_assistant_messages(self):
+        """Assistant messages must never enter the self-report channel --
+        otherwise a prior (now-permitted) echo could become an attribution
+        source on a later turn (T-08-08-03 echo->source laundering)."""
+        from backend.agent.trust import collect_self_reported_values
+
+        messages = [
+            {"role": "user", "content": "My LTHR is 165 bpm."},
+            {"role": "assistant", "content": "Got it, 165 bpm confirmed."},
+        ]
+        result = collect_self_reported_values(messages)
+        assert result == ["My LTHR is 165 bpm."]
+        assert "Got it, 165 bpm confirmed." not in result
+
+    def test_collect_self_reported_values_excludes_non_string_user_content(self):
+        """Tool-result content blocks (appended as role=user, content=list)
+        must be excluded -- they never originated from the user typing."""
+        from backend.agent.trust import collect_self_reported_values
+
+        messages = [
+            {"role": "user", "content": [{"type": "tool_result", "content": "165"}]},
+            {"role": "user", "content": "My LTHR is 165 bpm."},
+        ]
+        assert collect_self_reported_values(messages) == ["My LTHR is 165 bpm."]
+
+    def test_collect_self_reported_values_empty_input_returns_empty_list(self):
+        from backend.agent.trust import collect_self_reported_values
+
+        assert collect_self_reported_values([]) == []
+        assert collect_self_reported_values(None) == []
+        assert collect_self_reported_values("not a list") == []
+
+    def test_branch_a_self_reported_lthr_echo_is_not_violation(self):
+        """Positive: the mandatory D-03 confirmation-gate echo of a genuinely
+        self-reported LTHR is attributed via self_reported_values, with NO
+        tool call this turn."""
+        from backend.agent.trust import scan_buffer
+
+        violation = scan_buffer(
+            "Here is what I have ... your LTHR is 165 bpm.",
+            [],
+            self_reported_values=["My LTHR is 165 bpm, from a recent lab test."],
+        )
+        assert violation is None
+
+    def test_anti_laundering_hallucinated_number_still_violates(self):
+        """Negative control: a number absent from every user message AND
+        every tool result must still be flagged -- self_reported_values does
+        not open a blanket relaxation of scan_buffer."""
+        from backend.agent.trust import scan_buffer
+
+        violation = scan_buffer(
+            "Actually your FTP is 300 watts.",
+            [],
+            self_reported_values=["My LTHR is 165 bpm."],
+        )
+        assert violation is not None
+        assert "300" in violation.matched_text
+
+    def test_boundary_safety_no_substring_bypass(self):
+        """A user-stated '165' must not attribute '1650' or '16.5' in
+        assistant text -- reuses the boundary-aware _NUMERIC_TOKEN logic."""
+        from backend.agent.trust import scan_buffer
+
+        violation_1650 = scan_buffer(
+            "Your FTP is 1650 watts.", [], self_reported_values=["165"]
+        )
+        assert violation_1650 is not None
+        assert "1650" in violation_1650.matched_text
+
+        violation_16_5 = scan_buffer(
+            "Your CTL is 16.5.", [], self_reported_values=["165"]
+        )
+        assert violation_16_5 is not None
+
+    def test_distinct_channel_self_report_only_number_attributes(self):
+        """A number present in self_reported_values but NOT tool_result_values
+        still attributes; a different unsourced number in the same text still
+        flags (proving the channels are checked independently, not merged
+        into a blanket pass)."""
+        from backend.agent.trust import scan_buffer
+
+        violation = scan_buffer(
+            "Your LTHR is 165 bpm and your FTP is 300 watts.",
+            [],
+            self_reported_values=["My LTHR is 165 bpm."],
+        )
+        assert violation is not None
+        assert "300" in violation.matched_text
+
+    def test_backward_compatible_two_argument_call_unaffected(self):
+        """Every existing 2-argument scan_buffer(text, values) call keeps
+        identical behavior -- self_reported_values defaults to None."""
+        from backend.agent.trust import scan_buffer
+
+        violation = scan_buffer("Your FTP is 250 watts.", set())
+        assert violation is not None
+        assert "250" in violation.matched_text
+
+
 # ---------------------------------------------------------------------------
 # Plan 04 compliance tests: loop-level trust enforcement (TRUST-03, TRUST-05)
 # ---------------------------------------------------------------------------

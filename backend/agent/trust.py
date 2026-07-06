@@ -8,11 +8,29 @@ unsourced physiological numbers using two complementary regex patterns:
   - PHYSIO_PATTERN_B: unit followed by number ("Zone 4", "CTL 42", "TSS should be 85")
 
 A number is considered attributed (not a violation) when it matches -- within
-NUMERIC_TOLERANCE -- a boundary-aware numeric token extracted from a
-tool_result_values string (values returned by tools this turn). This is a
-numeric-token + tolerance compare (TRUST-08, D-03), not a raw substring check:
-"250" is no longer attributed by the mere presence of "2500", "0.250", or a
-timestamp digit run inside a tool result string.
+NUMERIC_TOLERANCE -- a boundary-aware numeric token extracted from EITHER of
+two distinct attribution channels:
+  - tool_result_values: values returned by tools this turn (or seeded from a
+    prior turn's persisted audit trail, TRUST-09/D-04).
+  - self_reported_values (08-08 / D-02 / D-05): the user's OWN chat messages
+    this turn, extracted by collect_self_reported_values. This is the missing
+    "onboarding profile / self-report" half of D-02's original "confirmed
+    values registry" design -- it lets the assistant restate a physiological
+    number (e.g. a self-reported LTHR in the D-03 confirmation-gate summary)
+    that the user themselves typed, WITHOUT a tool call, without opening a
+    laundering loophole for numbers the LLM merely invented.
+
+Both channels are resolved by the SAME _is_attributed numeric-token +
+NUMERIC_TOLERANCE compare (TRUST-08, D-03) -- this is a numeric-token +
+tolerance compare, not a raw substring check: "250" is no longer attributed by
+the mere presence of "2500", "0.250", or a timestamp digit run inside either
+channel's source string. The two channels are kept structurally distinct (two
+separate _is_attributed calls, never merged into one list) so the security
+narrative for each stays explicit: self_reported_values governs ONLY what the
+scanner permits the assistant to RESTATE in chat; it never reaches a tool's
+computed-output fields (current_ctl / ftp_watts / load_targets), which remain
+server-side-injected in dispatch_tool (D-02 / Plan 06) regardless of what a
+user claims in chat.
 
 handle_violation: Async hook called by the loop on a genuine violation. Awaits
 log_capability_gap to satisfy TRUST-05. Does not surface the internal method_name
@@ -179,6 +197,40 @@ def _is_attributed(candidate_str: str, tool_result_values: "list[str]") -> bool:
     return False
 
 
+def collect_self_reported_values(messages: "list[dict]") -> "list[str]":
+    """
+    Extract genuine user-authored chat strings as a distinct attribution
+    channel (08-08 / D-02 / D-05 -- the "onboarding profile / self-report"
+    half of the confirmed-values registry that D-04/TRUST-09 never built).
+
+    Returns each message's content where role == "user" AND content is a str
+    instance. Assistant-role messages are always excluded -- an assistant's
+    own (now-permitted) echo of a number must never become an attribution
+    source on a later turn, which would reopen an echo->source laundering
+    chain (T-08-08-03). Non-string user content (e.g. tool-result content-
+    block lists appended after a tool dispatch) is also excluded, since that
+    content did not originate from the user typing in chat.
+
+    Pure/synchronous: no I/O, no side effects. Guards against malformed input
+    (non-list messages, missing "role"/"content" keys) by returning an empty
+    list rather than raising, matching the never-raises posture of
+    backend/agent/audit.py's load_prior_audit_values.
+    """
+    if not isinstance(messages, list):
+        return []
+
+    collected: list[str] = []
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        if message.get("role") != "user":
+            continue
+        content = message.get("content")
+        if isinstance(content, str):
+            collected.append(content)
+    return collected
+
+
 @dataclass
 class TrustViolation:
     """Represents an unsourced physiological number detected by scan_buffer."""
@@ -193,6 +245,7 @@ class TrustViolation:
 def scan_buffer(
     text: str,
     tool_result_values: "list[str]",
+    self_reported_values: "Optional[list[str]]" = None,
 ) -> Optional[TrustViolation]:
     """
     Scan assistant text for unsourced physiological numbers.
@@ -200,8 +253,16 @@ def scan_buffer(
     Runs Pattern A (number+unit) first, then Pattern B (unit+number).
     A match is attributed (not a violation) if the bare numeric candidate
     (Pattern A's leading number, Pattern B's extracted number group) matches
-    -- within NUMERIC_TOLERANCE -- a boundary-aware numeric token found in any
-    tool_result_values string (see _is_attributed / TRUST-08).
+    -- within NUMERIC_TOLERANCE -- a boundary-aware numeric token found in
+    EITHER of two distinct channels (see _is_attributed / TRUST-08):
+      - tool_result_values: values returned by tools this turn.
+      - self_reported_values (08-08 / D-02 / D-05): numbers the user
+        themselves stated in chat this turn (Branch A onboarding self-report,
+        e.g. a directly-stated LTHR). Distinct allowlist from
+        tool_result_values, resolved by the same numeric-token +
+        NUMERIC_TOLERANCE compare -- it only governs what the scanner permits
+        the assistant to restate; it never authorizes a tool's computed-output
+        fields (those remain server-side-injected per D-02 / Plan 06).
 
     This handles the common false-positive case where Claude echoes a tool result
     value in running text (RESEARCH.md Pitfall 1), while closing the substring-
@@ -209,13 +270,20 @@ def scan_buffer(
     timestamp) could falsely attribute a different number (D-03).
 
     Args:
-        text:               Full buffered assistant text for this turn.
-        tool_result_values: Set of string values returned by tools this turn.
-                            Should include string representations of all tool
-                            result content (e.g. JSON serialised tool outputs).
+        text:                  Full buffered assistant text for this turn.
+        tool_result_values:    Set of string values returned by tools this
+                                turn. Should include string representations of
+                                all tool result content (e.g. JSON serialised
+                                tool outputs).
+        self_reported_values:  Optional list of genuine user-authored chat
+                                strings this turn (see collect_self_reported_
+                                values). Defaults to None, which is treated as
+                                an empty channel -- every pre-existing
+                                2-argument call site keeps identical behavior.
 
     Returns:
-        First TrustViolation found with an unattributed number+unit, or None.
+        First TrustViolation found with a number unattributed by BOTH
+        channels, or None.
 
     Pure/synchronous: no I/O, no side effects.
     """
@@ -229,7 +297,11 @@ def scan_buffer(
         # D-03/TRUST-08 boundary-aware rewrite).
         number_match = re.match(r"\d+(?:\.\d+)?", matched)
         bare_number = number_match.group(0) if number_match else matched
-        if not _is_attributed(bare_number, tool_result_values):
+        # Two distinct channels checked separately (never merged into one
+        # list) so the two attribution sources stay explicit in code (08-08).
+        if not _is_attributed(bare_number, tool_result_values) and not _is_attributed(
+            bare_number, self_reported_values or []
+        ):
             return TrustViolation(
                 matched_text=matched,
                 pattern=PHYSIO_PATTERN_A.pattern,
@@ -249,8 +321,11 @@ def scan_buffer(
         full_match = match.group(0).strip()
 
         # Attribution: extracted number matched via numeric-token + tolerance
-        # compare against tool_result_values (D-03/TRUST-08).
-        if not _is_attributed(num, tool_result_values):
+        # compare against EITHER tool_result_values OR self_reported_values
+        # (D-03/TRUST-08, 08-08).
+        if not _is_attributed(num, tool_result_values) and not _is_attributed(
+            num, self_reported_values or []
+        ):
             return TrustViolation(
                 matched_text=full_match,
                 pattern=PHYSIO_PATTERN_B.pattern,
