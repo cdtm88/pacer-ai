@@ -1,9 +1,18 @@
 ---
-status: diagnosed
+status: resolved
 trigger: "onboarding-lthr-selfreport-trust-violation: During live onboarding conversation testing (Phase 8's ONBD-05 UAT), Branch A of the HR-baseline question (user states their LTHR directly) deterministically fails with a trust_violation -> max_retries error, returning an empty assistant response. Branches B (max-HR only, tool-derived estimate) and C (neither known, RPE fallback) both work correctly."
 created: 2026-07-06T16:11:04Z
 updated: 2026-07-06T16:20:00Z
 ---
+
+## Resolution
+
+root_cause: See Current Focus below (confirmed) -- trust scanner had no attribution path for user-self-reported physiological numbers, only for tool_result_values.
+fix: Phase 8 plan 08-08 added a distinct `self_reported_values` attribution channel (`collect_self_reported_values` in `backend/agent/trust.py`), fed from the user's own chat messages this turn, checked by `_is_attributed` alongside `tool_result_values`. Branch A now confirms with no tool call and no false trust_violation.
+files_changed:
+  - backend/agent/trust.py
+verification: See .planning/phases/08-trust-model-integrity/08-08-SUMMARY.md.
+
 
 ## Current Focus
 
