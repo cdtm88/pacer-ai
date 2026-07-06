@@ -5,6 +5,7 @@ status: verified
 threats_open: 0
 asvs_level: 1
 created: 2026-07-06
+updated: 2026-07-06
 ---
 
 # Phase 8 — Security
@@ -45,6 +46,10 @@ created: 2026-07-06
 | T-08-13 | Repudiation | max-HR-derived LTHR presented as measured (onboarding-side) | medium | mitigate | Onboarding prompt instructs the agent to state the value is an estimate, matching the tool's own methodology caveat. Verified: `backend/routes/onboarding.py:86`. | closed |
 | T-08-12 | Denial of Service (over-conservative) | CTL-gap ramp threshold (0.5) too low → everyone gets a flat ramp | low | accept | Threshold fixed at 0.5 (RESEARCH A3); guarded by a near-target regression test proving non-beginners keep the full template. Below the `security_block_on: high` threshold — accepted at plan time (Plan 04). | closed |
 | T-08-SC | Tampering | package/supply-chain integrity | low | accept | No new third-party packages introduced by any of the 7 plans — only stdlib (`re`, `json`) and already-vetted `supabase`/`backend.db` modules reused. Accepted across all plans (Plans 01-07). | closed |
+| T-08-08-01 | Tampering/Elevation | `self_reported_values` attribution channel (trust.py, gap-closure plan 08-08) | high | mitigate | The self-report channel only governs what the scanner permits the assistant to restate; it never authorizes a tool's computed-output fields. `current_ctl`/`ftp_watts`/`load_targets` remain exclusively server-injected in `dispatch_tool` (unchanged by this plan — confirmed `backend/agent/tools.py` has zero commits in the 08-08 range). `save_profile`'s `lthr_estimate` (Branch A) is the only sink, exactly where the user's own claim already flowed. Verified: `backend/agent/trust.py:200-330`. | closed |
+| T-08-08-02 | Tampering (hallucination pass-through) | `scan_buffer` attribution (gap-closure plan 08-08) | high | mitigate | Attribution requires the number to appear verbatim (within `NUMERIC_TOLERANCE`, boundary-aware `_NUMERIC_TOKEN`) in a genuine user message or tool result — a hallucinated number absent from both is still flagged. Enforced by negative-control tests at both unit (trust.py) and integration (loop.py) level. | closed |
+| T-08-08-03 | Spoofing (echo→source laundering) | `collect_self_reported_values` (trust.py, gap-closure plan 08-08) | medium | mitigate | Extraction filters `role == "user"` string content only; assistant messages and tool-result block lists are excluded, so the assistant's own (now-permitted) echo can never become an attribution source on a later turn. Verified: `backend/agent/trust.py:200-210`. | closed |
+| T-08-08-04 | Information Disclosure | matched_text handling (gap-closure plan 08-08) | low | accept | No new surfacing of matched numbers; existing `scan_buffer`/loop redaction invariants (`matched_text` never reaches an SSE data frame) preserved unchanged. | closed |
 
 *Status: open · closed · open — below `high` threshold (non-blocking)*
 *Severity: critical > high > medium > low — only open threats at or above `workflow.security_block_on` (currently `high`) count toward `threats_open`*
@@ -68,6 +73,7 @@ created: 2026-07-06
 | Audit Date | Threats Total | Closed | Open | Run By |
 |------------|---------------|--------|------|--------|
 | 2026-07-06 | 14 | 14 | 0 | Claude (gsd-secure-phase, ASVS L1 grep-depth verification against live source; register authored at plan time across all 7 PLAN.md threat_model blocks) |
+| 2026-07-06 (update) | 18 | 18 | 0 | Claude — gap-closure plan 08-08 (onboarding LTHR self-report fix, discovered via live UAT) added 4 new threats (T-08-08-01..04); all verified closed against the merged fix, confirming `dispatch_tool`'s existing server-injection boundary was untouched |
 
 ---
 
