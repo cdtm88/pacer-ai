@@ -39,7 +39,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. The `log_capability_gap` function appends a structured entry to the `capability_gaps` table and returns a user-facing fallback message; it is registered as an Anthropic tool schema in TRUST-02 and only the tool registry maps sports_science functions to tool schemas
   5. The 8-table Supabase schema (users, profiles, sessions, rides, pmc_history, conversations, messages, capability_gaps) is migrated and accessible
 
-**Plans**: 5/5 complete + 1 gap-closure plan (01-06, pending)
+**Plans**: 6/6 plans complete
 **Wave 1**
 
 - [x] 01-01-PLAN.md — Wave 0: test infra, deps, venv, Supabase CLI, ToolResult contract + constants
@@ -53,7 +53,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 1 (gap closure)** *(from 01-VERIFICATION.md — 2/5 must-haves; three fixes)*
 
-- [ ] 01-06-PLAN.md — Gap closure: enforce vacuous TRUST-01 boundary test, reachable FTP two-pass filter for the beginner persona, observable capability-gap DB failures (TRUST-01, TOOL-03/06/08/10, GAP-01)
+- [x] 01-06-PLAN.md — Gap closure: enforce vacuous TRUST-01 boundary test, reachable FTP two-pass filter for the beginner persona, observable capability-gap DB failures (TRUST-01, TOOL-03/06/08/10, GAP-01)
 
 ### Phase 2: Agent Core
 
@@ -300,7 +300,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Sports-Science Foundation | 5/5 | Complete   | 2026-06-19 |
+| 1. Sports-Science Foundation | 6/6 | Complete   | 2026-06-19 |
 | 2. Agent Core | 6/6 | Complete    | 2026-06-20 |
 | 3. Coaching Loop | 5/5 | Complete    | 2026-06-20 |
 | 4. UI and Calendar | 21/21 | Complete   | 2026-06-21 |
