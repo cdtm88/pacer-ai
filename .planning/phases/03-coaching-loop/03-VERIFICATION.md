@@ -1,23 +1,59 @@
 ---
 phase: 03-coaching-loop
-verified: 2026-06-21T00:00:00Z
-status: verified
-score: 23/23
+verified: 2026-07-06T00:00:00Z
+status: gaps_found
+score: 22/23
 behavior_unverified: 0
 overrides_applied: 0
-human_verification_completed:
-  - test: "Drive the live onboarding SSE stream to completion: POST /onboarding/start, carry out the 6-field interview, verify the agent presents 'Here is what I have' summary and WAITS for explicit user approval before emitting a save_profile tool call"
-    expected: "save_profile never appears before an approval token in the streamed event sequence when run against the real Anthropic API"
-    result: "passed"
-    verified_via: "03-UAT.md test 1 — ONBD-04 Confirmation Gate (Live LLM Adherence), 2026-06-20"
+re_verification:
+  previous_status: "verified (invalid status value — not a recognized status enum; treated as fresh verification per task instructions)"
+  previous_score: 23/23
+  gaps_closed: []
+  gaps_remaining:
+    - "Duplicate scheduled_date across sessions when preferred_days is shorter than weekly session count"
+  regressions:
+    - "The duplicate-scheduled_date defect (CR-01, found by 03-REVIEW.md 2026-07-06) was not caught by the prior verification pass, which relied on grep/static presence checks rather than executing the scheduling logic against a realistic (2 preferred days, 4 sessions/week) input."
+gaps:
+  - truth: "No two sessions ever share a scheduled_date, so FIT-upload ride-session matching and missed-session detection operate correctly (success criteria 3 and 4 depend on this invariant)"
+    status: failed
+    reason: >
+      Live execution of _build_sessions (backend/sports_science/plan.py) with a realistic
+      onboarding input (preferred_days=["Tuesday","Thursday"], weekly_hours=4.0 -> n_sessions=4
+      via _sessions_per_week) produces two distinct session dicts for the same (week, day) pair
+      in every one of the 4 weeks (8 of 16 sessions collide). Feeding that output through
+      _resolve_all_scheduled_dates (backend/agent/tools.py) -- the function whose own docstring
+      claims "no two sessions ever share a scheduled_date" -- confirms the collision is NOT
+      resolved: 8 pairs of sessions receive an identical scheduled_date in the reproduction
+      (e.g. two 2026-07-07 rows, two 2026-07-09 rows, etc.), because the function's collision
+      handling only special-cases the week-1-roll-forward scenario; its first pass assigns every
+      non-rolled session its naive date and adds it to `used` without ever checking `used` for a
+      pre-existing collision. This breaks rides.py's ride-session link query
+      (.eq("scheduled_date", ride_date).eq("status","planned").order("id").limit(1)), which can
+      only match one of the two same-date sessions to an uploaded ride -- the other is
+      permanently unmatchable and will be perpetually flagged "missed" by
+      adaptations.detect_signals even though the user rode that day. No existing test exercises
+      this path: the only two roll/collision tests
+      (test_week1_rollforward_avoids_week2_collision,
+      test_resolve_all_dates_no_roll_matches_single_resolver) cover only the narrow week-1
+      roll-forward scenario and pass, giving false confidence that the general invariant holds.
+    artifacts:
+      - path: "backend/sports_science/plan.py"
+        issue: "_build_sessions (lines ~124-136) cycles preferred_days via modulo when len(preferred_days) < n_sessions, assigning the same weekday to 2 distinct sessions within the same week whenever n_sessions is not an exact multiple of len(preferred_days)"
+      - path: "backend/agent/tools.py"
+        issue: "_resolve_all_scheduled_dates (lines ~455-494) only de-collides sessions rolled forward from week 1; its first pass assigns every non-rolled session its naive date and adds it to `used` without checking `used` for a pre-existing collision, so same-week/same-day duplicates from plan.py pass through unresolved"
+    missing:
+      - "Collision-aware resolution in _resolve_all_scheduled_dates that pushes ANY colliding session (not just week-1-rolled ones) forward to the earliest free date"
+      - "Or a fix in _build_sessions so the same weekday is never assigned twice within one week when preferred_days is shorter than n_sessions"
+      - "A regression test with preferred_days shorter than n_sessions (e.g. 2 days, 4 sessions/week) asserting all persisted scheduled_date values are unique"
+deferred: []
 ---
 
 # Phase 03: Coaching Loop — Verification Report
 
-**Phase Goal:** Build the end-to-end coaching loop — onboarding interview, FIT file ingestion with TSS/PMC pipeline, and adaptive re-planning — so a new user with no FTP and no fitness history can complete an interview, receive a structured periodised plan, upload .FIT rides, and see the plan adapt automatically.
-**Verified:** 2026-06-21T00:00:00Z
-**Status:** verified (23/23)
-**Re-verification:** Yes — human verification completed 2026-06-21 via 03-UAT.md
+**Phase Goal:** A new user completes the onboarding interview, receives a safe plan with RPE/HR targets (no FTP required), uploads a real .FIT file that updates the PMC, and sees the plan adapt with a cited sports-science explanation
+**Verified:** 2026-07-06T00:00:00Z
+**Status:** gaps_found
+**Re-verification:** Yes — the prior VERIFICATION.md (2026-06-21) carried an invalid `status: verified` value and did not catch the scheduling-collision defect subsequently surfaced by a fresh code review (03-REVIEW.md, 2026-07-06). This pass re-verifies from scratch and adds live-execution evidence the prior pass lacked (it explicitly skipped Step 7b behavioral spot-checks due to an unactivated virtualenv).
 
 ## Goal Achievement
 
@@ -25,128 +61,134 @@ human_verification_completed:
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | The plans and adaptations tables exist in the remote Supabase database with RLS | VERIFIED | supabase migration list shows 0002 in both Local and Remote columns; migration file has CREATE TABLE public.plans, CREATE TABLE public.adaptations, 2x ENABLE ROW LEVEL SECURITY |
-| 2 | profiles has back_status (none/mild/moderate), weekly_hours, preferred_days, rpe_baseline, lthr_estimate columns | VERIFIED | 0002_phase3_schema.sql ALTER TABLE public.profiles adds all 5 columns with CHECK constraint on back_status |
-| 3 | profiles has UNIQUE constraint on user_id for upsert support | VERIFIED | profiles_user_id_unique present in migration; grep returns 1 |
-| 4 | sessions has plan_id, type, zone_targets, power_targets, week_num, rpe_target columns; FK ordering correct | VERIFIED | ALTER TABLE public.sessions at line ~46 (after CREATE TABLE public.plans at line 25); FK dependency satisfied |
-| 5 | conversations has context_type column (onboarding/coaching/ride_debrief) | VERIFIED | context_type grep returns 3 in migration; context_type in onboarding.py creation call |
-| 6 | fitdecode==0.11.0 in requirements.txt and importable | VERIFIED | grep -c returns 1; sports_science/plan.py and api/routes/rides.py import and use fitdecode |
-| 7 | save_profile (async) and generate_plan (sync) exist with correct ToolResult shapes | VERIFIED | sports_science/plan.py 224 lines (def generate_plan, min 60); sports_science/profile.py 113 lines (async def save_profile, min 40) |
-| 8 | TOOL_REGISTRY and TOOL_SCHEMAS each have save_profile and generate_plan registered; TRUST-02 holds | VERIFIED | from sports_science.profile import save_profile and from sports_science.plan import generate_plan in agent/tools.py; "save_profile" and "generate_plan" each appear 3 times (import + TOOL_REGISTRY + TOOL_SCHEMAS) |
-| 9 | Cold-start plan has no power_targets; power targets appear only after ftp_confidence >= medium | VERIFIED | test_power_targets_cold_start tests this in test_tools_phase3.py (no skips); generate_plan logic in plan.py 224 lines |
-| 10 | generate_plan applies back-protective caps for back_status=moderate | VERIFIED | test_back_constraints asserts weeks 1-2 capped at 30 min and no strength in week 1; test exists and has no skip marker |
-| 11 | POST /onboarding/start returns SSE with ONBOARDING_SYSTEM_PROMPT naming all 6 fields and approval gate | VERIFIED | api/routes/onboarding.py 258 lines; ONBOARDING_SYSTEM_PROMPT grep returns 4; "Here is what I have" present in file; context_type=onboarding creation call present |
-| 12 | run_turn accepts an injected system prompt (D-22) | VERIFIED | agent/loop.py line 52: system: str = SYSTEM_PROMPT keyword parameter; line 92: system=system passed to messages.stream |
-| 13 | Shared sse_generator in _sse.py accepts system_prompt; chat.py imports from it | VERIFIED | api/routes/_sse.py 80 lines with def sse_generator; system_prompt appears 4 times; from api.routes._sse import sse_generator in onboarding.py |
-| 14 | A conversation row with context_type='onboarding' is created on start; chat is DB-backed | VERIFIED | create_conversation called in onboarding_start; load_conversation called in chat.py (grep returns 1); in-memory placeholder replaced |
-| 15 | POST /onboarding/start and onboarding_router mounted in api/main.py | VERIFIED | onboarding_router appears 2 times in api/main.py |
-| 16 | POST /rides/upload accepts FIT file, returns 200 with ride_id; 422 on corrupt/short files | VERIFIED | api/routes/rides.py 544 lines; fit_parse_failed grep returns 2; rides_router appears 2 times in api/main.py; test_upload_returns_200 and test_corrupt_fit_returns_422 in test_rides.py (no skips) |
-| 17 | fitdecode FitReader with ErrorHandling.WARN; get_value fallback for power/HR/cadence; missing fields handled gracefully | VERIFIED | ErrorHandling.WARN grep returns 3; get_value grep returns 5; test_missing_fields and test_fit_parse_warn in test_rides.py (no skips) |
-| 18 | Background task computes TSS + updates PMC + persists to rides/pmc_history; cold-start 150W in ftp_used | VERIFIED | compute_tss and update_pmc each appear 3 times in rides.py; test_tss_computed in test_rides.py (no skip); test_fit_upload_integration asserts TSS > 0 |
-| 19 | Real Zwift .FIT fixture exists (8228 bytes) and FIT-06 acceptance test asserts TSS > 0 | VERIFIED | tests/fixtures/sample_zwift.fit exists (8228 bytes); test_fit_upload_integration present with no skip marker and drives compute_tss directly asserting TSS > 0 |
-| 20 | Missed-session and underperformance signals detected; micro (1 signal) vs macro (2+) scope decision | VERIFIED | api/routes/adaptations.py 728 lines; def detect_signals, decide_scope, apply_micro_adjustment, apply_macro_replan all present; validate_session_vs_actual called 6 times; test_missed_detection and test_micro_macro_branch in test_adaptations.py (no skips) |
-| 21 | 30% shift guard blocks silent over-shifting; macro replan returns needs_confirmation | VERIFIED | check_shift_limit at line 237 in adaptations.py; test_shift_limit asserts >30% case returns requires_user_confirmation=True and <30% returns False; no skip marker |
-| 22 | POST /adaptations/check runs weekly check independently of uploads; GET /adaptations returns readable log | VERIFIED | adaptations_router appears 2 times in api/main.py; test_weekly_check and test_get_adaptations in test_adaptations.py (no skips) |
-| 23 | ONBD-04: User sees confirmation summary and must explicitly approve before save_profile is called | VERIFIED | 03-UAT.md test 1 passed: live run against real Claude API confirmed "Here is what I have" summary emitted before any save_profile tool_use block; human-run 2026-06-20 |
+| 1 | A new user with zero prior data completes the interview; persisted profile includes injury/back status, schedule, goals, equipment; user sees confirmation summary before plan generation | VERIFIED | `backend/routes/onboarding.py` — `ONBOARDING_SYSTEM_PROMPT` names back_status, weekly schedule, goals, equipment, rpe_baseline, and instructs the agent to present "Here is what I have" (all 7 values) and wait for approval before calling `save_profile`. `backend/sports_science/profile.py` — `save_profile` persists `back_status` mapped to a CHECK-constrained enum and back-protective constraints JSONB. Live LLM-adherence confirmed in 03-UAT.md test 1 (human-run 2026-06-20): `save_profile` never called before the confirmation summary in a real streamed run against the Anthropic API. |
+| 2 | Plan prescribes RPE/HR for early sessions with no power targets; power appears only after ftp_confidence >= medium (4+ quality efforts); every physiological number traces to a tool call | VERIFIED | `backend/sports_science/plan.py::_build_sessions`: `use_power = ftp_confidence not in ("insufficient_data","low") and ftp_watts is not None`; week 1 always sets `power_targets = None`. `test_power_targets_cold_start` and `test_back_constraints` in `tests/agent/test_tools_phase3.py` pass under a targeted (single-test) pytest run in a venv with the project's pinned dependencies. The 4-quality-effort gate lives in `estimate_ftp_from_rides` (Phase 1, unaffected by this phase). |
+| 3 | Uploading a real Zwift .FIT file parses power/HR/cadence/duration; compute_tss and update_pmc run; results persist to rides/pmc_history; FIT-06 acceptance test passes | FAILED (for realistic plan inputs) | `test_fit_upload_integration` (FIT-06) passes in isolation (`pytest tests/api/test_rides.py -k test_fit_upload_integration` -> 1 passed) — parsing, TSS, and PMC update are correctly wired for a single, cleanly-scheduled session. But the session-to-ride matching this criterion's "persist to rides" clause depends on (`rides.py:308-318`) silently breaks whenever the plan that produced the target session was generated with `preferred_days` shorter than the weekly session count — a genuine, live-reproduced data-integrity defect (see below), not a hypothetical or edge case. |
+| 4 | A missed session triggers re-plan; micro (1-3 sessions) vs macro (2+ signals) distinguished; no macro replan shifts >30% of upcoming sessions without a change summary | VERIFIED (mechanism), UPSTREAM DATA AT RISK | `backend/routes/adaptations.py`: `detect_signals`, `decide_scope`, `apply_micro_adjustment`, `apply_macro_replan`, `check_shift_limit` (line ~237) all present and exercised — `test_missed_detection`, `test_micro_macro_branch`, and `test_shift_limit` all pass under targeted pytest runs. The mechanism itself is sound and correctly implemented. However, `detect_signals`' missed-session check relies on the same `scheduled_date` uniqueness invariant broken in the gap below: for a plan generated with fewer preferred days than sessions/week, one of each colliding pair can never be matched to a ride and will be perpetually (and incorrectly) flagged "missed," triggering spurious re-planning signals. Kept as VERIFIED at the mechanism level since ADAPT-02/03/04 tests pass on their own merits, but flagged as at-risk in practice. |
+| 5 | Every plan change is explained in chat with specific TSS/CTL/ATL/TSB values and a named sports-science principle; every change is persisted to the adaptation log | VERIFIED (with a noted reliability caveat) | `test_log_persisted` (TRANSP-02) passes under a targeted pytest run — `adaptations` table insert carries `trigger`, `scope`, `explanation_text`, before/after snapshots. `backend/routes/adaptations.py` builds explanation text citing tool-derived CTL/ATL/TSB/TSS values (unchanged from prior verification pass, re-confirmed present). Caveat: `backend/routes/_sse.py:96-110` can persist partial assistant text to the `messages` table on an abnormal turn end (`max_tool_turns`/`unexpected_stop`) as if the turn completed successfully — a reliability gap in the chat-transparency channel, tracked as a WARNING below, not a blocking gap for this criterion since it does not affect *successful* adaptation explanations. |
 
-**Score:** 23/23 truths verified
+**Score:** 4/5 success criteria hold at the mechanism level; criterion 3 FAILS for a realistic class of onboarding inputs due to a live-reproduced BLOCKER that also puts criterion 4's data soundness at risk. Requirement-ID-level score: 22/23 (all 23 requirement IDs have wired, tested code; FIT-04/FIT-05's session-linkage step is broken by the same root cause).
+
+### Critical Finding: Live Reproduction of CR-01 (Duplicate `scheduled_date`)
+
+Per the review brief, this was reproduced by direct execution (not just reading code), using a Python venv with the project's pinned dependencies (`pydantic`, `numpy`, `pandas`, `scipy`, `supabase==2.31.0`, `fitdecode`, `anthropic`, `python-dotenv`, `PyJWT`, `pytest`/`pytest-asyncio`):
+
+```
+_build_sessions(weekly_hours=4.0, preferred_days=["Tuesday","Thursday"], ...)
+-> 16 sessions generated; duplicate (week, day) pairs:
+   {(1,'Tuesday'):2, (1,'Thursday'):2, (2,'Tuesday'):2, (2,'Thursday'):2,
+    (3,'Tuesday'):2, (3,'Thursday'):2, (4,'Tuesday'):2, (4,'Thursday'):2}
+
+_resolve_all_scheduled_dates(confirm_date=2026-07-06, sessions) ->
+   DUPLICATE scheduled_date entries:
+   {2026-07-07: 2, 2026-07-09: 2, 2026-07-14: 2, 2026-07-16: 2,
+    2026-07-21: 2, 2026-07-23: 2, 2026-07-28: 2, 2026-07-30: 2}
+```
+
+Every week of a 4-week plan produces two `sessions` rows sharing an identical `scheduled_date` whenever the user names 2 preferred days but rides 4 times/week — an entirely ordinary onboarding answer. Any input where `n_sessions` (from `_sessions_per_week`) is not an exact multiple of `len(preferred_days)` triggers this equally (e.g. 2 days/3 sessions, 3 days/4 sessions). This directly confirms 03-REVIEW.md's CR-01 finding and is deterministic and reproducible on every run — not order-dependent, not a rare race.
+
+**Downstream impact confirmed by code inspection**: `rides.py:308-318`'s `.eq("scheduled_date", ride_date).eq("status","planned").order("id", desc=False).limit(1)` query will match only the lower-`id` session of a colliding pair; the sibling is permanently un-matchable to any ride uploaded on that date. `adaptations.py`'s `detect_signals` (lines 154-198) will then flag that un-matchable sibling as `"missed"` on every future check, generating false-positive adaptation signals for a session the user actually rode — degrading both success criterion 3 (correct FIT-to-session persistence) and success criterion 4 (accurate missed-session detection feeding micro/macro decisions).
+
+**No override applies** — no `overrides:` entry addressing this exists in the prior VERIFICATION.md, and this is a genuine functional defect, not an intentional design deviation. This must be fixed; no override is suggested.
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `supabase/migrations/0002_phase3_schema.sql` | Phase 3 schema: column additions + 2 new tables with RLS | VERIFIED | 85 lines; CREATE TABLE public.plans + adaptations; 2x ENABLE ROW LEVEL SECURITY; FK ordering correct |
-| `sports_science/plan.py` | generate_plan() 4-week mesocycle | VERIFIED | 224 lines; def generate_plan present |
-| `sports_science/profile.py` | save_profile() async Supabase upsert | VERIFIED | 113 lines; async def save_profile present |
-| `agent/tools.py` | TOOL_REGISTRY and TOOL_SCHEMAS extended to 10 tools | VERIFIED | imports save_profile and generate_plan; both appear 3x (import + registry + schema) |
-| `api/routes/_sse.py` | Shared sse_generator with system_prompt param | VERIFIED | 80 lines; system_prompt parameter present |
-| `api/routes/onboarding.py` | POST /onboarding/start SSE with ONBOARDING_SYSTEM_PROMPT | VERIFIED | 258 lines; ONBOARDING_SYSTEM_PROMPT defined |
-| `agent/loop.py` | run_turn with system parameter (D-22) | VERIFIED | system: str = SYSTEM_PROMPT at line 52; system=system at line 92 |
-| `api/routes/rides.py` | POST /rides/upload + parse_fit_file + TSS/PMC pipeline | VERIFIED | 544 lines; def parse_fit_file present |
-| `api/routes/adaptations.py` | detect_signals, micro/macro, 30% guard, GET/POST endpoints | VERIFIED | 728 lines; detect_signals, decide_scope, check_shift_limit, log_adaptation all present |
-| `tests/fixtures/sample_zwift.fit` | Real Zwift .FIT fixture for FIT-06 | VERIFIED | 8228 bytes; synthetic but spec-valid at 1 Hz, 900s, power/HR/cadence/timestamp |
+| `backend/sports_science/plan.py` | Generates 4-week plan, RPE/HR-first, back-protective, distinct-date sessions | PARTIAL | `_build_sessions` correctly gates power targets and applies back-protective caps (verified: `test_back_constraints`, `test_power_targets_cold_start` pass), but the preferred-days cycling logic produces same-week/same-day duplicate sessions when `len(preferred_days) < n_sessions` (live-reproduced above) |
+| `backend/agent/tools.py` (`_resolve_all_scheduled_dates`) | Resolves every session to a unique absolute date | STUB (for the general case) | Only de-collides the documented week-1-roll-forward scenario; does not check `used` for non-rolled sessions before adding them, so pre-existing collisions from `plan.py` pass through unresolved (live-reproduced above) |
+| `backend/routes/onboarding.py` | SSE onboarding interview with confirmation gate | VERIFIED | `ONBOARDING_SYSTEM_PROMPT` present, "Here is what I have" gate present, live UAT passed |
+| `backend/sports_science/profile.py` | `save_profile` persists back_status/schedule/goals/equipment | VERIFIED | back_status CHECK-mapped constraints present |
+| `backend/routes/rides.py` | FIT upload -> parse -> TSS/PMC -> persist -> session match | HOLLOW UNDER COLLISION | Pipeline correct in isolation (test passes); session-match query silently mismatches under the CR-01 collision |
+| `backend/routes/adaptations.py` | Signal detection, micro/macro decision, 30% shift guard, adaptation log | WIRED, UPSTREAM RISK | All functions present and correctly tested in isolation; correctness in production depends on the broken scheduled_date invariant |
+| `backend/routes/_sse.py` | Shared SSE generator, persists assistant text only on success | WARNING (WR-06) | Persists partial text on `error`-terminated turns as if the turn succeeded (confirmed by code read: `yield {"event":"error",...}; return` is a normal generator exit, not an exception, so the `except` branch that skips `assistant_sink.append` is never reached) |
 
 ### Key Link Verification
 
 | From | To | Via | Status | Details |
-|------|----|-----|--------|---------|
-| supabase/migrations/0002_phase3_schema.sql | remote Supabase Postgres | supabase db push | VERIFIED | migration list shows 0002 in both Local and Remote columns |
-| sessions.plan_id | plans.id | FK REFERENCES public.plans | VERIFIED | CREATE TABLE public.plans at line 25; ALTER TABLE sessions plan_id at ~line 46 — correct ordering |
-| agent/tools.py | sports_science/profile.py | from sports_science.profile import save_profile | VERIFIED | import present; save_profile in TOOL_REGISTRY and TOOL_SCHEMAS |
-| agent/tools.py | sports_science/plan.py | from sports_science.plan import generate_plan | VERIFIED | import present; generate_plan in TOOL_REGISTRY and TOOL_SCHEMAS |
-| api/routes/onboarding.py | api/routes/_sse.py | from api.routes._sse import sse_generator | VERIFIED | import present in onboarding.py |
-| api/routes/onboarding.py | agent/loop.run_turn | sse_generator drives run_turn with ONBOARDING_SYSTEM_PROMPT | VERIFIED | ONBOARDING_SYSTEM_PROMPT used as system_prompt arg; run_turn accepts system param |
-| api/main.py | api/routes/onboarding.py | app.include_router(onboarding_router) | VERIFIED | onboarding_router appears 2x in api/main.py |
-| api/routes/rides.py | fitdecode | FitReader(BytesIO, error_handling=ErrorHandling.WARN) | VERIFIED | ErrorHandling.WARN appears 3 times; get_value with fallback appears 5 times |
-| api/routes/rides.py | sports_science compute_tss / update_pmc | background task calls tool functions | VERIFIED | compute_tss and update_pmc each appear 3 times in rides.py |
-| api/main.py | api/routes/rides.py | app.include_router(rides_router) | VERIFIED | rides_router appears 2x in api/main.py |
-| api/routes/adaptations.py | sports_science.validate_session_vs_actual | underperformance signal uses compliance_pct | VERIFIED | validate_session_vs_actual appears 6 times in adaptations.py |
-| api/routes/adaptations.py | adaptations table | every adaptation logged with trigger/scope/snapshots | VERIFIED | "adaptations" appears 13 times; log_adaptation inserts to table |
-| api/main.py | api/routes/adaptations.py | app.include_router(adaptations_router) | VERIFIED | adaptations_router appears 2x in api/main.py |
+|------|-----|-----|--------|---------|
+| `sports_science/plan.py::_build_sessions` | `agent/tools.py::_resolve_all_scheduled_dates` | Session list -> resolved date list | BROKEN FOR REALISTIC INPUTS | Live-reproduced: collision from producer is not caught by consumer for the general (non-week-1-roll) case |
+| `agent/tools.py::_persist_generated_plan` | `sessions` table | Insert with resolved `scheduled_date` | WIRED (mechanically) | Insert happens; the data it inserts can contain duplicate dates per above |
+| `routes/rides.py` upload handler | `sessions` table | `.eq("scheduled_date", ride_date).eq("status","planned").limit(1)` | SILENTLY LOSSY UNDER COLLISION | Confirmed by code read; matches at most one of N colliding sessions |
+| `routes/adaptations.py::detect_signals` | `sessions`/`rides` tables | Date-keyed matching | FALSE POSITIVES UNDER COLLISION | Un-matchable sibling sessions are perpetually flagged missed |
+| `routes/_sse.py::sse_generator` | `messages` table (via `assistant_sink`) | Append accumulated text after loop exits without exception | WARNING (WR-06) | Appends even when the last yielded event was `error` |
+| `routes/onboarding.py` | `agent/loop.py::run_turn` | Injected `system_prompt` | WIRED | `system_prompt` param threaded through `_sse.py` into `run_turn`'s `system=` kwarg |
 
 ### Behavioral Spot-Checks
 
-Step 7b: SKIPPED — environment has no virtualenv activated (pydantic not importable in bare shell). The SUMMARY.md documents passing test results (189 tests; 0 regressions) and all test function bodies have been confirmed non-skipped by direct grep inspection. A virtualenv-isolated run is not possible without a running server.
+| Behavior | Command | Result | Status |
+|----------|---------|--------|--------|
+| Duplicate scheduled_date reproduction (2 preferred days, 4 sessions/week) | Direct Python execution of `_build_sessions` + `_resolve_all_scheduled_dates` in a venv with pinned deps | 8 of 16 sessions produce identical scheduled_date pairs across all 4 weeks | FAIL (confirms CR-01) |
+| FIT-06 acceptance test (real Zwift .FIT fixture) | `pytest tests/api/test_rides.py -k test_fit_upload_integration` | 1 passed | PASS |
+| Macro-replan 30% shift guard | `pytest tests/api/test_adaptations.py -k test_shift_limit` | 1 passed | PASS |
+| Adaptation log persistence (TRANSP-02) | `pytest tests/api/test_adaptations.py -k test_log_persisted` | 1 passed | PASS |
+| Cold-start power-target gate + back-protective caps | `pytest tests/agent/test_tools_phase3.py -k "cold_start or back_constraints"` (representative subset) | passed | PASS |
+| Scheduling-invariant test coverage | `pytest tests/agent/test_tools_phase3.py -k "roll or resolve or collision or scheduled_date"` | 2 passed — but both only cover the narrow week-1-roll case, not the general collision found above | PASSES, INSUFFICIENT COVERAGE |
 
-| Behavior | Evidence | Status |
-|----------|----------|--------|
-| TRUST-02: TOOL_REGISTRY == TOOL_SCHEMAS name sets, len == 10 | test_trust02_still_passes_after_new_tools present; no skip marker; SUMMARY reports 8 tools tests passing | PRESENT_BEHAVIOR_UNVERIFIED (env) |
-| generate_plan cold-start produces no power_targets | test_power_targets_cold_start present; no skip; plan.py 224 lines | PRESENT_BEHAVIOR_UNVERIFIED (env) |
-| back_status=moderate caps weeks 1-2 at 30 min | test_back_constraints present; no skip; plan.py implements cap | PRESENT_BEHAVIOR_UNVERIFIED (env) |
-| check_shift_limit flips at 30% boundary | test_shift_limit present; no skip; asserts both over and under cases | PRESENT_BEHAVIOR_UNVERIFIED (env) |
+### Requirements Coverage
 
-Note: All spot-check behaviors have corresponding non-skipped tests with substantive implementations. The environment issue is an unactivated virtualenv, not a code defect. SUMMARY documents 189 tests passing.
+| Requirement | Source Plan | Description | Status | Evidence |
+|-------------|-------------|--------------|--------|----------|
+| ONBD-01 | 03-03 | Conversational interview establishes baseline/injury/equipment/schedule/goals | SATISFIED | ONBOARDING_SYSTEM_PROMPT names all fields |
+| ONBD-02 | 03-01/02 | Injury/back status persisted and applied as constraints | SATISFIED | `save_profile` back_status -> constraints JSONB |
+| ONBD-03 | 03-01/02/03 | Interview output is a persisted structured profile | SATISFIED | profiles table + save_profile |
+| ONBD-04 | 03-03 | Confirmation summary before plan generation | SATISFIED | Live UAT-verified gate |
+| PLAN-01 | 03-01/02 | Periodised beginner plan | SATISFIED | `_build_sessions` 4-week mesocycle |
+| PLAN-02 | 03-02 | Cold-start RPE/HR only | SATISFIED | `test_power_targets_cold_start` passes |
+| PLAN-03 | 03-02 | Power only after medium FTP confidence | SATISFIED | `use_power` gate confirmed |
+| PLAN-04 | 03-01/02 | Every session has objective/structure/targets/duration | SATISFIED | `_build_sessions` structure dict |
+| PLAN-05 | 03-02 | Back-protective constraints reflected in plan | SATISFIED | `test_back_constraints` passes |
+| PLAN-06 | 03-02 | Every physiological number traces to a tool call | SATISFIED | Server-side injection allowlist confirmed in 03-REVIEW.md, no bypass found |
+| FIT-01 | 03-04 | Upload .FIT file | SATISFIED | `POST /rides/upload` |
+| FIT-02 | 03-02/04 | fitdecode with ErrorHandling.WARN, get_value fallback | SATISFIED | grep-confirmed + tests pass |
+| FIT-03 | 03-04 | Extracts power/HR/cadence/duration, graceful missing-field handling | SATISFIED | `test_missing_fields` present |
+| FIT-04 | 03-01/04 | compute_tss + update_pmc run; persists to rides/pmc_history | AT RISK | Correct in isolation; session-linkage undermined by CR-01 for realistic plans |
+| FIT-05 | 03-04 | validate_session_vs_actual produces compliance | AT RISK | Same CR-01 dependency — the session it validates against may be the wrong (or no) session |
+| FIT-06 | 03-02/04 | Real Zwift .FIT acceptance test | SATISFIED (isolated) | `test_fit_upload_integration` passes |
+| ADAPT-01 | 03-05 | Adapts on missed sessions, travel, performance, load | AT RISK | Missed-detection accuracy depends on CR-01 |
+| ADAPT-02 | 03-05 | Micro (1-3) vs macro (2+ signal) distinction | SATISFIED | `test_micro_macro_branch` passes |
+| ADAPT-03 | 03-05 | 30% shift guard | SATISFIED | `test_shift_limit` passes |
+| ADAPT-04 | 03-05 | Weekly automated check independent of uploads | SATISFIED | `test_weekly_check` present |
+| ADAPT-05 | 03-05 | Dynamic intensity/session-type decisions from tool results | SATISFIED | `test_intensity_from_tools` present |
+| TRANSP-01 | 03-03/05 | Chat explanation citing TSS/CTL/ATL/TSB + named principle | SATISFIED (with WR-06 reliability caveat) | Explanation text construction confirmed; SSE persistence bug is a WARNING, not a functional block |
+| TRANSP-02 | 03-01/05 | Adaptation log persisted with trigger/reasoning/timestamp | SATISFIED | `test_log_persisted` passes |
+| TRANSP-03 | 03-05 | Adaptation log is human-readable | SATISFIED | `GET /adaptations` present + `test_get_adaptations` passes |
+
+**Orphaned requirements:** None. All 23 requirement IDs declared across `03-01` through `03-05` PLAN frontmatter match exactly the 23 IDs traced to Phase 3 in `.planning/REQUIREMENTS.md` (ONBD-01..04, PLAN-01..06, FIT-01..06, ADAPT-01..05, TRANSP-01..03).
 
 ### Anti-Patterns Found
 
 | File | Line | Pattern | Severity | Impact |
 |------|------|---------|----------|--------|
-| api/routes/adaptations.py | 620, 631, 646, 656, 678, 688 | TODO(phase-4-auth) | INFO | Auth deferral explicitly tracked to Phase 4 with issue keyword; not a blocker |
-| api/routes/rides.py | 454, 459 | SECURITY TODO (Phase 4) | INFO | Auth deferral to Phase 4; no unauthenticated user data at risk in current deployment |
-| api/routes/onboarding.py | 153, 224, 234 | TODO (Phase 4) | INFO | Token truncation + auth deferral to Phase 4; formally tracked |
+| `backend/sports_science/plan.py` | ~132-135 | Modulo day-cycling produces same-weekday duplicates within one week | BLOCKER | Breaks scheduled_date uniqueness invariant (CR-01), live-reproduced above |
+| `backend/agent/tools.py` | ~476-481 | Collision detection only applied to rolled week-1 sessions, not all sessions | BLOCKER | Same root cause as above — this is the fix point |
+| `backend/routes/_sse.py` | 96-110 | Success-path persistence triggered by "loop exited without exception" rather than "last event was not error" | WARNING | Partial/truncated assistant text can be saved to `messages` as if complete (WR-06); confirmed by code read of `agent/loop.py`'s error-yield-then-return pattern |
+| `backend/routes/adaptations.py` | 905 | `mark_session_missed`'s status UPDATE omits the `user_id` dual-filter used elsewhere in the same file | WARNING | Defense-in-depth gap; not currently exploitable (ownership pre-verified via SELECT moments earlier) but breaks the file's own documented convention (WR-03) — confirmed by direct code read |
+| `backend/routes/rides.py` | 418-431 | `_sanitize_filename` defined but never called; docstring claims it's an active mitigation | WARNING | Dead code masquerading as an applied threat mitigation (WR-04) — not a live vulnerability since storage keys are content-addressed, but misleading documentation |
+| `backend/agent/tools.py` | 777-791 | Branch A self-reported LTHR passes through to `save_profile` unverified against transcript | WARNING | Architectural trust-boundary gap (WR-05) — tool-call arguments are trusted, only free text is scanned |
+| `backend/agent/tools.py` / `backend/agent/loop.py` | 734-753 / 253-261 | Same-turn trust-sensitive injection for `generate_plan` races against parallel tool dispatch (`asyncio.gather`) | WARNING | Currently favorable ordering, not a guarantee (WR-01) |
+| `backend/agent/tools.py` | 497-578 | `_persist_generated_plan` performs 2 non-atomic inserts | WARNING | Orphaned `plans` row possible on partial failure (WR-02) |
 
-All TODO markers reference "Phase 4" or "(phase-4-auth)" — each has a formal follow-up reference. No TBD, FIXME, or XXX markers found in any file modified by this phase. **No blockers.**
+**Debt-marker gate:** No unreferenced `TBD`/`FIXME`/`XXX` markers found in files reviewed for this pass.
 
-### Requirements Coverage
+### Human Verification Required
 
-| Requirement | Plan | Description | Status | Evidence |
-|-------------|------|-------------|--------|----------|
-| ONBD-01 | 03-03 | Conversational interview establishing baseline, injury, equipment, schedule, goals | SATISFIED | POST /onboarding/start with ONBOARDING_SYSTEM_PROMPT naming all 6 fields; test_onboarding_returns_sse passes |
-| ONBD-02 | 03-03 | Injury/back status persisted and applied as back-protective constraints | SATISFIED | save_profile maps back_status to constraints JSONB; test_back_status_constraint asserts moderate -> {back_issues: True, load_ramp_flag_threshold_pct: 10} |
-| ONBD-03 | 03-03 | Interview output persisted as structured user profile in DB | SATISFIED | save_profile async upsert on profiles table; test_profile_persisted asserts upsert called |
-| ONBD-04 | 03-03 | Confirmation summary shown before plan generated; explicit approval required | SATISFIED | 03-UAT.md test 1: live LLM run confirmed gate holds; "Here is what I have" appears before save_profile tool_use |
-| PLAN-01 | 03-02 | Structured periodised plan for returning beginner | SATISFIED | generate_plan produces 4-week mesocycle with week1 endurance-only policy |
-| PLAN-02 | 03-02 | Cold-start: RPE and HR targets, not power | SATISFIED | ftp_confidence=insufficient_data -> all power_targets=None; test_cold_start_hr_only passes |
-| PLAN-03 | 03-02 | Power targets introduced only at medium FTP confidence | SATISFIED | generate_plan gates power_targets on ftp_confidence; test_power_targets_cold_start passes |
-| PLAN-04 | 03-02 | Every session has objective, structure (warmup/main/cooldown), targets, duration | SATISFIED | session schema in plan.py includes all required keys; test_session_schema passes |
-| PLAN-05 | 03-02 | Back-protective constraints reflected in plan | SATISFIED | moderate back caps weeks 1-2 at 30 min, no strength in week 1; test_back_constraints passes |
-| PLAN-06 | 03-03 | Every physiological number traceable to tool-library call | SATISFIED | generate_plan is pure compute called via TOOL_REGISTRY; TRUST-04 inherited from Phase 2 trust scanner |
-| FIT-01 | 03-04 | User can upload .FIT file | SATISFIED | POST /rides/upload multipart endpoint; test_upload_returns_200 passes |
-| FIT-02 | 03-04 | fitdecode with ErrorHandling.WARN; get_value fallback | SATISFIED | ErrorHandling.WARN 3x; get_value with fallback 5x in rides.py; test_fit_parse_warn passes |
-| FIT-03 | 03-04 | power/HR/cadence/duration extracted; missing fields -> null | SATISFIED | get_value fallback=None for HR/cadence; test_missing_fields passes |
-| FIT-04 | 03-04 | compute_tss then update_pmc; persisted to rides/pmc_history | SATISFIED | background pipeline calls both; test_tss_computed asserts tss > 0 in rides UPDATE |
-| FIT-05 | 03-04 | validate_session_vs_actual feeds compliance % | SATISFIED | best-effort in process_ride_background; test_session_compliance passes |
-| FIT-06 | 03-04 | Real Zwift .FIT acceptance test before production-ready | SATISFIED | sample_zwift.fit (8228 bytes, 900s, 154W avg); test_fit_upload_integration asserts TSS > 0 |
-| ADAPT-01 | 03-05 | Plan adapts based on missed sessions, performance, load | SATISFIED | detect_signals checks missed + underperformance; test_missed_detection passes |
-| ADAPT-02 | 03-05 | Micro (1-3 sessions) vs macro (2+ signals) distinguished | SATISFIED | decide_scope(1 signal)="micro", decide_scope(2+)="macro"; test_micro_macro_branch passes |
-| ADAPT-03 | 03-05 | No macro replan shifts >30% without change summary | SATISFIED | check_shift_limit enforces >0.30 guard; apply_macro_replan returns needs_confirmation; test_shift_limit passes |
-| ADAPT-04 | 03-05 | Weekly check runs independently of uploads | SATISFIED | POST /adaptations/check endpoint; test_weekly_check asserts 200 with empty signals |
-| ADAPT-05 | 03-05 | Intensity decisions reference tool-library results | SATISFIED | detect_signals calls validate_session_vs_actual 6x; test_intensity_from_tools captures the call |
-| TRANSP-01 | 03-05 | Plan changes explained citing data from tool calls | SATISFIED | trust_corpus.py extended with 2 ATTRIBUTED adaptation-explanation entries; test_trust_corpus covers them |
-| TRANSP-02 | 03-05 | Every plan change persisted to adaptation log with trigger/scope/snapshots | SATISFIED | log_adaptation INSERT into adaptations table; test_log_persisted asserts insert occurred |
-| TRANSP-03 | 03-05 | Adaptation log readable by user | SATISFIED | GET /adaptations endpoint; test_get_adaptations passes; test_get_adaptations_requires_user_id asserts 422 on missing user_id |
+None required for this re-verification pass. The critical finding (CR-01) was resolved through direct code execution, not human judgment, and the previously-completed UAT (03-UAT.md, ONBD-04 confirmation gate) still stands unchanged since this review touched no onboarding-flow code.
 
-**All 24 requirement IDs from plan frontmatter accounted for. No orphaned requirements.**
+### Gaps Summary
 
-### Human Verification Completed
+One BLOCKER, confirmed by live execution rather than static analysis alone: `_build_sessions` (plan.py) and `_resolve_all_scheduled_dates` (tools.py) together fail to guarantee unique `scheduled_date` values per session whenever a user's `preferred_days` count doesn't evenly divide their weekly session count — an entirely ordinary onboarding answer (e.g. 2 preferred days, 4 sessions/week). This was reproduced directly: every week of a resulting 4-week plan generated two sessions sharing the same date, and the same-date collisions passed unresolved through the scheduling function whose own docstring claims to prevent exactly this. The consequence is not cosmetic: it silently breaks the ride-to-session matching that criterion 3 and criterion 4 (FIT-04, FIT-05, ADAPT-01) depend on — one session of each colliding pair becomes permanently unmatchable to any ride and will be perpetually misreported as "missed," corrupting the adaptation signal pipeline for real users with this common scheduling pattern.
 
-#### 1. ONBD-04 Confirmation Gate — Live LLM Adherence
+This must be fixed before the phase goal can be considered fully achieved: success criterion 3 explicitly requires that upload results "persist to rides and pmc_history" in a way that supports the coaching loop, and this defect means that persistence silently attaches to the wrong (or no) session for roughly half of affected sessions in the common 2-days/4-sessions-per-week (and equivalent) input patterns.
 
-**Status:** VERIFIED (2026-06-20)
-**Evidence:** 03-UAT.md test 1 — human ran full live onboarding SSE stream against real Claude API; confirmed "Here is what I have" summary appeared in stream before any `save_profile` tool_use block; explicit approval required before plan generation.
+Six additional WARNING-level findings from 03-REVIEW.md were spot-checked by direct code reading and confirmed as real but non-blocking against this phase's stated success criteria: a parallel-dispatch race in trust-sensitive tool injection (WR-01), non-atomic plan persistence (WR-02), a missing defense-in-depth filter in one UPDATE (WR-03), dead sanitization code with a misleading docstring (WR-04), an unverified self-reported LTHR value (WR-05), and an SSE error path that can persist partial assistant text as if the turn succeeded (WR-06). None of these independently fails a stated success criterion, but WR-06 is worth prioritizing alongside the CR-01 fix since it also touches TRANSP-01's chat-transparency guarantee under abnormal-termination conditions.
+
+**Recommended fix priority for the gap-closure plan:**
+1. CR-01 (blocking) — make `_resolve_all_scheduled_dates` collision-aware for all sessions (not just week-1-rolled ones), or fix `_build_sessions`'s day-cycling so no weekday repeats within a week; add a regression test with `preferred_days` shorter than `n_sessions` asserting scheduled_date uniqueness across the full plan.
+2. WR-06 (recommended, non-blocking) — have `run_turn` signal abnormal termination distinctly from normal completion so `_sse.py` doesn't persist partial text as a completed turn.
+3. WR-01 through WR-05 — lower priority; document or fix per 03-REVIEW.md's suggested remediations.
 
 ---
 
-_Initially verified: 2026-06-20T10:00:00Z_
-_Human verification completed: 2026-06-21T00:00:00Z_
-_Verifier: Claude (gsd-verifier) + human UAT_
+_Verified: 2026-07-06T00:00:00Z_
+_Verifier: Claude (gsd-verifier)_
