@@ -215,7 +215,7 @@ Plans:
 **Goal:** A generated plan becomes real database state and ride data flows through it correctly: plan confirmation writes `plans` and `sessions` rows; Today/Agenda/ZWO/calendar read real sessions; estimated FTP is actually used (fix `ftp_watts` vs `ftp` key mismatch, add missing `profiles.ftp`/`lthr` columns); PMC uses ride date not upload date, decays through zero-TSS gap days, sums same-day rides, and dedups re-uploaded FIT files; rides link to sessions and mark them completed; adaptation checks are idempotent (signals consumed once, `/missed` endpoint works, macro-replan confirm endpoint exists).
 **Requirements**: No new IDs; repairs existing FIT-04, FIT-05, TOOL-03, TOOL-05, PLAN-01, PLAN-04, ONBD-04, ADAPT-01, ADAPT-02, ADAPT-03, ADAPT-04, TRANSP-02 (all marked complete but broken in APP-REVIEW-260703)
 **Depends on:** Phase 5
-**Plans:** 5/5 plans complete
+**Plans:** 6/6 plans complete
 
 Plans:
 **Wave 1** *(schema foundation, blocking)*
@@ -300,7 +300,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Sports-Science Foundation | 6/6 | Complete   | 2026-06-19 |
+| 1. Sports-Science Foundation | 6/6 | Complete    | 2026-06-19 |
 | 2. Agent Core | 6/6 | Complete    | 2026-06-20 |
 | 3. Coaching Loop | 5/5 | Complete    | 2026-06-20 |
 | 4. UI and Calendar | 21/21 | Complete   | 2026-06-21 |
