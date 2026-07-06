@@ -104,5 +104,5 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-21. Milestone v1.0: all 5 phases shipped. Full coaching loop with ZWO export, Google Calendar sync (development OAuth), during-session stepper, and trust-model enforcement.*
+*Last updated: 2026-07-06. Phase 8 (Trust Model Integrity) complete: audit log persisted, tool-input laundering closed (dispatch_tool server-injection, extended post-review to hr_zones/lthr_estimate), attribution rewritten to numeric-tolerance matching, cross-turn seeding via audit_log, HR zones corrected to true Coggan/Allen, generate_plan wired to current_ctl/load_targets/preferred_days. Live UAT caught and fixed a real gap: onboarding's direct-LTHR branch was rejecting the user's own self-reported number as unattributed — fixed via a new self-reported-values channel in the trust scanner (plan 08-08), verified live against the real backend + model.*
 
