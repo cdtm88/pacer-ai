@@ -13,16 +13,31 @@ Phase 2 upgrade: async Supabase client via acreate_client (D-06, TRUST-05).
 WR-04: module-level singleton client to avoid creating a new connection pool
 on every log_capability_gap call (connection leak fix).
 """
+import logging
 import os
 from typing import Optional
 from supabase import acreate_client, AsyncClient
 from .types import ToolResult
+
+logger = logging.getLogger(__name__)
 
 # WR-04: Module-level cached client. None until first call; then reused.
 # This avoids creating a new httpx.AsyncClient (and connection pool) on
 # every log_capability_gap invocation. The long-term fix (Phase 3) is to
 # initialize this in the FastAPI lifespan and inject it.
 _supabase_client: Optional[AsyncClient] = None
+
+
+def _reset_client_for_tests() -> None:
+    """Test-only seam: clear the module-level client cache.
+
+    Without this, a client cached by an earlier test (e.g. a working mock)
+    is returned instead of a later test's freshly-patched client, making
+    DB-failure regression tests order-dependent and non-exercising. Invoked
+    from an autouse conftest fixture before (and after) each test.
+    """
+    global _supabase_client
+    _supabase_client = None
 
 
 async def _get_async_supabase() -> AsyncClient:
@@ -79,7 +94,13 @@ async def log_capability_gap(
             "context": context,
         }).execute()
     except Exception:
-        pass  # gap logging is best-effort; never block the fallback response
+        # Gap logging is best-effort; never re-raise or block the fallback
+        # response. But a swallowed DB failure must still be observable as
+        # backend telemetry (GAP-01) -- method_name in this log line is
+        # backend-only and never reaches value["message"] (GAP-03).
+        logger.exception(
+            "log_capability_gap: DB insert failed for method_name=%s", method_name
+        )
 
     # GAP-03: generic user-facing message; method_name goes to DB only.
     # This message is intentionally vague -- it must not expose internal function names.
