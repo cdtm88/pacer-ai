@@ -39,7 +39,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. The `log_capability_gap` function appends a structured entry to the `capability_gaps` table and returns a user-facing fallback message; it is registered as an Anthropic tool schema in TRUST-02 and only the tool registry maps sports_science functions to tool schemas
   5. The 8-table Supabase schema (users, profiles, sessions, rides, pmc_history, conversations, messages, capability_gaps) is migrated and accessible
 
-**Plans**: 5/5 plans complete
+**Plans**: 5/5 complete + 1 gap-closure plan (01-06, pending)
 **Wave 1**
 
 - [x] 01-01-PLAN.md — Wave 0: test infra, deps, venv, Supabase CLI, ToolResult contract + constants
@@ -50,6 +50,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Wave 2** *(blocked on Wave 1 completion)*
 
 - [x] 01-05-PLAN.md — Wave 2: Supabase schema + db push, log_capability_gap, package exports (TOOL-08, GAP-01/02/03, TRUST-02)
+
+**Wave 1 (gap closure)** *(from 01-VERIFICATION.md — 2/5 must-haves; three fixes)*
+
+- [ ] 01-06-PLAN.md — Gap closure: enforce vacuous TRUST-01 boundary test, reachable FTP two-pass filter for the beginner persona, observable capability-gap DB failures (TRUST-01, TOOL-03/06/08/10, GAP-01)
 
 ### Phase 2: Agent Core
 
