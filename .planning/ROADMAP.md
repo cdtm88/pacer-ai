@@ -247,7 +247,7 @@ Plans:
 **Goal:** The trust model is airtight and verifiable: audit log persisted per turn (TRUST-04), tool inputs scanned so invented numbers cannot launder through tool calls, bare-number attribution uses word-boundary and tolerance matching instead of substring, prior-turn numbers seeded to kill cross-turn false positives, LTHR (or explicit RPE-only fallback) collected in onboarding, HR zone constants match the claimed Coggan methodology, Zone 2 targets safe for a returning beginner, and generate_plan consumes current_ctl/load_targets/preferred_days so back-protective caps actually constrain sessions.
 **Requirements**: TRUST-06, TRUST-07, TRUST-08, TRUST-09, ONBD-05, PLAN-07, TOOL-02 (amend); re-verifies TRUST-03, TRUST-04, TRUST-05, PLAN-06
 **Depends on:** Phase 7
-**Plans:** 7/7 plans complete
+**Plans:** 8 plans (7 complete; 08-08 gap closure)
 
 Plans:
 **Wave 1**
@@ -265,6 +265,10 @@ Plans:
 
 - [x] 08-06-PLAN.md — generate_plan server-side value injection (TRUST-07)
 - [x] 08-07-PLAN.md — onboarding LTHR collection + hr_zones_available flag (ONBD-05)
+
+**Wave 1 (gap closure)** *(from 08-UAT.md Test 1 blocker)*
+
+- [ ] 08-08-PLAN.md — self-reported attribution channel: user-stated LTHR echo passes scan_buffer without a tool call (ONBD-05 Branch A fix, TRUST-03)
 
 ### Phase 9: Frontend Resilience
 
