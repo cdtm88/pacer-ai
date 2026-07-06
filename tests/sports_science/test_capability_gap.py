@@ -118,8 +118,13 @@ async def test_methodology_is_capability_gap_log(mock_acreate_client):
 
 
 @patch("backend.sports_science.capability_gap.acreate_client", new_callable=AsyncMock)
-async def test_db_error_returns_fallback_tool_result(mock_acreate_client, monkeypatch):
-    """GAP-02: DB insert failure must not prevent returning the fallback ToolResult."""
+async def test_db_error_returns_fallback_tool_result(mock_acreate_client, monkeypatch, caplog):
+    """GAP-02: DB insert failure must not prevent returning the fallback ToolResult.
+
+    Gap closure (01-06): strengthened to prove the raising mock is actually
+    exercised (not short-circuited by the module-level client cache from an
+    earlier test) and that the failure is logged, not silently swallowed.
+    """
     monkeypatch.setenv("SUPABASE_URL", "http://test-url")
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-service-key")
     execute_mock = AsyncMock(side_effect=Exception("DB connection failed"))
@@ -134,7 +139,19 @@ async def test_db_error_returns_fallback_tool_result(mock_acreate_client, monkey
     from backend.sports_science.types import ToolResult
 
     # Should not raise even when DB fails
-    result = await log_capability_gap("some_tool", {"key": "val"})
+    import logging
+
+    with caplog.at_level(logging.ERROR):
+        result = await log_capability_gap("some_tool", {"key": "val"})
+
+    assert execute_mock.await_count == 1, (
+        "The raising execute mock was never awaited -- the DB-failure path "
+        "did not actually run (likely a stale cached client from an earlier "
+        "test)"
+    )
+    assert any(record.levelno >= logging.ERROR for record in caplog.records), (
+        "DB insert failure must be logged at ERROR level, not silently swallowed"
+    )
     assert isinstance(result, ToolResult)
     assert result.value["status"] == "logged"
 
