@@ -19,7 +19,20 @@ Key invariants:
 
 The trust_scanner is injected so the loop is unit-testable without the
 real regex (Plan 04). Signature: trust_scanner(text: str, tool_result_values:
-list[str]) -> TrustViolation | None.
+list[str], self_reported_values: list[str] | None = None) -> TrustViolation | None.
+
+08-08 / D-02 / D-05: run_turn extracts self_reported_values -- the user's own
+chat messages this turn (role=="user" string content only) -- ONCE, before
+the while loop, and threads that snapshot into every trust_scanner call
+alongside tool_result_values. This is the missing "onboarding profile /
+self-report" half of D-02's confirmed-values registry design: it lets a
+Branch A self-reported physiological number (e.g. a directly-stated LTHR)
+be legitimately restated in the mandatory D-03 confirmation-gate summary
+with NO tool call, without opening a laundering loophole -- the snapshot is
+taken before any correction/retry message or tool-result block is appended,
+so only genuine user-authored text ever enters the channel. It never flows
+into tool arguments: server-side injection (D-02 / Plan 06) remains the sole
+authority for computed-output fields.
 
 Streaming pitfall (Pitfall 3): get_final_message() must be awaited AFTER
 the async-for over stream events completes, never inside the loop.
@@ -31,7 +44,7 @@ from typing import AsyncIterator
 
 from backend.agent.audit import load_prior_audit_values
 from backend.agent.tools import TOOL_SCHEMAS, dedup_key, dispatch_tool
-from backend.agent.trust import handle_violation
+from backend.agent.trust import collect_self_reported_values, handle_violation
 
 MAX_RETRIES: int = 3
 MAX_TOOL_TURNS: int = 10
@@ -81,6 +94,14 @@ async def run_turn(
                        conversation's prior-turn audit trail before the first
                        trust scan, so a legitimate number established in an
                        earlier (stateless) invocation is not re-flagged.
+
+    Invariants (08-08 / D-02 / D-05): user-self-reported numbers are
+    attributed alongside tool results via a snapshot of self_reported_values
+    taken once, before the while loop, sourced ONLY from role=="user" string
+    messages present at turn start (never assistant text, never a tool-result
+    content-block list) -- and passed unchanged to every trust_scanner call
+    this turn. This channel never flows into tool arguments; server-side
+    injection remains the sole authority for computed-output fields.
     """
     retries: int = 0
     tool_turns: int = 0
@@ -101,6 +122,13 @@ async def run_turn(
         tool_result_values.extend(
             await load_prior_audit_values(conversation_id, user_id=user_id)
         )
+
+    # 08-08 / D-02 / D-05: one-time snapshot of genuine user inputs at turn
+    # start. Taken BEFORE the while loop so the correction/retry user message
+    # appended on a violation (and any tool-result content-block lists) never
+    # enter the self-report channel -- only what the user actually typed this
+    # turn is a legitimate attribution source.
+    self_reported_values: list[str] = collect_self_reported_values(messages)
 
     while retries <= MAX_RETRIES:
         text_buffer: list[str] = []
@@ -137,7 +165,7 @@ async def run_turn(
         #    Before appending ANY assistant content to messages (Pitfall 5).
         # ------------------------------------------------------------------
         buffered_text = "".join(text_buffer)
-        violation = trust_scanner(buffered_text, tool_result_values)
+        violation = trust_scanner(buffered_text, tool_result_values, self_reported_values)
 
         if violation:
             retries += 1

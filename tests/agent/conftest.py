@@ -224,7 +224,7 @@ def build_fake_client(*streams):
 @pytest.fixture
 def no_op_scanner():
     """A trust scanner that never returns a violation (for non-trust tests)."""
-    def _scanner(text, tool_result_values):
+    def _scanner(text, tool_result_values, self_reported_values=None):
         return None
     return _scanner
 
@@ -234,7 +234,7 @@ def always_violating_scanner():
     """A trust scanner that always returns a TrustViolation (for retry-cap tests)."""
     from backend.agent.trust import TrustViolation
 
-    def _scanner(text, tool_result_values):
+    def _scanner(text, tool_result_values, self_reported_values=None):
         return TrustViolation(
             matched_text="250 watts",
             pattern="test",

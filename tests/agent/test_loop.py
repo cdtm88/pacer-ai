@@ -512,3 +512,110 @@ async def test_cross_turn_seed_control_without_conversation_id_still_violates():
     assert violation_events, (
         "Expected trust_violation without seeding (conversation_id=None control)"
     )
+
+
+# ---------------------------------------------------------------------------
+# 08-08 / D-02 / D-05: per-turn self-report extraction closes the ONBD-05
+# Branch A gap -- a user-stated LTHR restated in the D-03 confirmation
+# summary (NO tool call) must be attributed via self_reported_values, not
+# flagged as an unsourced trust_violation.
+# ---------------------------------------------------------------------------
+
+
+async def test_self_reported_lthr_echo_passes_branch_a():
+    """
+    Positive: messages include a genuine user message stating an LTHR; the
+    fake stream's assistant text restates that number in a confirmation-style
+    summary; run with the REAL scan_buffer and NO tool call. Branch A must
+    complete with a done event and zero trust_violation / max_retries events.
+    """
+    from backend.agent.loop import run_turn
+    from backend.agent.trust import scan_buffer
+    from tests.agent.conftest import _build_stream, _delta_event, _final_msg
+
+    confirmation_text = (
+        "Here is what I have so far: your heart-rate baseline (LTHR) is "
+        "165 bpm. Does that look right before I save your profile?"
+    )
+    stream = _build_stream(
+        delta_events=[_delta_event(confirmation_text)],
+        final_msg=_final_msg(
+            stop_reason="end_turn",
+            content=[MagicMock(type="text", text=confirmation_text)],
+        ),
+    )
+
+    client = build_fake_client(stream)
+    messages = [
+        {
+            "role": "user",
+            "content": "My LTHR is 165 bpm, from a recent lab test.",
+        }
+    ]
+    audit_log = []
+
+    events = [
+        ev async for ev in run_turn(messages, client, "claude-test", scan_buffer, audit_log)
+    ]
+
+    violation_events = [
+        ev for ev in events
+        if ev["event"] == "error" and ev["data"].get("code") in ("trust_violation", "max_retries")
+    ]
+    assert not violation_events, (
+        f"Expected Branch A to complete with no violation (165 is self-reported "
+        f"by the user, not hallucinated), got: {violation_events}"
+    )
+    assert "done" in [ev["event"] for ev in events]
+
+
+async def test_self_reported_control_hallucinated_number_still_violates():
+    """
+    Control: identical confirmation-style assistant text but restating a
+    DIFFERENT number the user never stated (and no matching tool result).
+    Proves the pass in the positive case comes from the self-report channel
+    attributing the exact user-stated number, not from a blanket relaxation
+    of scan_buffer.
+    """
+    from backend.agent.loop import run_turn, MAX_RETRIES
+    from backend.agent.trust import scan_buffer
+    from tests.agent.conftest import _build_stream, _delta_event, _final_msg
+
+    hallucinated_text = (
+        "Here is what I have so far: your heart-rate baseline (LTHR) is "
+        "300 bpm. Does that look right before I save your profile?"
+    )
+
+    def make_stream():
+        return _build_stream(
+            delta_events=[_delta_event(hallucinated_text)],
+            final_msg=_final_msg(
+                stop_reason="end_turn",
+                content=[MagicMock(type="text", text=hallucinated_text)],
+            ),
+        )
+
+    # MAX_RETRIES + 2 streams so the loop has enough fake responses to exhaust
+    # retries without running out (mirrors test_retry_limit's stream count).
+    streams = [make_stream() for _ in range(MAX_RETRIES + 2)]
+    client = build_fake_client(*streams)
+    messages = [
+        {
+            "role": "user",
+            "content": "My LTHR is 165 bpm, from a recent lab test.",
+        }
+    ]
+    audit_log = []
+
+    events = [
+        ev async for ev in run_turn(messages, client, "claude-test", scan_buffer, audit_log)
+    ]
+
+    violation_events = [
+        ev for ev in events
+        if ev["event"] == "error" and ev["data"].get("code") == "trust_violation"
+    ]
+    assert violation_events, (
+        "Expected a hallucinated number (300, never stated by the user) to "
+        "still be flagged as a trust_violation"
+    )
