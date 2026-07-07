@@ -154,3 +154,7 @@ Both item-14 and item-9 fixes are complete and covered by passing automated test
 ---
 *Phase: 09-frontend-resilience*
 *Completed: 2026-07-07*
+
+## Self-Check: PASSED
+
+All 6 referenced files found on disk; all 3 commit hashes (36cdf24, b4ec40a, and the SUMMARY.md commit) verified present in git log.
