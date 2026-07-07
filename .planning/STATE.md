@@ -98,6 +98,7 @@ Progress: [████████████████████] 32/32 p
   - Phase 8: Trust Model Integrity (audit log dropped, tool inputs unscanned, LTHR never collected)
   - Phase 9: Frontend Resilience (chat SSE brick, stale session hijack, iOS export, contract mismatches)
   - Phase 10: Hygiene and Safety Nets (stale tests, contract tests, token exchange, rate limit, CI)
+- Phase 11 added 2026-07-07: Google Calendar Production Verification — formalizes the CAL-03b gap left open in 04-VERIFICATION.md (Google OAuth consent screen still in Testing mode). Deferred from Phase 4, re-confirmed deferred in Phase 7 pending a live backend URL (now satisfied by the Vercel deploy); no privacy policy/ToS page exists yet, so the Google verification submission has not started.
 
 ### Decisions
 

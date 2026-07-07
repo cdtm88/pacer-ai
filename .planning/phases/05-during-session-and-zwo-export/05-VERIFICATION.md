@@ -1,7 +1,7 @@
 ---
 phase: 05-during-session-and-zwo-export
 verified: 2026-06-21T19:30:00Z
-status: verified
+status: passed
 score: 8/8 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
@@ -20,7 +20,7 @@ human_verification_closed:
 
 **Phase Goal:** The during-session stepper works reliably on iOS Safari with the timer surviving tab switches; a generated .zwo file imports cleanly in Zwift
 **Verified:** 2026-06-21T12:23:00Z
-**Status:** human_needed
+**Status:** passed (both human-verification items closed 2026-06-21, see frontmatter `human_verification_closed`)
 **Re-verification:** No — initial verification
 
 ---

@@ -1,8 +1,8 @@
 ---
 phase: 04-ui-and-calendar
 verified: 2026-06-21T19:30:00Z
-status: gaps_found
-score: 4/5
+status: passed
+score: 5/5 (1 truth reclassified out-of-phase, see amendment)
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:
@@ -14,21 +14,21 @@ re_verification:
     - "compliance lookup table fixed from training_sessions to sessions with correct column names"
     - "onboarding.py now captures conversation_id and loads prior turns via load_conversation"
     - "4 Vitest unit tests fixed: today.test.tsx assertions updated to sentence-case (Fresh/Balanced/Fatigued) — 10/10 pass (confirmed 2026-06-21)"
-  gaps_remaining:
-    - "CAL-03b: Google OAuth production verification not submitted to Google Verification Centre — deferred to next milestone"
+  gaps_remaining: []
   deferred:
     - item: "CAL-03b: Google OAuth consent screen verification (logo, privacy policy, ToS, Google review)"
-      reason: "Requires app to be live first; deferred to next milestone after Railway deployment"
-      milestone: "v1.1"
-gaps:
-  - truth: "Google Calendar OAuth uses production credentials, not Testing mode; end-to-end OAuth flow verified with real Google account"
-    status: partial
-    reason: "CAL-03 split into two items. CAL-03a (Railway deployment) is in progress — Dockerfile and env vars to be set up. CAL-03b (Google OAuth production verification: logo, privacy policy, ToS, Google review) deferred to v1.1. Calendar code (calendar.py) is complete and correct."
-    artifacts:
-      - path: "api/routes/calendar.py"
-        issue: "Implementation complete; CAL-03a needs Railway deploy; CAL-03b deferred to v1.1"
-    deferred_to: "v1.1 (CAL-03b only)"
+      reason: "Requires a live production backend URL, which Phase 7 (Deploy Consolidation, Vercel) has since provided; the Google review process itself is external and has not yet started (no privacy policy/ToS page exists)."
+      moved_to: "Phase 11: Google Calendar Production Verification"
+amendment:
+  date: "2026-07-07"
+  note: "The one remaining gap (CAL-03b, Google OAuth production verification) was reclassified out of Phase 4's scope into Phase 11: Google Calendar Production Verification, which now owns it. Phase 4's own deliverables (screens, endpoints, calendar code, PWA) are complete and unaffected. Status updated from gaps_found to passed accordingly."
 ---
+
+## Amendment (2026-07-07)
+
+This report originally scored 4/5 with one open gap: CAL-03 (Google Calendar OAuth production verification), split into CAL-03a (Railway deployment, since superseded by Phase 7's Vercel migration) and CAL-03b (Google's `calendar.events` sensitive-scope review: privacy policy, ToS, logo, submission, approval). CAL-03a is moot (Vercel replaced Railway in Phase 7, 2026-07-03). CAL-03b is a genuine, still-open item, but it is external to this phase's code and was already explicitly deferred (confirmed again in Phase 7's own verification report, 2026-07-03). It is now formally tracked as **Phase 11: Google Calendar Production Verification** rather than left as an open Phase 4 gap. Phase 4's calendar code (`api/routes/calendar.py`) is complete and correct; only the external Google review remains, and that belongs to Phase 11.
+
+The report below is the original, unmodified 2026-06-21 re-verification pass and is kept for historical record.
 
 # Phase 04: UI and Calendar Verification Report (Re-verification)
 

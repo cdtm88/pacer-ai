@@ -23,6 +23,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 8: Trust Model Integrity** - Persist audit log, scan tool inputs, tighten attribution, collect LTHR, correct HR zones and load constraints (completed 2026-07-04)
 - [ ] **Phase 9: Frontend Resilience** - Chat SSE recovery and history reload, session persistence staleness, iOS export/auth fixes, contract mismatches, error boundary
 - [ ] **Phase 10: Hygiene and Safety Nets** - Repair stale tests, contract tests, SSE token exchange, rate limiting, CI, repo cleanup
+- [ ] **Phase 11: Google Calendar Production Verification** - Publish privacy policy and ToS pages, add app logo, submit calendar.events scope for Google review, confirm OAuth consent screen moves out of Testing mode
 
 ## Phase Details
 
@@ -300,6 +301,17 @@ Plans:
 
 - [ ] TBD (run /gsd-plan-phase 10 to break down)
 
+### Phase 11: Google Calendar Production Verification
+
+**Goal:** The Google Calendar OAuth consent screen is approved for production use: a privacy policy page and terms of service page are published, an app logo is uploaded, the calendar.events sensitive-scope verification request is submitted to the Google Verification Centre and approved, and a real (non-test) Google account can complete the Calendar OAuth flow without an unverified-app warning.
+**Requirements**: TBD
+**Depends on:** Phase 7 (requires the live production backend URL for the OAuth callback and verification review)
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 11 to break down)
+
 ## Progress Table
 
 | Phase | Plans Complete | Status | Completed |
@@ -314,3 +326,6 @@ Plans:
 | 8. Trust Model Integrity | 8/8 | Complete    | 2026-07-04 |
 | 9. Frontend Resilience | 0/? | Not planned | - |
 | 10. Hygiene and Safety Nets | 0/? | Not planned | - |
+| 11. Google Calendar Production Verification | 0/? | Not planned | - |
+
+- [ ] TBD (run /gsd-plan-phase 11 to break down)
