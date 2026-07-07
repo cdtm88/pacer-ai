@@ -160,6 +160,10 @@ None - no external service configuration required.
 - Full frontend suite (`npx vitest run`) is green: 89/89 tests across 11 files. `npx tsc --noEmit` is clean.
 - Other Phase 9 plans (items 2-7, 9-14) touch different files (`useSSEStream.ts`, `ChatScreen.tsx`, `OnboardingScreen.tsx`, `router.tsx`, `AppLayout.tsx`, `api.ts`, `AuthCallbackScreen.tsx`, `FitUploadZone.tsx`) and are unaffected by this plan's changes.
 
+## Self-Check: PASSED
+
+All 5 files and 7 commit hashes referenced above were verified present in the working tree and git log respectively.
+
 ---
 *Phase: 09-frontend-resilience*
 *Completed: 2026-07-07*
