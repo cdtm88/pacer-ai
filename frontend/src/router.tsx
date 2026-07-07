@@ -30,7 +30,7 @@ export function RootProvider() {
   // Also fires on user-id change (e.g. switching accounts in the same browser).
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
+      if (event === 'SIGNED_OUT' || event === 'USER_UPDATED' || event === 'SIGNED_IN') {
         queryClient.clear()
       }
     })
