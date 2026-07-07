@@ -3,8 +3,9 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { HistoryScreen } from '../screens/HistoryScreen'
 import { CtlSparkline } from '../components/history/CtlSparkline'
+import { RideRow } from '../components/history/RideRow'
 import * as api from '../lib/api'
-import type { PmcEntry, UploadRideResponse } from '../lib/api'
+import type { PmcEntry, Ride, UploadRideResponse } from '../lib/api'
 
 // ---------------------------------------------------------------------------
 // Mock dependencies
@@ -94,6 +95,58 @@ describe('HistoryScreen empty state', () => {
         screen.getByText(/Upload a .FIT file from Zwift/i)
       ).toBeInTheDocument()
     })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Test: RideRow field alignment (item 5 — backend contract match)
+// ---------------------------------------------------------------------------
+
+function makeRide(overrides: Partial<Ride> = {}): Ride {
+  return {
+    id: 'ride-1',
+    user_id: 'user-1',
+    session_id: null,
+    ride_date: '2026-06-21',
+    duration_secs: 3600,
+    np_watts: 180,
+    tss: 65,
+    avg_power: 150,
+    intensity_factor: 0.75,
+    avg_hr: 140,
+    avg_cadence: 85,
+    ftp_used: 200,
+    compliance_pct: null,
+    ...overrides,
+  }
+}
+
+describe('RideRow (item 5 — Ride interface field alignment)', () => {
+  it('renders real formatted duration and average power for a backend-shaped Ride', () => {
+    render(<RideRow ride={makeRide()} />)
+
+    // Duration: 3600s -> "1h 0m" (collapsed row)
+    expect(screen.getAllByText('1h 0m').length).toBeGreaterThan(0)
+
+    // Expand to see avg power
+    fireEvent.click(screen.getByRole('button'))
+    expect(screen.getByText('150 W')).toBeInTheDocument()
+  })
+
+  it('renders graceful fallback (not a crash) when duration_secs/avg_power are null', () => {
+    render(
+      <RideRow
+        ride={makeRide({ duration_secs: null, avg_power: null, np_watts: null, tss: null })}
+      />
+    )
+
+    expect(screen.getAllByText('--').length).toBeGreaterThan(0)
+  })
+
+  it('does not render "Source:" filename text (dead file_name block removed)', () => {
+    render(<RideRow ride={makeRide()} />)
+    fireEvent.click(screen.getByRole('button'))
+    expect(screen.queryByText(/Source:/)).not.toBeInTheDocument()
   })
 })
 
