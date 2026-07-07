@@ -306,7 +306,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Sports-Science Foundation | 6/6 | Complete    | 2026-06-19 |
 | 2. Agent Core | 6/6 | Complete    | 2026-06-20 |
-| 3. Coaching Loop | 6/6 | Complete   | 2026-06-20 |
+| 3. Coaching Loop | 6/6 | Complete    | 2026-06-20 |
 | 4. UI and Calendar | 21/21 | Complete   | 2026-06-21 |
 | 5. During-Session and ZWO Export | 5/5 | Complete    | 2026-06-21 |
 | 6. Core Loop Persistence | 5/5 | Complete    | 2026-07-03 |
