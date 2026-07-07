@@ -455,14 +455,24 @@ def _resolve_scheduled_date(confirm_date: date, week: int, day_name: str) -> dat
 def _resolve_all_scheduled_dates(confirm_date: date, sessions: list[dict]) -> list[date]:
     """
     Resolve every session's (week, day) pair to an absolute date with
-    collision handling (WR-02).
+    collision handling (WR-02, CR-01).
 
-    A Week-1 session whose weekday precedes confirm_date is rolled +7 days,
-    which lands on the exact date of the Week-2 session for the same weekday.
-    When that (or any other) collision occurs, the rolled session is placed on
-    the earliest free date on/after confirm_date instead, so no two sessions
-    ever share a scheduled_date (two 'planned' rows on one date make the
-    ride-session link arbitrary and suppress legitimate missed signals).
+    Guarantees a unique scheduled_date for ANY colliding sessions -- not only
+    the week-1-roll-forward case. Two collision sources are handled:
+
+    1. (CR-01) _build_sessions cycles a preferred_days list shorter than
+       n_sessions (e.g. 2 preferred days, 4 sessions/week -- an ordinary
+       onboarding answer), which produces two distinct sessions sharing the
+       same (week, day) pair in every week. Both would naively resolve to the
+       identical calendar date.
+    2. (WR-02) A Week-1 session whose weekday precedes confirm_date is rolled
+       +7 days, which can land on the exact date of the Week-2 session for
+       the same weekday.
+
+    Without this guarantee, two 'planned' rows land on one date, making
+    rides.py's date-keyed session match arbitrary and causing
+    adaptations.detect_signals to perpetually mis-flag a ridden session as
+    "missed" (corrupts FIT-04/FIT-05/ADAPT-01).
     """
     monday_of_week1 = confirm_date - timedelta(days=confirm_date.weekday())
     naive = [
@@ -473,11 +483,20 @@ def _resolve_all_scheduled_dates(confirm_date: date, sessions: list[dict]) -> li
     resolved: list[date | None] = [None] * len(sessions)
     used: set[date] = set()
 
-    # First pass: sessions needing no roll keep their naive date.
+    # First pass: sessions needing no roll keep their naive date, advancing
+    # past any date already claimed by an earlier session in this same pass
+    # (CR-01: _build_sessions can emit duplicate (week, day) pairs). This
+    # keeps the earliest list-position occurrence of a duplicate naive date
+    # on its natural date and pushes each subsequent duplicate forward to the
+    # next free calendar day. Non-rolled sessions always have
+    # target >= confirm_date, so advancing forward never introduces a past date.
     for i, (session, target) in enumerate(zip(sessions, naive)):
         if not (session["week"] == 1 and target < confirm_date):
-            resolved[i] = target
-            used.add(target)
+            candidate = target
+            while candidate in used:
+                candidate += timedelta(days=1)
+            resolved[i] = candidate
+            used.add(candidate)
 
     # Second pass: rolled Week-1 sessions. Prefer +7 days; on collision take
     # the earliest free date on/after confirm_date.

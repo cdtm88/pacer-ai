@@ -99,6 +99,23 @@ async def _mock_run_turn_with_tools(messages, client, model, trust_scanner, audi
     yield {"event": "done", "data": {}}
 
 
+async def _mock_run_turn_token_then_error(messages, client, model, trust_scanner, audit_log):
+    """
+    WR-06: deterministic mock of run_turn terminating on an error event after
+    one token. Mirrors run_turn's max_tool_turns/unexpected_stop/max_retries
+    paths -- each yields `event: error` and then returns normally (a normal
+    generator exit, NOT a raised exception).
+    """
+    yield {"event": "token", "data": {"text": "partial reply before failure"}}
+    yield {"event": "error", "data": {"code": "unexpected_stop", "message": "boom"}}
+
+
+async def _mock_run_turn_token_then_done(messages, client, model, trust_scanner, audit_log):
+    """WR-06: deterministic mock of run_turn completing normally after one token."""
+    yield {"event": "token", "data": {"text": "complete reply"}}
+    yield {"event": "done", "data": {}}
+
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
@@ -306,4 +323,58 @@ class TestSSEEventSequence:
 
         assert response.status_code == 422, (
             f"Expected 422 for missing conversation_id, got {response.status_code}"
+        )
+
+
+class TestAssistantSinkGating:
+    """
+    WR-06: sse_generator must append to assistant_sink only when run_turn's
+    LAST yielded event is `done`. run_turn's abnormal paths (max_tool_turns,
+    unexpected_stop, max_retries) all yield `event: error` and then `return`
+    normally -- a normal generator exit, not a raised exception -- so gating
+    on "the loop exited without exception" is insufficient; the terminal
+    event type must be tracked explicitly.
+
+    These tests drive sse_generator directly (imported from
+    backend.routes._sse) rather than through the HTTP endpoint, since the
+    behavior under test lives entirely in sse_generator's post-loop gating
+    logic and does not require the FastAPI/auth layer.
+    """
+
+    async def test_sink_not_appended_on_error_terminated_turn(self):
+        """
+        A turn that ends on an error event (mirroring max_tool_turns /
+        unexpected_stop / max_retries) must leave assistant_sink empty --
+        no partial/truncated text is persisted as if the turn completed.
+        """
+        from backend.routes._sse import sse_generator
+
+        sink: list = []
+        async for _ in sse_generator(
+            messages=[],
+            model="test-model",
+            _run_turn=_mock_run_turn_token_then_error,
+            assistant_sink=sink,
+        ):
+            pass
+
+        assert sink == [], (
+            f"expected assistant_sink to stay empty after an error-terminated turn, got: {sink}"
+        )
+
+    async def test_sink_appended_on_normal_completion(self):
+        """A done-terminated turn still persists the accumulated assistant text."""
+        from backend.routes._sse import sse_generator
+
+        sink: list = []
+        async for _ in sse_generator(
+            messages=[],
+            model="test-model",
+            _run_turn=_mock_run_turn_token_then_done,
+            assistant_sink=sink,
+        ):
+            pass
+
+        assert sink == ["complete reply"], (
+            f"expected assistant_sink to hold the accumulated token text, got: {sink}"
         )
