@@ -281,14 +281,20 @@ Plans:
 
 ### Phase 9: Frontend Resilience
 
-**Goal:** The UI survives real-world failure modes: chat recovers from SSE errors and empty tool-only turns (no more bricked input), conversation history reloads instead of creating new conversations, persisted sessions carry id+date so stale records cannot hijack Today or mark the wrong session done, iOS ZWO export works within the user-gesture window, auth callback no longer double-exchanges the code, Ride/Profile field names match the backend, upload invalidates PMC/session queries, and a router error boundary replaces white-screen crashes.
-**Requirements**: TBD
+**Goal:** The UI survives real-world failure modes across the full 14-item Critical+Major app-review list (D-01, not just the original 8): chat recovers from SSE errors and empty tool-only turns (no more bricked input); onboarding streams recover the same way; conversation history reloads the existing conversation instead of creating a new row; persisted sessions carry id+date so stale records cannot hijack Today or mark the wrong session done; live-session resume fast-forwards correctly through multiple elapsed steps; iOS ZWO export works within the user-gesture window and surfaces the real backend error; auth callback no longer double-exchanges the PKCE code; a new sign-in clears cross-account cached data; Ride field names match the backend; upload shows progress, validates drag-drop, and invalidates PMC/session queries; AppLayout uses h-dvh so the chat input stays pinned; and a per-route error boundary replaces white-screen crashes while keeping the nav shell mounted.
+**Requirements**: TBD (phase predates REQ-ID mapping; tracked by the 14 bug-item numbers from 09-RESEARCH.md / 09-CONTEXT.md)
 **Depends on:** Phase 8
-**Plans:** 0 plans
+**Plans:** 7 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 9 to break down)
+- [ ] 09-01-PLAN.md — Chat SSE resilience + shared StreamErrorBanner (items 2, 3)
+- [ ] 09-02-PLAN.md — Stale-session guard + live-resume fast-forward (items 1, 8)
+- [ ] 09-03-PLAN.md — Ride field contract + ZWO export error-shape/iOS (items 5, 6, 7)
+- [ ] 09-04-PLAN.md — Auth + router resilience: cache clear, single-exchange, error boundary (items 10, 11, 12)
+- [ ] 09-05-PLAN.md — Upload progress/drag-drop/invalidation + AppLayout h-dvh (items 14, 9)
+- [ ] 09-06-PLAN.md — Onboarding stream resilience, wave 2 (item 13)
+- [ ] 09-07-PLAN.md — History reload on cache miss, backend read endpoint + frontend, wave 2 (item 4)
 
 ### Phase 10: Hygiene and Safety Nets
 
