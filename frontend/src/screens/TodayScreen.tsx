@@ -5,7 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { SessionCard } from '@/components/session/SessionCard'
 import { DurationPickerModal } from '@/components/session/DurationPickerModal'
 import { getSessionToday, getUpcomingSessions, getLatestPmc } from '@/lib/api'
-import { hasActiveSession } from '@/lib/sessionPersistence'
+import { loadMatchingSession } from '@/lib/sessionPersistence'
 
 function formatNextRideDay(dateStr: string): string {
   const d = new Date(dateStr + 'T12:00:00')
@@ -33,15 +33,6 @@ export function TodayScreen() {
   const navigate = useNavigate()
   const [pickerOpen, setPickerOpen] = useState(false)
 
-  // iOS PWA kill-relaunch opens to start_url ('/') not the last URL.
-  // If a session was in progress (stepStartEpoch still in localStorage),
-  // redirect back immediately so the timer can restore.
-  useEffect(() => {
-    if (hasActiveSession()) {
-      navigate('/session', { replace: true })
-    }
-  }, [navigate])
-
   const {
     data: session,
     isLoading: sessionLoading,
@@ -51,6 +42,19 @@ export function TodayScreen() {
     queryKey: ['session', 'today'],
     queryFn: getSessionToday,
   })
+
+  // iOS PWA kill-relaunch opens to start_url ('/') not the last URL.
+  // If a session was in progress (stepStartEpoch still in localStorage), redirect back
+  // immediately so the timer can restore — but only if the persisted record actually
+  // matches today's real session (item 1, D-06). A stale/mismatched record (different
+  // session, different day) is silently discarded instead of hijacking Today or
+  // resuming the wrong session — no dialog, no toast.
+  useEffect(() => {
+    if (sessionLoading) return
+    if (loadMatchingSession(session?.id ?? null)) {
+      navigate('/session', { replace: true })
+    }
+  }, [navigate, session, sessionLoading])
 
   const {
     data: pmc,

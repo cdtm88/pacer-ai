@@ -6,9 +6,10 @@ import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { useUiStore } from '@/stores/uiStore'
 import {
-  loadSession,
   saveSession,
   clearSession,
+  todayDateString,
+  loadMatchingSession,
   type PersistedSession,
 } from '@/lib/sessionPersistence'
 
@@ -97,25 +98,54 @@ interface RestoredState {
   sessionStartTimestamp: number
 }
 
-function computeRestoredState(saved: PersistedSession | null, steps: SessionStep[]): RestoredState {
+export interface FastForwardResult {
+  stepIndex: number
+  completedDurationSecs: number
+  stepStartEpoch: number
+}
+
+// Walks forward through however many steps' worth of wall-clock time have fully elapsed
+// since stepStartEpoch, landing on the correct in-progress step with the correct remaining
+// time. Pure function of (stepIndex, completedDurationSecs, stepStartEpoch, steps, now) —
+// used both by computeRestoredState (reload path) and the live-resume secondsLeft===0
+// effect (item 8), so both paths fast-forward through multiple elapsed steps identically
+// instead of the live path silently absorbing overshoot with a single goNext().
+export function fastForwardSteps(
+  stepIndex: number,
+  completedDurationSecs: number,
+  stepStartEpoch: number,
+  steps: SessionStep[],
+  now: number
+): FastForwardResult {
+  let idx = stepIndex
+  let completed = completedDurationSecs
+  let elapsedInStepMs = now - stepStartEpoch
+  while (idx < steps.length) {
+    const stepTotalMs = steps[idx].duration * 60 * 1000
+    if (elapsedInStepMs < stepTotalMs) break
+    completed += steps[idx].duration * 60
+    elapsedInStepMs -= stepTotalMs
+    idx++
+  }
+  return { stepIndex: idx, completedDurationSecs: completed, stepStartEpoch: now - elapsedInStepMs }
+}
+
+export function computeRestoredState(saved: PersistedSession | null, steps: SessionStep[]): RestoredState {
   const now = Date.now()
   if (!saved || saved.stepIndex >= steps.length) {
     return { stepIndex: 0, completedDurationSecs: 0, stepStartEpoch: now, sessionStartTimestamp: now }
   }
-  let stepIndex = saved.stepIndex
-  let completedDurationSecs = saved.completedDurationSecs
-  let elapsedInStepMs = now - saved.stepStartEpoch
-  while (stepIndex < steps.length) {
-    const stepTotalMs = steps[stepIndex].duration * 60 * 1000
-    if (elapsedInStepMs < stepTotalMs) break
-    completedDurationSecs += steps[stepIndex].duration * 60
-    elapsedInStepMs -= stepTotalMs
-    stepIndex++
-  }
+  const { stepIndex, completedDurationSecs, stepStartEpoch } = fastForwardSteps(
+    saved.stepIndex,
+    saved.completedDurationSecs,
+    saved.stepStartEpoch,
+    steps,
+    now
+  )
   // Preserve the original sessionStartTimestamp so total elapsed is always
   // computed from Date.now() - sessionStartTimestamp, not re-anchored on restore.
-  const sessionStartTimestamp = saved.sessionStartTimestamp ?? now - (completedDurationSecs * 1000) - elapsedInStepMs
-  return { stepIndex, completedDurationSecs, stepStartEpoch: now - elapsedInStepMs, sessionStartTimestamp }
+  const sessionStartTimestamp = saved.sessionStartTimestamp ?? now - (completedDurationSecs * 1000) - (now - stepStartEpoch)
+  return { stepIndex, completedDurationSecs, stepStartEpoch, sessionStartTimestamp }
 }
 
 // ---------------------------------------------------------------------------
@@ -147,7 +177,10 @@ function SessionRunner({
 
   const restoredRef = useRef<RestoredState | null>(null)
   if (restoredRef.current === null) {
-    restoredRef.current = computeRestoredState(loadSession(), steps)
+    // Item 1, D-06: only trust a persisted record that actually matches this session
+    // (sessionId + today's date). A stale/mismatched record is silently discarded and
+    // restore falls back to a fresh state.
+    restoredRef.current = computeRestoredState(loadMatchingSession(sessionId), steps)
   }
 
   const [currentIndex, setCurrentIndex] = useState(restoredRef.current.stepIndex)
@@ -164,13 +197,18 @@ function SessionRunner({
 
   // Build the persisted payload from current state.
   // freeRideDurationMins is included so iOS kill+reopen can reconstruct free-ride steps.
+  // sessionId + date identify which real session this record belongs to (item 1, D-06) —
+  // every saveSession call site must include both so a stale/mismatched record can be
+  // detected and silently discarded by the consumers that read it back.
   const buildPayload = useCallback(() => ({
+    sessionId,
+    date: todayDateString(),
     stepIndex: currentIndex,
     completedDurationSecs,
     stepStartEpoch,
     sessionStartTimestamp: sessionStartTimestampRef.current,
     ...(freeRideDurationMins != null ? { freeRideDurationMins } : {}),
-  }), [currentIndex, completedDurationSecs, stepStartEpoch, freeRideDurationMins])
+  }), [sessionId, currentIndex, completedDurationSecs, stepStartEpoch, freeRideDurationMins])
 
   const goNext = useCallback(() => {
     if (currentIndex >= steps.length) return
@@ -181,13 +219,15 @@ function SessionRunner({
     setCompletedDurationSecs(nextCompleted)
     setStepStartEpoch(nextEpoch)
     saveSession({
+      sessionId,
+      date: todayDateString(),
       stepIndex: nextIndex,
       completedDurationSecs: nextCompleted,
       stepStartEpoch: nextEpoch,
       sessionStartTimestamp: sessionStartTimestampRef.current,
       ...(freeRideDurationMins != null ? { freeRideDurationMins } : {}),
     })
-  }, [currentIndex, completedDurationSecs, steps, freeRideDurationMins])
+  }, [sessionId, currentIndex, completedDurationSecs, steps, freeRideDurationMins])
 
   // Save on mount — synchronous within the effect, fires before any background suspension.
   useEffect(() => {
@@ -216,9 +256,30 @@ function SessionRunner({
 
   useEffect(() => { if (isDone) clearSession() }, [isDone])
 
+  // Live-resume fast-forward (item 8): when the timer detects the current step has
+  // elapsed, route through the same fastForwardSteps logic computeRestoredState uses on
+  // reload, anchored on the CURRENT stepStartEpoch — not a bare goNext(). This correctly
+  // fast-forwards through however many steps' worth of time actually elapsed (e.g. the
+  // tab was backgrounded through 2+ steps), instead of goNext()'s single-step advance
+  // with a reset full-duration timer silently absorbing the overshoot.
   useEffect(() => {
-    if (!isDone && secondsLeft === 0 && stepDuration > 0) goNext()
-  }, [secondsLeft, isDone, stepDuration, goNext])
+    if (isDone || secondsLeft !== 0 || stepDuration <= 0) return
+    const now = Date.now()
+    const result = fastForwardSteps(currentIndex, completedDurationSecs, stepStartEpoch, steps, now)
+    if (result.stepIndex === currentIndex && result.stepStartEpoch === stepStartEpoch) return
+    setCurrentIndex(result.stepIndex)
+    setCompletedDurationSecs(result.completedDurationSecs)
+    setStepStartEpoch(result.stepStartEpoch)
+    saveSession({
+      sessionId,
+      date: todayDateString(),
+      stepIndex: result.stepIndex,
+      completedDurationSecs: result.completedDurationSecs,
+      stepStartEpoch: result.stepStartEpoch,
+      sessionStartTimestamp: sessionStartTimestampRef.current,
+      ...(freeRideDurationMins != null ? { freeRideDurationMins } : {}),
+    })
+  }, [secondsLeft, isDone, stepDuration, currentIndex, completedDurationSecs, stepStartEpoch, steps, sessionId, freeRideDurationMins])
 
   // ── Session complete ──────────────────────────────────────────────────────
 
@@ -454,7 +515,10 @@ export function DuringSessionScreen() {
 
   // On iOS PWA kill+reopen, Zustand state is wiped — freeRideDurationMins becomes null.
   // Fall back to the value persisted in localStorage so free-ride sessions can restore.
-  const persistedSession = loadSession()
+  // Item 1, D-06: only trust the persisted record once we know today's real session id
+  // (or that the query resolved to no session), so a stale/mismatched record can never
+  // leak a wrong-day or wrong-session freeRideDurationMins into this restore.
+  const persistedSession = sessionLoading ? null : loadMatchingSession(session?.id ?? null)
   const freeRideDurationMins =
     freeRideDurationMinsFromStore ??
     persistedSession?.freeRideDurationMins ??
