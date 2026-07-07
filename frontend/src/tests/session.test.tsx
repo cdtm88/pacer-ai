@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Routes, Route } from 'react-router'
 import React, { useState } from 'react'
@@ -297,11 +297,10 @@ describe('TodayScreen stale-session mismatch guard (item 1, D-06)', () => {
 
     const { TodayScreen } = await import('@/screens/TodayScreen')
     renderTodayScreenAt(TodayScreen)
-    await resolveQuery()
 
     // No redirect — Today's real (empty) state renders instead.
+    await waitFor(() => expect(screen.getByText('No session today')).toBeInTheDocument())
     expect(screen.queryByText('SESSION SCREEN')).toBeNull()
-    expect(screen.getByText('No session today')).toBeInTheDocument()
     // The stale record is gone.
     expect(localStorage.getItem(SESSION_PERSIST_KEY)).toBeNull()
     // D-06: fully silent — no dialog or toast/alert element for the discard.
@@ -322,8 +321,8 @@ describe('TodayScreen stale-session mismatch guard (item 1, D-06)', () => {
 
     const { TodayScreen } = await import('@/screens/TodayScreen')
     renderTodayScreenAt(TodayScreen)
-    await resolveQuery()
 
+    await waitFor(() => expect(screen.getByText('No session today')).toBeInTheDocument())
     expect(screen.queryByText('SESSION SCREEN')).toBeNull()
     expect(localStorage.getItem(SESSION_PERSIST_KEY)).toBeNull()
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -343,9 +342,8 @@ describe('TodayScreen stale-session mismatch guard (item 1, D-06)', () => {
 
     const { TodayScreen } = await import('@/screens/TodayScreen')
     renderTodayScreenAt(TodayScreen)
-    await resolveQuery()
 
-    expect(screen.getByText('SESSION SCREEN')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('SESSION SCREEN')).toBeInTheDocument())
     expect(localStorage.getItem(SESSION_PERSIST_KEY)).not.toBeNull()
   })
 })

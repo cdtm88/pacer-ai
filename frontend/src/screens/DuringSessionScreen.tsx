@@ -6,10 +6,10 @@ import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { useUiStore } from '@/stores/uiStore'
 import {
-  loadSession,
   saveSession,
   clearSession,
   todayDateString,
+  loadMatchingSession,
   type PersistedSession,
 } from '@/lib/sessionPersistence'
 
@@ -148,7 +148,10 @@ function SessionRunner({
 
   const restoredRef = useRef<RestoredState | null>(null)
   if (restoredRef.current === null) {
-    restoredRef.current = computeRestoredState(loadSession(), steps)
+    // Item 1, D-06: only trust a persisted record that actually matches this session
+    // (sessionId + today's date). A stale/mismatched record is silently discarded and
+    // restore falls back to a fresh state.
+    restoredRef.current = computeRestoredState(loadMatchingSession(sessionId), steps)
   }
 
   const [currentIndex, setCurrentIndex] = useState(restoredRef.current.stepIndex)
@@ -462,7 +465,10 @@ export function DuringSessionScreen() {
 
   // On iOS PWA kill+reopen, Zustand state is wiped — freeRideDurationMins becomes null.
   // Fall back to the value persisted in localStorage so free-ride sessions can restore.
-  const persistedSession = loadSession()
+  // Item 1, D-06: only trust the persisted record once we know today's real session id
+  // (or that the query resolved to no session), so a stale/mismatched record can never
+  // leak a wrong-day or wrong-session freeRideDurationMins into this restore.
+  const persistedSession = sessionLoading ? null : loadMatchingSession(session?.id ?? null)
   const freeRideDurationMins =
     freeRideDurationMinsFromStore ??
     persistedSession?.freeRideDurationMins ??

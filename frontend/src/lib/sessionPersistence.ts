@@ -58,3 +58,17 @@ export function todayDateString(): string {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
+
+// Returns the persisted session only if it belongs to today's real session (same id + date).
+// A mismatched (stale) record — a different session, or a different day — must never be
+// trusted as the active session: it is silently discarded (clearSession; no dialog/toast
+// per D-06) so the caller can render/resume real current state instead.
+export function loadMatchingSession(currentSessionId: string | null): PersistedSession | null {
+  const persisted = loadSession()
+  if (!persisted) return null
+  if (persisted.sessionId !== currentSessionId || persisted.date !== todayDateString()) {
+    clearSession()
+    return null
+  }
+  return persisted
+}
