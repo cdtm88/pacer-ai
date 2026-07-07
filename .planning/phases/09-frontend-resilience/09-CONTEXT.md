@@ -16,7 +16,7 @@ The frontend stops silently breaking under real-world conditions — dead chat/S
 ## Implementation Decisions
 
 ### Scope
-- **D-01:** Full 14-item Critical+Major list from `APP-REVIEW-260703.md` is in scope, not just the 8 items ROADMAP.md's goal line names. The 6 additional items: ZWO export error-shape mismatch, iOS ZWO popup-block, live-resume overshoot, `AppLayout` scroll/pin breakage, cross-account query-cache bleed, upload progress/drag-drop validation.
+- **D-01 [informational]:** Full 14-item Critical+Major list from `APP-REVIEW-260703.md` is in scope, not just the 8 items ROADMAP.md's goal line names. The 6 additional items: ZWO export error-shape mismatch, iOS ZWO popup-block, live-resume overshoot, `AppLayout` scroll/pin breakage, cross-account query-cache bleed, upload progress/drag-drop validation. This is a scope-framing decision realized across all 7 plans (items 5/6/7 → 09-03, item 9 → 09-05, item 10 → 09-04, item 14 → 09-05), not a single implementable behavior in one plan — see each item's individual decision/discretion entry above for its specific plan.
 
 ### SSE / Chat Error Recovery
 - **D-02:** On chat SSE stream error: auto-retry silently 1-2 times with backoff; if retries fail, clear `activeStreamUrl`, re-enable input, show an inline error banner with a manual **Retry** button.
