@@ -15,6 +15,7 @@ import { OnboardingScreen } from './screens/OnboardingScreen'
 import { HistoryScreen } from './screens/HistoryScreen'
 import { ChatScreen } from './screens/ChatScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
+import { RouteErrorFallback } from './components/ErrorBoundaryFallback'
 
 // ---------------------------------------------------------------------------
 // RootProvider: activate auth listener at the app root.
@@ -29,7 +30,7 @@ export function RootProvider() {
   // Also fires on user-id change (e.g. switching accounts in the same browser).
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
+      if (event === 'SIGNED_OUT' || event === 'USER_UPDATED' || event === 'SIGNED_IN') {
         queryClient.clear()
       }
     })
@@ -173,22 +174,27 @@ export const router = createBrowserRouter([
                   {
                     index: true,
                     element: <TodayScreen />,
+                    ErrorBoundary: RouteErrorFallback,
                   },
                   {
                     path: 'agenda',
                     element: <AgendaScreen />,
+                    ErrorBoundary: RouteErrorFallback,
                   },
                   {
                     path: 'history',
                     element: <HistoryScreen />,
+                    ErrorBoundary: RouteErrorFallback,
                   },
                   {
                     path: 'chat',
                     element: <ChatScreen />,
+                    ErrorBoundary: RouteErrorFallback,
                   },
                   {
                     path: 'settings',
                     element: <SettingsScreen />,
+                    ErrorBoundary: RouteErrorFallback,
                   },
                 ],
               },

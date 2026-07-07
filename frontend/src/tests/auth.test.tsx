@@ -2,11 +2,12 @@
  * Gate decision tests for AuthGate and FirstRunGate.
  * Tests routing decisions without making Supabase network calls.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, waitFor, act } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { AuthGate, FirstRunGate } from '../router'
+import { AuthGate, FirstRunGate, RootProvider } from '../router'
+import { AuthCallbackScreen } from '../screens/AuthCallbackScreen'
 import { useAuthStore } from '../stores/authStore'
 
 // ---------------------------------------------------------------------------
@@ -26,14 +27,20 @@ vi.mock('../lib/supabase', () => ({
       onAuthStateChange: vi.fn().mockReturnValue({
         data: { subscription: { unsubscribe: vi.fn() } },
       }),
+      // item 11: AuthCallbackScreen must never call this — a PKCE code is
+      // single-use and detectSessionInUrl already consumes it in the
+      // background. Present here only so tests can assert it stays unused.
+      exchangeCodeForSession: vi.fn(),
     },
   },
 }))
 
 import { getProfileMe } from '../lib/api'
 import type { Profile } from '../lib/api'
+import { supabase } from '../lib/supabase'
 
 const mockGetProfileMe = vi.mocked(getProfileMe)
+const mockOnAuthStateChange = vi.mocked(supabase.auth.onAuthStateChange)
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -208,6 +215,154 @@ describe('FirstRunGate', () => {
       expect(screen.getByText('Today screen')).toBeInTheDocument()
     })
     expect(screen.queryByText('Onboarding screen')).not.toBeInTheDocument()
+  })
+})
+
+describe('RootProvider query cache clear on auth transitions (item 10, ASVS V3)', () => {
+  beforeEach(() => {
+    useAuthStore.setState({ session: null, user: null, isLoading: false })
+    vi.clearAllMocks()
+    vi.mocked(supabase.auth.getSession).mockResolvedValue({ data: { session: null } } as never)
+    mockOnAuthStateChange.mockReturnValue({
+      data: { subscription: { unsubscribe: vi.fn() } },
+    } as never)
+  })
+
+  function makeQueryClient() {
+    return new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    })
+  }
+
+  function renderRootProvider(queryClient: QueryClient) {
+    const routes = createMemoryRouter(
+      [
+        {
+          element: <RootProvider />,
+          children: [{ index: true, element: <div>root content</div> }],
+        },
+      ],
+      { initialEntries: ['/'] },
+    )
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={routes} />
+      </QueryClientProvider>,
+    )
+  }
+
+  // RootProvider's own onAuthStateChange listener takes a single `event` arg;
+  // useAuth's listener (also registered via the same mocked function) takes
+  // `(event, newSession)`. Distinguish by arity rather than call order so the
+  // test doesn't depend on hook-registration ordering.
+  function getCacheClearCallback(): (event: string) => void {
+    const call = mockOnAuthStateChange.mock.calls.find(
+      (c) => (c[0] as (...args: unknown[]) => void).length === 1,
+    )
+    if (!call) throw new Error('RootProvider onAuthStateChange callback was not registered')
+    return call[0] as (event: string) => void
+  }
+
+  it('clears the query cache on SIGNED_IN', async () => {
+    const queryClient = makeQueryClient()
+    const clearSpy = vi.spyOn(queryClient, 'clear')
+    renderRootProvider(queryClient)
+
+    await waitFor(() => expect(mockOnAuthStateChange).toHaveBeenCalled())
+    getCacheClearCallback()('SIGNED_IN')
+
+    expect(clearSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('does NOT clear the query cache on TOKEN_REFRESHED (Pitfall 5)', async () => {
+    const queryClient = makeQueryClient()
+    const clearSpy = vi.spyOn(queryClient, 'clear')
+    renderRootProvider(queryClient)
+
+    await waitFor(() => expect(mockOnAuthStateChange).toHaveBeenCalled())
+    getCacheClearCallback()('TOKEN_REFRESHED')
+
+    expect(clearSpy).not.toHaveBeenCalled()
+  })
+
+  it('still clears the query cache on SIGNED_OUT and USER_UPDATED', async () => {
+    const queryClient = makeQueryClient()
+    const clearSpy = vi.spyOn(queryClient, 'clear')
+    renderRootProvider(queryClient)
+
+    await waitFor(() => expect(mockOnAuthStateChange).toHaveBeenCalled())
+    const callback = getCacheClearCallback()
+
+    callback('SIGNED_OUT')
+    expect(clearSpy).toHaveBeenCalledTimes(1)
+
+    callback('USER_UPDATED')
+    expect(clearSpy).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('AuthCallbackScreen single code-consumption (item 11, ASVS V2)', () => {
+  function setLocation(pathAndQuery: string) {
+    window.history.pushState({}, '', pathAndQuery)
+  }
+
+  function renderCallback() {
+    const routes = createMemoryRouter(
+      [
+        { path: '/auth/callback', element: <AuthCallbackScreen /> },
+        { path: '/', element: <div>Home screen</div> },
+        { path: '/login', element: <div>Login screen</div> },
+      ],
+      { initialEntries: ['/auth/callback'] },
+    )
+    render(<RouterProvider router={routes} />)
+  }
+
+  beforeEach(() => {
+    useAuthStore.setState({ session: null, user: null, isLoading: true })
+    setLocation('/auth/callback?code=test-auth-code')
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    setLocation('/')
+  })
+
+  it('navigates to / (replace) once a session appears in the store, without calling exchangeCodeForSession', async () => {
+    renderCallback()
+
+    // Simulates useAuth's global onAuthStateChange populating the store once
+    // detectSessionInUrl resolves the code in the background — AuthCallbackScreen
+    // must react to this, not perform its own exchange.
+    act(() => {
+      useAuthStore.getState().setAuth({
+        session: { access_token: 'tok' } as never,
+        user: { id: 'user-1' } as never,
+        isLoading: false,
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Home screen')).toBeInTheDocument()
+    })
+    expect(supabase.auth.exchangeCodeForSession).not.toHaveBeenCalled()
+  })
+
+  it('navigates to /login when no session resolves within the timeout', async () => {
+    vi.useFakeTimers()
+    renderCallback()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(8000)
+    })
+
+    expect(screen.getByText('Login screen')).toBeInTheDocument()
+    expect(supabase.auth.exchangeCodeForSession).not.toHaveBeenCalled()
+  })
+
+  it('never calls exchangeCodeForSession, even immediately on mount', () => {
+    renderCallback()
+    expect(supabase.auth.exchangeCodeForSession).not.toHaveBeenCalled()
   })
 })
 
