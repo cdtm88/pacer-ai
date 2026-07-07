@@ -284,16 +284,16 @@ Plans:
 **Goal:** The UI survives real-world failure modes across the full 14-item Critical+Major app-review list (D-01, not just the original 8): chat recovers from SSE errors and empty tool-only turns (no more bricked input); onboarding streams recover the same way; conversation history reloads the existing conversation instead of creating a new row; persisted sessions carry id+date so stale records cannot hijack Today or mark the wrong session done; live-session resume fast-forwards correctly through multiple elapsed steps; iOS ZWO export works within the user-gesture window and surfaces the real backend error; auth callback no longer double-exchanges the PKCE code; a new sign-in clears cross-account cached data; Ride field names match the backend; upload shows progress, validates drag-drop, and invalidates PMC/session queries; AppLayout uses h-dvh so the chat input stays pinned; and a per-route error boundary replaces white-screen crashes while keeping the nav shell mounted.
 **Requirements**: TBD (phase predates REQ-ID mapping; tracked by the 14 bug-item numbers from 09-RESEARCH.md / 09-CONTEXT.md)
 **Depends on:** Phase 8
-**Plans:** 7 plans
+**Plans:** 5/7 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 09-01-PLAN.md — Chat SSE resilience + shared StreamErrorBanner (items 2, 3)
-- [ ] 09-02-PLAN.md — Stale-session guard + live-resume fast-forward (items 1, 8)
-- [ ] 09-03-PLAN.md — Ride field contract + ZWO export error-shape/iOS (items 5, 6, 7)
-- [ ] 09-04-PLAN.md — Auth + router resilience: cache clear, single-exchange, error boundary (items 10, 11, 12)
-- [ ] 09-05-PLAN.md — Upload progress/drag-drop/invalidation + AppLayout h-dvh (items 14, 9)
+- [x] 09-01-PLAN.md — Chat SSE resilience + shared StreamErrorBanner (items 2, 3)
+- [x] 09-02-PLAN.md — Stale-session guard + live-resume fast-forward (items 1, 8)
+- [x] 09-03-PLAN.md — Ride field contract + ZWO export error-shape/iOS (items 5, 6, 7)
+- [x] 09-04-PLAN.md — Auth + router resilience: cache clear, single-exchange, error boundary (items 10, 11, 12)
+- [x] 09-05-PLAN.md — Upload progress/drag-drop/invalidation + AppLayout h-dvh (items 14, 9)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -334,7 +334,7 @@ Plans:
 | 6. Core Loop Persistence | 5/5 | Complete    | 2026-07-03 |
 | 7. Deploy Consolidation | 4/4 | Complete    | 2026-07-03 |
 | 8. Trust Model Integrity | 8/8 | Complete    | 2026-07-04 |
-| 9. Frontend Resilience | 0/? | Not planned | - |
+| 9. Frontend Resilience | 5/7 | In Progress|  |
 | 10. Hygiene and Safety Nets | 0/? | Not planned | - |
 | 11. Google Calendar Production Verification | 0/? | Not planned | - |
 
