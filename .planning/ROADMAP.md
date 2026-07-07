@@ -21,7 +21,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 6: Core Loop Persistence** - Persist generated plans as sessions rows, fix FTP/PMC correctness, link rides to sessions, idempotent adaptations (completed 2026-07-03)
 - [x] **Phase 7: Deploy Consolidation** - Vercel is the sole deploy target: remove Railway artifacts, make SSE and background FIT processing serverless-safe, resolve config conflicts, env docs, DB indexes (completed 2026-07-03)
 - [x] **Phase 8: Trust Model Integrity** - Persist audit log, scan tool inputs, tighten attribution, collect LTHR, correct HR zones and load constraints (completed 2026-07-04)
-- [ ] **Phase 9: Frontend Resilience** - Chat SSE recovery and history reload, session persistence staleness, iOS export/auth fixes, contract mismatches, error boundary
+- [x] **Phase 9: Frontend Resilience** - Chat SSE recovery and history reload, session persistence staleness, iOS export/auth fixes, contract mismatches, error boundary (completed 2026-07-07)
 - [ ] **Phase 10: Hygiene and Safety Nets** - Repair stale tests, contract tests, SSE token exchange, rate limiting, CI, repo cleanup
 - [ ] **Phase 11: Google Calendar Production Verification** - Publish privacy policy and ToS pages, add app logo, submit calendar.events scope for Google review, confirm OAuth consent screen moves out of Testing mode
 
@@ -284,7 +284,7 @@ Plans:
 **Goal:** The UI survives real-world failure modes across the full 14-item Critical+Major app-review list (D-01, not just the original 8): chat recovers from SSE errors and empty tool-only turns (no more bricked input); onboarding streams recover the same way; conversation history reloads the existing conversation instead of creating a new row; persisted sessions carry id+date so stale records cannot hijack Today or mark the wrong session done; live-session resume fast-forwards correctly through multiple elapsed steps; iOS ZWO export works within the user-gesture window and surfaces the real backend error; auth callback no longer double-exchanges the PKCE code; a new sign-in clears cross-account cached data; Ride field names match the backend; upload shows progress, validates drag-drop, and invalidates PMC/session queries; AppLayout uses h-dvh so the chat input stays pinned; and a per-route error boundary replaces white-screen crashes while keeping the nav shell mounted.
 **Requirements**: TBD (phase predates REQ-ID mapping; tracked by the 14 bug-item numbers from 09-RESEARCH.md / 09-CONTEXT.md)
 **Depends on:** Phase 8
-**Plans:** 5/7 plans executed
+**Plans:** 7/7 plans complete
 
 Plans:
 **Wave 1**
@@ -297,8 +297,8 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 09-06-PLAN.md — Onboarding stream resilience, wave 2 (item 13)
-- [ ] 09-07-PLAN.md — History reload on cache miss, backend read endpoint + frontend, wave 2 (item 4)
+- [x] 09-06-PLAN.md — Onboarding stream resilience, wave 2 (item 13)
+- [x] 09-07-PLAN.md — History reload on cache miss, backend read endpoint + frontend, wave 2 (item 4)
 
 ### Phase 10: Hygiene and Safety Nets
 
@@ -334,7 +334,7 @@ Plans:
 | 6. Core Loop Persistence | 5/5 | Complete    | 2026-07-03 |
 | 7. Deploy Consolidation | 4/4 | Complete    | 2026-07-03 |
 | 8. Trust Model Integrity | 8/8 | Complete    | 2026-07-04 |
-| 9. Frontend Resilience | 5/7 | In Progress|  |
+| 9. Frontend Resilience | 7/7 | Complete   | 2026-07-07 |
 | 10. Hygiene and Safety Nets | 0/? | Not planned | - |
 | 11. Google Calendar Production Verification | 0/? | Not planned | - |
 
