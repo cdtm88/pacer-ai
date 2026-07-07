@@ -5,6 +5,20 @@ import { getProfileMe } from '../lib/api'
 import { supabase } from '../lib/supabase'
 import { ChatBubble } from '../components/chat/ChatBubble'
 import { ChatInput } from '../components/chat/ChatInput'
+import { StreamErrorBanner } from '../components/chat/StreamErrorBanner'
+
+// ---------------------------------------------------------------------------
+// Retry policy (item 13, D-05): silent retry with backoff, then a terminal
+// error surfaced via StreamErrorBanner. Mirrors the policy in
+// useSSEStream.ts -- keep behavior in sync (Pitfall 1 / Open Question 1).
+// Onboarding cannot literally share useSSEStream (EventSource is GET-only
+// and cannot send an Authorization header or JSON body), so the loop is
+// duplicated here for both fetch-based stream call sites rather than
+// extracting a shared util for two call sites.
+// ---------------------------------------------------------------------------
+
+const MAX_RETRIES = 2
+const BACKOFF_MS = [500, 1500]
 
 // ---------------------------------------------------------------------------
 // Confirmation gate detection (exported for Vitest coverage).
@@ -104,6 +118,12 @@ export function OnboardingScreen() {
   const abortRef = useRef<AbortController | null>(null)
   // WR-005: persist conversation_id across turns so the backend can load prior context.
   const conversationIdRef = useRef<string | null>(null)
+  // Item 13/D-05: pending silent-retry timeout, cleared on unmount to avoid
+  // a retry firing after the component is gone.
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Tracks the last user-sent message so a manual Retry on the initial/turn
+  // stream re-invokes runStream with the same argument.
+  const lastUserMessageRef = useRef<string | undefined>(undefined)
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -122,7 +142,9 @@ export function OnboardingScreen() {
   // ---------------------------------------------------------------------------
 
   const runStream = useCallback(
-    async (userMessage?: string) => {
+    async (userMessage?: string, retryCount = 0) => {
+      lastUserMessageRef.current = userMessage
+
       // Cancel any in-flight stream
       abortRef.current?.abort()
       const controller = new AbortController()
@@ -131,6 +153,18 @@ export function OnboardingScreen() {
       setIsStreaming(true)
       setStreamContent('')
       setStreamError(null)
+
+      // Mirrors the retry policy in useSSEStream.ts -- keep behavior in sync.
+      // Returns true if a silent retry was scheduled (caller should return
+      // without setting a terminal error).
+      const retry = () => {
+        if (retryCount >= MAX_RETRIES) return false
+        const delay = BACKOFF_MS[retryCount]
+        retryTimeoutRef.current = setTimeout(() => {
+          void runStream(userMessage, retryCount + 1)
+        }, delay)
+        return true
+      }
 
       try {
         // WR-005: include conversation_id on subsequent turns so the backend
@@ -152,6 +186,7 @@ export function OnboardingScreen() {
         })
 
         if (!res.ok || !res.body) {
+          if (retry()) return
           setStreamError('Could not connect to coach. Try again.')
           setIsStreaming(false)
           return
@@ -215,6 +250,7 @@ export function OnboardingScreen() {
                 currentEvent = ''
                 accumulatedContent = ''
               } else if (event.type === 'error') {
+                if (retry()) return
                 const msg = (event.data.message as string) ?? 'Stream error'
                 setStreamError(msg)
                 setIsStreaming(false)
@@ -229,6 +265,7 @@ export function OnboardingScreen() {
         }
       } catch (err) {
         if ((err as Error).name === 'AbortError') return
+        if (retry()) return
         setStreamError('Connection lost. Please try again.')
         setIsStreaming(false)
       }
@@ -241,6 +278,7 @@ export function OnboardingScreen() {
     void runStream()
     return () => {
       abortRef.current?.abort()
+      if (retryTimeoutRef.current !== null) clearTimeout(retryTimeoutRef.current)
     }
   }, [runStream])
 
@@ -268,10 +306,120 @@ export function OnboardingScreen() {
   )
 
   // ---------------------------------------------------------------------------
+  // Confirm-stream (save_profile + generate_plan). Split from handleConfirm
+  // so a retry (automatic or manual) re-invokes only the network call, not
+  // the one-time "add confirmation message" UI setup.
+  // ---------------------------------------------------------------------------
+
+  const runConfirmStream = useCallback(
+    async (retryCount = 0) => {
+      // Run stream with confirmation message to trigger save_profile + generate_plan
+      abortRef.current?.abort()
+      const controller = new AbortController()
+      abortRef.current = controller
+
+      setIsStreaming(true)
+      setStreamError(null)
+
+      // Mirrors the retry policy in useSSEStream.ts -- keep behavior in sync.
+      const retry = () => {
+        if (retryCount >= MAX_RETRIES) return false
+        const delay = BACKOFF_MS[retryCount]
+        retryTimeoutRef.current = setTimeout(() => {
+          void runConfirmStream(retryCount + 1)
+        }, delay)
+        return true
+      }
+
+      try {
+        // WR-005: pass conversation_id so the backend loads prior context.
+        const confirmBody: Record<string, string> = {
+          message: 'This looks right. Please save my profile and generate my plan.',
+        }
+        if (conversationIdRef.current) confirmBody.conversation_id = conversationIdRef.current
+        const { data: confirmSessionData } = await supabase.auth.getSession()
+        const confirmToken = confirmSessionData.session?.access_token ?? ''
+        const res = await fetch('/api/onboarding/start', {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            Authorization: `Bearer ${confirmToken}`,
+            Accept: 'text/event-stream',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(confirmBody),
+        })
+
+        if (!res.ok || !res.body) {
+          // Item 13/D-05: this branch previously fell through to
+          // pollForProfile with no error state set at all -- the
+          // stuck-spinner bug. It now sets a terminal error with Retry
+          // once silent retries are exhausted.
+          if (retry()) return
+          setIsStreaming(false)
+          setStreamError("Couldn't save your profile.")
+          return
+        }
+
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+        let currentEvent = ''
+        let accumulatedContent = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() ?? ''
+
+          for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              currentEvent = line.slice(7).trim()
+            } else if (line.startsWith('data: ')) {
+              const dataStr = line.slice(6)
+              const event = parseSSELine(currentEvent, dataStr)
+              if (!event) { currentEvent = ''; continue }
+
+              if (event.type === 'token') {
+                accumulatedContent += (event.data.text as string) ?? ''
+                setStreamContent(accumulatedContent)
+              } else if (event.type === 'done') {
+                setStreamContent('')
+                setIsStreaming(false)
+                setProgress(100)
+                // D-02: poll for profile then navigate to Today
+                await pollForProfile()
+                return
+              } else if (event.type === 'error') {
+                if (retry()) return
+                const msg = (event.data.message as string) ?? "Couldn't save your profile."
+                setStreamError(msg)
+                setIsStreaming(false)
+                return
+              }
+              currentEvent = ''
+            } else if (line === '') {
+              currentEvent = ''
+            }
+          }
+        }
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return
+        if (retry()) return
+        setIsStreaming(false)
+        setStreamError("Couldn't save your profile.")
+      }
+    },
+    [queryClient, navigate]
+  )
+
+  // ---------------------------------------------------------------------------
   // User confirms the onboarding summary
   // ---------------------------------------------------------------------------
 
-  const handleConfirm = useCallback(async () => {
+  const handleConfirm = useCallback(() => {
     setIsConfirmed(true)
     setProgress(95)
     setShowConfirmation(false)
@@ -287,83 +435,23 @@ export function OnboardingScreen() {
       },
     ])
 
-    // Run stream with confirmation message to trigger save_profile + generate_plan
-    abortRef.current?.abort()
-    const controller = new AbortController()
-    abortRef.current = controller
+    void runConfirmStream()
+  }, [runConfirmStream])
 
-    setIsStreaming(true)
+  // ---------------------------------------------------------------------------
+  // Manual Retry (StreamErrorBanner): re-invoke whichever stream failed.
+  // isConfirmed is only true once the confirm-stream has been kicked off, so
+  // it distinguishes "confirm-stream failed" from "initial/turn stream failed".
+  // ---------------------------------------------------------------------------
+
+  const handleRetry = useCallback(() => {
     setStreamError(null)
-
-    try {
-      // WR-005: pass conversation_id so the backend loads prior context.
-      const confirmBody: Record<string, string> = {
-        message: 'This looks right. Please save my profile and generate my plan.',
-      }
-      if (conversationIdRef.current) confirmBody.conversation_id = conversationIdRef.current
-      const { data: confirmSessionData } = await supabase.auth.getSession()
-      const confirmToken = confirmSessionData.session?.access_token ?? ''
-      const res = await fetch('/api/onboarding/start', {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          Authorization: `Bearer ${confirmToken}`,
-          Accept: 'text/event-stream',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(confirmBody),
-      })
-
-      if (!res.ok || !res.body) {
-        setIsStreaming(false)
-        await pollForProfile()
-        return
-      }
-
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      let currentEvent = ''
-      let accumulatedContent = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() ?? ''
-
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            currentEvent = line.slice(7).trim()
-          } else if (line.startsWith('data: ')) {
-            const dataStr = line.slice(6)
-            const event = parseSSELine(currentEvent, dataStr)
-            if (!event) { currentEvent = ''; continue }
-
-            if (event.type === 'token') {
-              accumulatedContent += (event.data.text as string) ?? ''
-              setStreamContent(accumulatedContent)
-            } else if (event.type === 'done') {
-              setStreamContent('')
-              setIsStreaming(false)
-              setProgress(100)
-              // D-02: poll for profile then navigate to Today
-              await pollForProfile()
-              return
-            }
-            currentEvent = ''
-          } else if (line === '') {
-            currentEvent = ''
-          }
-        }
-      }
-    } catch (err) {
-      if ((err as Error).name === 'AbortError') return
-      setIsStreaming(false)
-      await pollForProfile()
+    if (isConfirmed) {
+      void runConfirmStream()
+    } else {
+      void runStream(lastUserMessageRef.current)
     }
-  }, [queryClient, navigate])
+  }, [isConfirmed, runConfirmStream, runStream])
 
   async function pollForProfile() {
     // Poll GET /profiles/me; once a profile exists, invalidate and navigate to Today (D-02)
@@ -524,26 +612,15 @@ export function OnboardingScreen() {
             </div>
           )}
 
-          {/* Error state */}
+          {/* Terminal stream error (item 13/D-05): only rendered after the
+              silent 1-2x auto-retry above has been exhausted. */}
           {streamError && (
-            <div
-              style={{
-                padding: '8px 12px',
-                marginTop: '8px',
-                backgroundColor: 'var(--color-warm-soft)',
-                border: '1px solid var(--color-amber)',
-                borderRadius: '8px',
-              }}
-            >
-              <span
-                style={{
-                  fontSize: '13px',
-                  color: 'var(--color-warn)',
-                }}
-              >
-                Connection lost. Reconnecting...
-              </span>
-            </div>
+            <StreamErrorBanner
+              message={streamError}
+              onRetry={handleRetry}
+              variant="onboarding"
+              style={{ marginTop: '8px' }}
+            />
           )}
         </div>
 
