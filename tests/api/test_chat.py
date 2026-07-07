@@ -176,3 +176,125 @@ async def test_chat_stream_proceeds_with_owned_conversation_id(monkeypatch):
     assert "token" in event_types, f"Expected a token frame, got: {event_types}"
     assert "done" in event_types, f"Expected a done frame, got: {event_types}"
     assert "error" not in event_types, f"Unexpected error frame: {event_types}"
+
+
+# ---------------------------------------------------------------------------
+# GET /conversations/{id}/messages (09-07 Task 1, item 4 / D-04)
+#
+# Backs the frontend's cache-miss reload fix: after the client's
+# ['active-conversation'] query cache is GC'd, the queryFn refetches the
+# EXISTING conversation's history via this endpoint instead of creating a
+# new empty conversation row. T-09-07-01 (IDOR): the endpoint wraps
+# load_conversation (app-layer user_id ownership filter) rather than issuing
+# a new unscoped SELECT.
+# ---------------------------------------------------------------------------
+
+
+async def test_get_conversation_messages_returns_owned_messages(monkeypatch):
+    """
+    Happy path: a valid JWT and a conversation_id owned by the requesting
+    user returns that conversation's {role, content} messages, in
+    chronological order (load_conversation reverses the DESC DB order).
+    """
+    import httpx
+    from httpx import ASGITransport
+    from backend.main import app
+    import backend.routes.onboarding as onboarding_module
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
+
+    owned_id = "22222222-2222-2222-2222-222222222222"
+    # Mock rows are returned as-is (DESC/newest-first, mirroring the real
+    # query's .order("created_at", desc=True)); load_conversation reverses
+    # them to chronological order before returning.
+    messages_data = [
+        {"role": "assistant", "content": "hello!", "created_at": "t2"},
+        {"role": "user", "content": "hi", "created_at": "t1"},
+    ]
+    mock_factory = _make_chat_mock_supabase(
+        conversations_data=[{"id": owned_id}], messages_data=messages_data
+    )
+    monkeypatch.setattr(onboarding_module, "_get_async_supabase", mock_factory)
+
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        response = await client.get(
+            f"/conversations/{owned_id}/messages",
+            headers=auth_headers(),
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "messages": [
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": "hello!"},
+        ]
+    }
+
+
+async def test_get_conversation_messages_foreign_id_returns_empty_list(monkeypatch):
+    """
+    T-09-07-01 (IDOR mitigation): a well-formed conversation_id that does not
+    belong to the requesting user must not leak any messages. load_conversation's
+    app-layer WHERE user_id=<requesting user> filter excludes foreign rows, so
+    the endpoint returns an empty list (not another user's data, not a 404 that
+    would allow conversation-id enumeration).
+    """
+    import httpx
+    from httpx import ASGITransport
+    from backend.main import app
+    import backend.routes.onboarding as onboarding_module
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
+
+    foreign_id = "11111111-1111-1111-1111-111111111111"
+    # Simulates the DB's ownership filter excluding rows belonging to another user.
+    mock_factory = _make_chat_mock_supabase(conversations_data=[], messages_data=[])
+    monkeypatch.setattr(onboarding_module, "_get_async_supabase", mock_factory)
+
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        response = await client.get(
+            f"/conversations/{foreign_id}/messages",
+            headers=auth_headers(),
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"messages": []}
+
+
+async def test_get_conversation_messages_rejects_malformed_id(monkeypatch):
+    """
+    A malformed (non-UUID) conversation_id must be rejected with HTTP 400
+    before it ever reaches load_conversation/Supabase (format validation via
+    validate_uuid fails before any DB query) -- the same defence-in-depth
+    pattern used elsewhere (rides.py, adaptations.py, chat_stream's
+    _resolve_conversation_id).
+    """
+    import httpx
+    from httpx import ASGITransport
+    from backend.main import app
+    import backend.routes.onboarding as onboarding_module
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
+
+    async def _unexpected_supabase():
+        raise AssertionError("must not query Supabase for a malformed conversation_id")
+
+    monkeypatch.setattr(onboarding_module, "_get_async_supabase", _unexpected_supabase)
+
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        response = await client.get(
+            "/conversations/not-a-uuid/messages",
+            headers=auth_headers(),
+        )
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["error"] == "invalid_id"
