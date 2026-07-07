@@ -57,9 +57,18 @@ async def sse_generator(
         assistant_sink: Optional mutable list. When provided, the fully
                         accumulated assistant text (concatenated from all
                         "token" events) is appended as a single string after
-                        the stream completes successfully. Nothing is appended
-                        on the error path. Existing callers that omit this
-                        parameter (e.g. chat.py) are unaffected.
+                        the stream completes on a `done`-terminated turn.
+                        Nothing is appended on the error path (WR-06) --
+                        this now covers BOTH a raised exception AND a turn
+                        whose LAST yielded event is `event: error`. run_turn's
+                        abnormal paths (max_tool_turns, unexpected_stop,
+                        max_retries) each yield an error event and then
+                        `return` normally -- a normal generator exit, not an
+                        exception -- so gating on "the loop exited without
+                        exception" alone would still persist that partial/
+                        truncated text as if the turn completed. Existing
+                        callers that omit this parameter (e.g. chat.py) are
+                        unaffected.
         user_id:        Authenticated user's UUID (260702-wev). Forwarded to
                         run_turn, which injects it server-side into
                         save_profile/generate_plan tool calls.
@@ -72,7 +81,11 @@ async def sse_generator(
       event: <event_type>\\ndata: <json>\\n\\n
 
     Error handling: any unexpected exception from run_turn is caught and emitted
-    as a final `event: error` frame so the stream never dies silently.
+    as a final `event: error` frame so the stream never dies silently. Per
+    WR-06, "nothing is appended on the error path" also applies when run_turn
+    itself yields a terminal `event: error` and returns normally (no exception
+    is raised in that case) -- the post-loop append is gated on the LAST
+    yielded event being `done`, not merely on the loop exiting cleanly.
     """
     # Per-request Anthropic client: reads ANTHROPIC_API_KEY from env.
     # Instantiated here (not at module import) so the module is importable without the key.
@@ -83,6 +96,10 @@ async def sse_generator(
     fn = _run_turn if _run_turn is not None else _default_run_turn
 
     accumulated_text: str = ""
+    # WR-06: tracks the type of the LAST event run_turn yielded, so the
+    # post-loop sink append can be gated on a genuine `done` completion
+    # rather than merely "the loop exited without raising".
+    terminal_event: str | None = None
 
     try:
         kwargs: dict = {}
@@ -95,14 +112,20 @@ async def sse_generator(
 
         async for event in fn(messages, client, model, scan_buffer, audit_log, **kwargs):
             event_type = event["event"]
+            terminal_event = event_type
             data = json.dumps(event["data"])
             yield f"event: {event_type}\ndata: {data}\n\n"
             # Accumulate assistant text from token events for the sink.
             if event_type == "token":
                 accumulated_text += event["data"].get("text", "")
 
-        # Stream completed successfully — publish to sink if provided.
-        if assistant_sink is not None:
+        # WR-06: only publish to the sink when the turn's LAST event was
+        # `done`. run_turn's abnormal paths (max_tool_turns, unexpected_stop,
+        # max_retries) yield `event: error` and then return normally -- a
+        # normal generator exit -- so checking only "no exception was raised"
+        # would still persist that partial/truncated text as if the turn
+        # completed successfully.
+        if assistant_sink is not None and terminal_event == "done":
             assistant_sink.append(accumulated_text)
     except Exception as exc:  # noqa: BLE001
         error_data = json.dumps({"code": "server_error", "message": str(exc)})
