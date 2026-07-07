@@ -287,12 +287,16 @@ Plans:
 **Plans:** 7 plans
 
 Plans:
+**Wave 1**
 
 - [ ] 09-01-PLAN.md — Chat SSE resilience + shared StreamErrorBanner (items 2, 3)
 - [ ] 09-02-PLAN.md — Stale-session guard + live-resume fast-forward (items 1, 8)
 - [ ] 09-03-PLAN.md — Ride field contract + ZWO export error-shape/iOS (items 5, 6, 7)
 - [ ] 09-04-PLAN.md — Auth + router resilience: cache clear, single-exchange, error boundary (items 10, 11, 12)
 - [ ] 09-05-PLAN.md — Upload progress/drag-drop/invalidation + AppLayout h-dvh (items 14, 9)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 09-06-PLAN.md — Onboarding stream resilience, wave 2 (item 13)
 - [ ] 09-07-PLAN.md — History reload on cache miss, backend read endpoint + frontend, wave 2 (item 4)
 
