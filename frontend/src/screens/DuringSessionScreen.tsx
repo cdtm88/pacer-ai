@@ -9,6 +9,7 @@ import {
   loadSession,
   saveSession,
   clearSession,
+  todayDateString,
   type PersistedSession,
 } from '@/lib/sessionPersistence'
 
@@ -164,13 +165,18 @@ function SessionRunner({
 
   // Build the persisted payload from current state.
   // freeRideDurationMins is included so iOS kill+reopen can reconstruct free-ride steps.
+  // sessionId + date identify which real session this record belongs to (item 1, D-06) —
+  // every saveSession call site must include both so a stale/mismatched record can be
+  // detected and silently discarded by the consumers that read it back.
   const buildPayload = useCallback(() => ({
+    sessionId,
+    date: todayDateString(),
     stepIndex: currentIndex,
     completedDurationSecs,
     stepStartEpoch,
     sessionStartTimestamp: sessionStartTimestampRef.current,
     ...(freeRideDurationMins != null ? { freeRideDurationMins } : {}),
-  }), [currentIndex, completedDurationSecs, stepStartEpoch, freeRideDurationMins])
+  }), [sessionId, currentIndex, completedDurationSecs, stepStartEpoch, freeRideDurationMins])
 
   const goNext = useCallback(() => {
     if (currentIndex >= steps.length) return
@@ -181,13 +187,15 @@ function SessionRunner({
     setCompletedDurationSecs(nextCompleted)
     setStepStartEpoch(nextEpoch)
     saveSession({
+      sessionId,
+      date: todayDateString(),
       stepIndex: nextIndex,
       completedDurationSecs: nextCompleted,
       stepStartEpoch: nextEpoch,
       sessionStartTimestamp: sessionStartTimestampRef.current,
       ...(freeRideDurationMins != null ? { freeRideDurationMins } : {}),
     })
-  }, [currentIndex, completedDurationSecs, steps, freeRideDurationMins])
+  }, [sessionId, currentIndex, completedDurationSecs, steps, freeRideDurationMins])
 
   // Save on mount — synchronous within the effect, fires before any background suspension.
   useEffect(() => {
