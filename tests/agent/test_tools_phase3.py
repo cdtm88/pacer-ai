@@ -305,6 +305,40 @@ def test_resolve_all_dates_no_roll_matches_single_resolver():
     assert len(set(dates)) == len(dates)
 
 
+def test_scheduled_dates_unique_when_preferred_days_shorter_than_sessions():
+    """
+    CR-01 regression: the narrow test_week1_rollforward_* / test_resolve_all_dates_no_roll_*
+    tests above only exercise the week-1 roll-forward collision path -- they never cover a
+    preferred_days list shorter than the weekly session count. _build_sessions cycles
+    preferred_days via modulo (e.g. 2 preferred days, 4 sessions/week -- an ordinary
+    onboarding answer), which produces two distinct sessions sharing the same (week, day)
+    pair in every week. Pre-fix, _resolve_all_scheduled_dates' first pass assigned every
+    non-rolled session its naive date without checking for a pre-existing collision, so
+    8 of 16 sessions in a 4-week plan shared a scheduled_date.
+    """
+    import datetime
+    from backend.sports_science.plan import _build_sessions
+    from backend.agent.tools import _resolve_all_scheduled_dates
+
+    sessions = _build_sessions(
+        4.0, "none", [], "insufficient_data", None, preferred_days=["Tuesday", "Thursday"]
+    )
+
+    # Guard: confirm the producer really does emit the collision this test targets,
+    # so the test stays meaningful if _build_sessions' day-cycling logic changes.
+    from collections import Counter
+    pair_counts = Counter((s["week"], s["day"]) for s in sessions)
+    assert any(count > 1 for count in pair_counts.values()), (
+        f"expected _build_sessions to emit a duplicate (week, day) pair, got: {pair_counts}"
+    )
+
+    # 2026-07-06 is a Monday -- no week-1 roll-forward confounds the same-day collision.
+    dates = _resolve_all_scheduled_dates(datetime.date(2026, 7, 6), sessions)
+
+    iso = [d.isoformat() for d in dates]
+    assert len(set(iso)) == len(iso) == 16, f"duplicate scheduled_dates: {dates}"
+
+
 class _FakeToolUseBlock:
     """Minimal stand-in for an Anthropic tool_use content block."""
 
