@@ -548,3 +548,120 @@ describe('ChatScreen', () => {
     }
   })
 })
+
+// ---------------------------------------------------------------------------
+// ChatScreen — cache-miss reload (item 4, D-04)
+//
+// After the ['active-conversation'] query cache is GC'd (5min gcTime,
+// unchanged -- continuity comes from the persisted localStorage id, not a
+// gcTime bump), a queryFn re-invocation with a persisted id must reload the
+// EXISTING conversation's history instead of calling createConversation
+// again. A queryFn re-invocation with a persisted id is indistinguishable
+// from a fresh mount that already has a persisted id, so these tests
+// pre-seed localStorage before render to exercise the same code path.
+// ---------------------------------------------------------------------------
+
+// Minimal in-memory localStorage mock -- jsdom's built-in localStorage is
+// incomplete in this environment (missing .clear()); same pattern as
+// pwa.test.tsx / session.test.tsx.
+function makeLocalStorageMock() {
+  const store: Record<string, string> = {}
+  return {
+    getItem: (key: string) => store[key] ?? null,
+    setItem: (key: string, val: string) => { store[key] = val },
+    removeItem: (key: string) => { delete store[key] },
+    clear: () => { Object.keys(store).forEach((k) => delete store[k]) },
+  }
+}
+
+describe('ChatScreen — cache-miss reload (item 4, D-04)', () => {
+  const STORAGE_KEY = 'pacerai:active-conversation-id'
+
+  beforeEach(() => {
+    MockEventSource.lastInstance = null
+    vi.stubGlobal('EventSource', MockEventSource)
+    vi.stubGlobal('localStorage', makeLocalStorageMock())
+    vi.clearAllMocks()
+    vi.mocked(createConversation).mockResolvedValue({
+      id: 'conv-1',
+      conversation_id: 'conv-1',
+      user_id: 'u-1',
+      title: null,
+      created_at: '',
+      updated_at: '',
+    })
+    vi.mocked(sseUrl).mockResolvedValue(
+      'http://localhost:8000/chat/stream?conversation_id=conv-1&message=hi&token=tok',
+    )
+    vi.mocked(getConversationMessages).mockResolvedValue([])
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('on first mount with no persisted id, creates a conversation (existing behavior) and persists its id', async () => {
+    render(<ChatScreen />, { wrapper: Wrapper })
+
+    await waitFor(() => {
+      expect(createConversation).toHaveBeenCalledWith('Coaching session')
+    })
+    expect(localStorage.getItem(STORAGE_KEY)).toBe('conv-1')
+    expect(getConversationMessages).not.toHaveBeenCalled()
+  })
+
+  it('with a persisted id present, reloads the EXISTING conversation (no createConversation call) and hydrates the message list from getConversationMessages', async () => {
+    localStorage.setItem(STORAGE_KEY, 'conv-existing')
+    vi.mocked(getConversationMessages).mockResolvedValue([
+      { role: 'user', content: 'earlier question' },
+      { role: 'assistant', content: 'earlier answer' },
+    ])
+
+    render(<ChatScreen />, { wrapper: Wrapper })
+
+    await waitFor(() => {
+      expect(getConversationMessages).toHaveBeenCalledWith('conv-existing')
+    })
+    expect(createConversation).not.toHaveBeenCalled()
+
+    await waitFor(() => {
+      expect(screen.getByText('earlier question')).toBeInTheDocument()
+      expect(screen.getByText('earlier answer')).toBeInTheDocument()
+    })
+
+    // A subsequent send re-uses the reloaded (existing) conversation id.
+    await waitFor(() => expect(screen.getByLabelText('Message input')).not.toBeDisabled())
+    const textarea = screen.getByLabelText('Message input')
+    fireEvent.change(textarea, { target: { value: 'hi' } })
+    fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: false })
+    await waitFor(() => {
+      expect(sseUrl).toHaveBeenCalledWith(expect.stringContaining('conversation_id=conv-existing'))
+    })
+    // Drain the EventSource creation so it completes inside this test rather
+    // than firing after afterEach unstubs the global (mirrors the existing
+    // "sseUrl is called with a path..." test's same race-avoidance comment).
+    await waitFor(() => expect(MockEventSource.lastInstance).not.toBeNull())
+  })
+
+  it('shows a brief loading state while an existing conversation reloads, then clears it once messages arrive', async () => {
+    localStorage.setItem(STORAGE_KEY, 'conv-existing')
+    let resolveMessages!: (v: { role: string; content: string }[]) => void
+    const pending = new Promise<{ role: string; content: string }[]>((resolve) => {
+      resolveMessages = resolve
+    })
+    vi.mocked(getConversationMessages).mockReturnValue(pending)
+
+    render(<ChatScreen />, { wrapper: Wrapper })
+
+    expect(screen.getByText('Loading your conversation...')).toBeInTheDocument()
+    expect(screen.queryByText('Ask your coach anything')).toBeNull()
+
+    await act(async () => {
+      resolveMessages([])
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByText('Loading your conversation...')).toBeNull()
+    })
+  })
+})
