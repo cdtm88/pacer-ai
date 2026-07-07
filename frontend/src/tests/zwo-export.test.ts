@@ -68,3 +68,71 @@ describe('exportSessionZwo (item 6 — error-shape parsing)', () => {
     await expect(exportSessionZwo('session-1')).rejects.toThrow('export failed 500')
   })
 })
+
+describe('exportSessionZwo (item 7 — iOS gesture-safe window ordering)', () => {
+  const originalUserAgent = navigator.userAgent
+
+  function setUserAgent(ua: string) {
+    Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true })
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+    setUserAgent(originalUserAgent)
+  })
+
+  it('on iOS, opens the window BEFORE the fetch promise resolves (inside the gesture window)', async () => {
+    setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15')
+
+    let resolveFetch!: (r: Response) => void
+    const pendingFetch = new Promise<Response>((resolve) => {
+      resolveFetch = resolve
+    })
+    vi.mocked(fetch).mockReturnValue(pendingFetch)
+
+    const fakeWindow = { location: { href: '' }, close: vi.fn() }
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(fakeWindow as unknown as Window)
+
+    // Call without awaiting — fetch is still pending, so if window.open has
+    // already been called synchronously, it proves the call happened before
+    // any await, i.e. inside the original click gesture.
+    const exportPromise = exportSessionZwo('session-1')
+
+    expect(openSpy).toHaveBeenCalledTimes(1)
+    expect(openSpy).toHaveBeenCalledWith('', '_blank')
+
+    // Resolve the fetch so the promise settles cleanly (avoid unhandled rejection noise).
+    resolveFetch(
+      makeResponse({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'Content-Disposition': 'attachment; filename="workout.zwo"' }),
+      })
+    )
+    await exportPromise
+    expect(fakeWindow.location.href).toContain('blob:')
+  })
+
+  it('on non-iOS, does not call window.open and uses the hidden-anchor download path', async () => {
+    setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36')
+
+    vi.mocked(fetch).mockResolvedValue(
+      makeResponse({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'Content-Disposition': 'attachment; filename="workout.zwo"' }),
+      })
+    )
+    const openSpy = vi.spyOn(window, 'open')
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    await exportSessionZwo('session-1')
+
+    expect(openSpy).not.toHaveBeenCalled()
+    expect(clickSpy).toHaveBeenCalledTimes(1)
+  })
+})

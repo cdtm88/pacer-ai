@@ -243,47 +243,62 @@ export async function markSessionDone(sessionId: string): Promise<void> {
 // GET /sessions/{id}/export.zwo — downloads the ZWO workout file as a blob
 // Throws a structured Error (carrying the backend error code) on failure so the
 // modal can branch on the code for the correct toast copy (D-07).
-// Uses a hidden anchor + object URL (not window.open) to avoid popup blockers (T-05-13).
+// Non-iOS uses a hidden anchor + object URL to avoid popup blockers (T-05-13).
+// iOS: <a download> is ignored for blob URLs, so a new tab is opened instead
+// (user can Share -> "Open in Zwift" from the iOS share sheet). The window
+// handle MUST be acquired synchronously, as the very first statement, before
+// any await — iOS Safari only treats window.open as user-initiated within the
+// synchronous execution window of the click handler; opening it after the
+// fetch/blob awaits below would get popup-blocked (item 7).
 export async function exportSessionZwo(sessionId: string): Promise<void> {
-  const res = await apiFetch(`/api/sessions/${sessionId}/export.zwo`, {
-    headers: { Accept: 'application/xml' },
-  })
-  if (!res.ok) {
-    // Surface backend structured error detail (shape: {detail: {error, detail}} or {detail: string}).
-    // Error code is checked first (not detail-first like the other helpers below) so that
-    // ZwoExportModal.tsx's `message.includes('session_not_found')` branch stays reachable.
-    let reason = `export failed ${res.status}`
-    try {
-      const body = await res.json()
-      const d = body?.detail
-      const detail = typeof d === 'object' ? d?.error ?? d?.detail : typeof d === 'string' ? d : null
-      if (typeof detail === 'string' && detail.length > 0) reason = detail
-    } catch { /* JSON parse failed — keep status-code fallback */ }
-    throw new Error(reason)
-  }
-  const disposition = res.headers.get('Content-Disposition') ?? ''
-  const filenameMatch = disposition.match(/filename="?([^";\s]+)"?/)
-  const filename = filenameMatch?.[1] ?? 'workout.zwo'
-
-  const blob = new Blob([await res.blob()], { type: 'application/octet-stream' })
-  const url = URL.createObjectURL(blob)
-
-  // iOS Safari ignores <a download> for blob URLs — open in new tab so user
-  // can Share → "Open in Zwift" from the iOS share sheet.
   const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent)
-  if (isIOS) {
-    window.open(url, '_blank')
-    setTimeout(() => URL.revokeObjectURL(url), 60_000)
-    return
-  }
+  const iosWindow = isIOS ? window.open('', '_blank') : null
 
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+  try {
+    const res = await apiFetch(`/api/sessions/${sessionId}/export.zwo`, {
+      headers: { Accept: 'application/xml' },
+    })
+    if (!res.ok) {
+      // Surface backend structured error detail (shape: {detail: {error, detail}} or {detail: string}).
+      // Error code is checked first (not detail-first like the other helpers below) so that
+      // ZwoExportModal.tsx's `message.includes('session_not_found')` branch stays reachable.
+      let reason = `export failed ${res.status}`
+      try {
+        const body = await res.json()
+        const d = body?.detail
+        const detail = typeof d === 'object' ? d?.error ?? d?.detail : typeof d === 'string' ? d : null
+        if (typeof detail === 'string' && detail.length > 0) reason = detail
+      } catch { /* JSON parse failed — keep status-code fallback */ }
+      throw new Error(reason)
+    }
+    const disposition = res.headers.get('Content-Disposition') ?? ''
+    const filenameMatch = disposition.match(/filename="?([^";\s]+)"?/)
+    const filename = filenameMatch?.[1] ?? 'workout.zwo'
+
+    const blob = new Blob([await res.blob()], { type: 'application/octet-stream' })
+    const url = URL.createObjectURL(blob)
+
+    if (iosWindow) {
+      // Navigate the already-open (pre-gesture) window handle — do not call
+      // window.open again here, that second call happens after the awaits
+      // above and would be the exact popup-block bug this fix removes.
+      iosWindow.location.href = url
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+      return
+    }
+
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    // Don't leave a blank about:blank tab open on export failure.
+    iosWindow?.close()
+    throw err
+  }
 }
 
 // Shape returned by POST /rides/upload (not a full Ride object)
