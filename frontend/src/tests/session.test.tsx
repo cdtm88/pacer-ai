@@ -202,9 +202,10 @@ describe('DuringSessionScreen', () => {
     )
     await act(async () => { await Promise.resolve() })
 
-    // Advanced exactly one step — Free ride, not Cool-down.
-    expect(screen.getByText('Free ride')).toBeInTheDocument()
-    expect(screen.queryByText('Cool-down')).toBeNull()
+    // Advanced exactly one step — Free ride (step 2 of 3), not two steps to Cool-down.
+    expect(screen.getByText('Step 2 / 3')).toBeInTheDocument()
+    const stepLabels = screen.getAllByText('Free ride')
+    expect(stepLabels.length).toBeGreaterThan(0)
   })
 
   it('fast-forwards through multiple elapsed steps on live resume (item 8)', async () => {
@@ -239,8 +240,8 @@ describe('DuringSessionScreen', () => {
     )
     await act(async () => { await Promise.resolve() })
 
-    // Landed on the correct step in one hop — not just one step advanced (Free ride).
-    expect(screen.getByText('Cool-down')).toBeInTheDocument()
+    // Landed on the correct step in one hop — step 3 of 3 (Cool-down), not step 2.
+    expect(screen.getByText('Step 3 / 3')).toBeInTheDocument()
     // Correct remaining time in the new step: 180s - 60s = 120s = 02:00.
     expect(screen.getByText('02:00')).toBeInTheDocument()
   })

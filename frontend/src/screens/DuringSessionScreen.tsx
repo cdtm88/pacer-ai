@@ -98,25 +98,54 @@ interface RestoredState {
   sessionStartTimestamp: number
 }
 
-function computeRestoredState(saved: PersistedSession | null, steps: SessionStep[]): RestoredState {
+export interface FastForwardResult {
+  stepIndex: number
+  completedDurationSecs: number
+  stepStartEpoch: number
+}
+
+// Walks forward through however many steps' worth of wall-clock time have fully elapsed
+// since stepStartEpoch, landing on the correct in-progress step with the correct remaining
+// time. Pure function of (stepIndex, completedDurationSecs, stepStartEpoch, steps, now) —
+// used both by computeRestoredState (reload path) and the live-resume secondsLeft===0
+// effect (item 8), so both paths fast-forward through multiple elapsed steps identically
+// instead of the live path silently absorbing overshoot with a single goNext().
+export function fastForwardSteps(
+  stepIndex: number,
+  completedDurationSecs: number,
+  stepStartEpoch: number,
+  steps: SessionStep[],
+  now: number
+): FastForwardResult {
+  let idx = stepIndex
+  let completed = completedDurationSecs
+  let elapsedInStepMs = now - stepStartEpoch
+  while (idx < steps.length) {
+    const stepTotalMs = steps[idx].duration * 60 * 1000
+    if (elapsedInStepMs < stepTotalMs) break
+    completed += steps[idx].duration * 60
+    elapsedInStepMs -= stepTotalMs
+    idx++
+  }
+  return { stepIndex: idx, completedDurationSecs: completed, stepStartEpoch: now - elapsedInStepMs }
+}
+
+export function computeRestoredState(saved: PersistedSession | null, steps: SessionStep[]): RestoredState {
   const now = Date.now()
   if (!saved || saved.stepIndex >= steps.length) {
     return { stepIndex: 0, completedDurationSecs: 0, stepStartEpoch: now, sessionStartTimestamp: now }
   }
-  let stepIndex = saved.stepIndex
-  let completedDurationSecs = saved.completedDurationSecs
-  let elapsedInStepMs = now - saved.stepStartEpoch
-  while (stepIndex < steps.length) {
-    const stepTotalMs = steps[stepIndex].duration * 60 * 1000
-    if (elapsedInStepMs < stepTotalMs) break
-    completedDurationSecs += steps[stepIndex].duration * 60
-    elapsedInStepMs -= stepTotalMs
-    stepIndex++
-  }
+  const { stepIndex, completedDurationSecs, stepStartEpoch } = fastForwardSteps(
+    saved.stepIndex,
+    saved.completedDurationSecs,
+    saved.stepStartEpoch,
+    steps,
+    now
+  )
   // Preserve the original sessionStartTimestamp so total elapsed is always
   // computed from Date.now() - sessionStartTimestamp, not re-anchored on restore.
-  const sessionStartTimestamp = saved.sessionStartTimestamp ?? now - (completedDurationSecs * 1000) - elapsedInStepMs
-  return { stepIndex, completedDurationSecs, stepStartEpoch: now - elapsedInStepMs, sessionStartTimestamp }
+  const sessionStartTimestamp = saved.sessionStartTimestamp ?? now - (completedDurationSecs * 1000) - (now - stepStartEpoch)
+  return { stepIndex, completedDurationSecs, stepStartEpoch, sessionStartTimestamp }
 }
 
 // ---------------------------------------------------------------------------
@@ -227,9 +256,30 @@ function SessionRunner({
 
   useEffect(() => { if (isDone) clearSession() }, [isDone])
 
+  // Live-resume fast-forward (item 8): when the timer detects the current step has
+  // elapsed, route through the same fastForwardSteps logic computeRestoredState uses on
+  // reload, anchored on the CURRENT stepStartEpoch — not a bare goNext(). This correctly
+  // fast-forwards through however many steps' worth of time actually elapsed (e.g. the
+  // tab was backgrounded through 2+ steps), instead of goNext()'s single-step advance
+  // with a reset full-duration timer silently absorbing the overshoot.
   useEffect(() => {
-    if (!isDone && secondsLeft === 0 && stepDuration > 0) goNext()
-  }, [secondsLeft, isDone, stepDuration, goNext])
+    if (isDone || secondsLeft !== 0 || stepDuration <= 0) return
+    const now = Date.now()
+    const result = fastForwardSteps(currentIndex, completedDurationSecs, stepStartEpoch, steps, now)
+    if (result.stepIndex === currentIndex && result.stepStartEpoch === stepStartEpoch) return
+    setCurrentIndex(result.stepIndex)
+    setCompletedDurationSecs(result.completedDurationSecs)
+    setStepStartEpoch(result.stepStartEpoch)
+    saveSession({
+      sessionId,
+      date: todayDateString(),
+      stepIndex: result.stepIndex,
+      completedDurationSecs: result.completedDurationSecs,
+      stepStartEpoch: result.stepStartEpoch,
+      sessionStartTimestamp: sessionStartTimestampRef.current,
+      ...(freeRideDurationMins != null ? { freeRideDurationMins } : {}),
+    })
+  }, [secondsLeft, isDone, stepDuration, currentIndex, completedDurationSecs, stepStartEpoch, steps, sessionId, freeRideDurationMins])
 
   // ── Session complete ──────────────────────────────────────────────────────
 
