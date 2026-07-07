@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router'
 import { ChatBubble } from '@/components/chat/ChatBubble'
 import { ChatInput } from '@/components/chat/ChatInput'
 import { ChatScreen } from '@/screens/ChatScreen'
-import { createConversation, sseUrl } from '@/lib/api'
+import { createConversation, sseUrl, getConversationMessages } from '@/lib/api'
 
 // ---------------------------------------------------------------------------
 // Module mocks -- hoisted before imports by Vitest
@@ -23,7 +23,85 @@ vi.mock('@/lib/api', () => ({
   sseUrl: vi.fn().mockResolvedValue(
     'http://localhost:8000/chat/stream?conversation_id=conv-1&message=hi&token=tok',
   ),
+  getConversationMessages: vi.fn().mockResolvedValue([]),
 }))
+
+// ChatScreen tests below mock '@/lib/api' wholesale (above), so
+// getConversationMessages's REAL implementation (item 4, D-04 — the fetch
+// call, response parsing, and error-detail convention) is exercised
+// separately against the actual module via vi.importActual, mirroring the
+// zwo-export.test.ts / zwo-modal.test.tsx split for the same reason.
+vi.mock('../lib/supabase', () => ({
+  supabase: {
+    auth: {
+      getSession: vi.fn().mockResolvedValue({
+        data: { session: { access_token: 'test-token' } },
+      }),
+    },
+  },
+}))
+
+describe('getConversationMessages (item 4, D-04) — real implementation against mocked fetch', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('issues a GET to /api/conversations/{id}/messages and returns the {role, content}[] array', async () => {
+    const real = await vi.importActual<typeof import('@/lib/api')>('@/lib/api')
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({
+        messages: [
+          { role: 'user', content: 'hi' },
+          { role: 'assistant', content: 'hello!' },
+        ],
+      }),
+    } as unknown as Response)
+
+    const result = await real.getConversationMessages('conv-1')
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/conversations/conv-1/messages'),
+      expect.anything(),
+    )
+    expect(result).toEqual([
+      { role: 'user', content: 'hi' },
+      { role: 'assistant', content: 'hello!' },
+    ])
+  })
+
+  it('throws using the parsed detail.detail/detail.error convention on a non-ok response', async () => {
+    const real = await vi.importActual<typeof import('@/lib/api')>('@/lib/api')
+    vi.mocked(fetch).mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: vi.fn().mockResolvedValue({
+        detail: { error: 'conversation_not_found', detail: 'No conversation found for this user with the given id' },
+      }),
+    } as unknown as Response)
+
+    await expect(real.getConversationMessages('conv-1')).rejects.toThrow(
+      /No conversation found for this user with the given id/,
+    )
+  })
+
+  it('falls back to the status-code message when the error body is not valid JSON', async () => {
+    const real = await vi.importActual<typeof import('@/lib/api')>('@/lib/api')
+    vi.mocked(fetch).mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: vi.fn().mockRejectedValue(new SyntaxError('Unexpected token')),
+    } as unknown as Response)
+
+    await expect(real.getConversationMessages('conv-1')).rejects.toThrow(
+      'getConversationMessages failed: 500',
+    )
+  })
+})
 
 // ---------------------------------------------------------------------------
 // MockEventSource (used in ChatScreen describe block)
