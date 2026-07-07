@@ -35,59 +35,85 @@ export function useSSEStream(url: string | null): SSEStreamState {
     setIsThinking(false)
     setError(null)
 
-    const es = new EventSource(url)
-
     // Track whether the stream completed successfully to suppress the spurious
     // error event that EventSource fires when the server closes the connection
     // after the done event (WR-002).
     let streamCompleted = false
 
-    // token: append streamed text to the accumulating content buffer
-    es.addEventListener('token', (e: MessageEvent) => {
-      try {
-        const { text } = JSON.parse(e.data) as { text: string }
-        setContent((prev) => prev + text)
-      } catch {
-        // malformed token event -- ignore
-      }
-    })
+    // Silent retry-with-backoff (item 2, D-02): a transient error event does
+    // NOT surface to the consumer immediately. It retries up to MAX_RETRIES
+    // times with the same url, so no consumer re-render is required to
+    // trigger a retry attempt. Only after retries are exhausted does the
+    // hook call setError, which is the terminal state the consumer renders
+    // StreamErrorBanner for.
+    let retryCount = 0
+    const MAX_RETRIES = 2
+    const BACKOFF_MS = [500, 1500]
+    let currentEs: EventSource | null = null
+    let retryTimeoutId: ReturnType<typeof setTimeout> | null = null
 
-    // tool_start: show thinking indicator while tool is running
-    es.addEventListener('tool_start', () => {
-      setIsThinking(true)
-    })
+    function openStream() {
+      const es = new EventSource(url as string)
+      currentEs = es
 
-    // tool_result: tool finished; clear thinking indicator
-    es.addEventListener('tool_result', () => {
-      setIsThinking(false)
-    })
-
-    // done: stream complete; close the EventSource
-    es.addEventListener('done', () => {
-      streamCompleted = true
-      setIsDone(true)
-      setIsThinking(false)
-      es.close()
-    })
-
-    // error: surface message and close; ignore post-done connection-close events
-    es.addEventListener('error', (e: Event) => {
-      if (streamCompleted) return // EventSource fires error on normal server close after done
-      try {
-        const data = JSON.parse((e as MessageEvent).data) as {
-          code?: string
-          message?: string
+      // token: append streamed text to the accumulating content buffer
+      es.addEventListener('token', (e: MessageEvent) => {
+        try {
+          const { text } = JSON.parse(e.data) as { text: string }
+          setContent((prev) => prev + text)
+        } catch {
+          // malformed token event -- ignore
         }
-        setError(data.message ?? 'Stream error')
-      } catch {
-        setError('Stream error')
-      }
-      setIsThinking(false)
-      es.close()
-    })
+      })
+
+      // tool_start: show thinking indicator while tool is running
+      es.addEventListener('tool_start', () => {
+        setIsThinking(true)
+      })
+
+      // tool_result: tool finished; clear thinking indicator
+      es.addEventListener('tool_result', () => {
+        setIsThinking(false)
+      })
+
+      // done: stream complete; close the EventSource
+      es.addEventListener('done', () => {
+        streamCompleted = true
+        setIsDone(true)
+        setIsThinking(false)
+        es.close()
+      })
+
+      // error: retry silently up to MAX_RETRIES; only surface to the
+      // consumer (setError) once retries are exhausted. Ignore post-done
+      // connection-close events via the streamCompleted guard.
+      es.addEventListener('error', (e: Event) => {
+        if (streamCompleted) return // EventSource fires error on normal server close after done
+        es.close()
+        if (retryCount < MAX_RETRIES) {
+          const delay = BACKOFF_MS[retryCount]
+          retryCount++
+          retryTimeoutId = setTimeout(openStream, delay)
+          return
+        }
+        try {
+          const data = JSON.parse((e as MessageEvent).data) as {
+            code?: string
+            message?: string
+          }
+          setError(data.message ?? 'Stream error')
+        } catch {
+          setError('Connection failed.')
+        }
+        setIsThinking(false)
+      })
+    }
+
+    openStream()
 
     return () => {
-      es.close()
+      if (retryTimeoutId !== null) clearTimeout(retryTimeoutId)
+      currentEs?.close()
     }
   }, [url])
 
