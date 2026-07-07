@@ -66,6 +66,7 @@ from backend.routes.onboarding import (
     save_messages,
     _resolve_conversation_id,
 )
+from backend.utils import validate_uuid
 
 router = APIRouter()
 
@@ -195,3 +196,37 @@ async def create_chat_conversation(
     user_id = current_user["user_id"]
     conversation_id = await create_conversation(user_id, context_type="coaching")
     return {"conversation_id": conversation_id}
+
+
+@conversations_router.get("/conversations/{conversation_id}/messages")
+async def get_conversation_messages(
+    conversation_id: str,
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """
+    GET /conversations/{conversation_id}/messages
+
+    Returns the {role, content} messages for a conversation, scoped to the
+    authenticated user (item 4, D-04 -- lets the frontend reload an existing
+    conversation's history after the client-side query cache is GC'd,
+    instead of silently starting a new empty conversation).
+
+    user_id is sourced from the verified JWT sub claim (same pattern as the
+    POST handler above and chat_stream), never a client-supplied value.
+
+    T-09-07-01 (IDOR): conversation_id is validated for UUID format via
+    validate_uuid before it reaches any DB query (a malformed id is rejected
+    with HTTP 400 and never queried). This endpoint does NOT write a new
+    SELECT -- it wraps the existing load_conversation helper from
+    onboarding.py, which re-enforces ownership at the application layer via
+    WHERE conversation_id AND user_id (defence-in-depth, same helper
+    chat_stream already uses). A well-formed conversation_id that belongs to
+    a different user therefore returns an empty message list rather than
+    another user's data or a 404 (avoiding conversation-id enumeration).
+
+    Returns: {"messages": [{"role": str, "content": str}, ...]}
+    """
+    validate_uuid(conversation_id, "conversation_id")
+    user_id = current_user["user_id"]
+    messages = await load_conversation(conversation_id, user_id=user_id, limit=20)
+    return {"messages": messages}

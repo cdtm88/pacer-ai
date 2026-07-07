@@ -201,6 +201,29 @@ export async function createConversation(title?: string): Promise<Conversation> 
   return { ...data, id } as unknown as Conversation
 }
 
+// GET /conversations/{id}/messages
+// Item 4 (D-04): backs the ChatScreen cache-miss reload -- when the client
+// query cache is GC'd, the queryFn calls this instead of createConversation
+// so prior conversation history is refetched rather than lost.
+export async function getConversationMessages(
+  conversationId: string
+): Promise<{ role: string; content: string }[]> {
+  const res = await apiFetch(`/api/conversations/${conversationId}/messages`)
+  if (!res.ok) {
+    // Surface backend structured error detail (shape: {detail: {error, detail}} or {detail: string})
+    let reason = `getConversationMessages failed: ${res.status}`
+    try {
+      const body = await res.json()
+      const d = body?.detail
+      const detail = typeof d === 'object' ? d?.detail ?? d?.error : typeof d === 'string' ? d : null
+      if (typeof detail === 'string' && detail.length > 0) reason = detail
+    } catch { /* JSON parse failed — keep status-code fallback */ }
+    throw new Error(reason)
+  }
+  const data = await res.json() as { messages?: { role: string; content: string }[] }
+  return data.messages ?? []
+}
+
 // POST /adaptations/sessions/{id}/missed
 export async function markSessionMissed(sessionId: string): Promise<void> {
   const res = await apiFetch(`/api/adaptations/sessions/${sessionId}/missed`, {

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { createConversation, sseUrl } from '../lib/api'
+import { createConversation, getConversationMessages, sseUrl } from '../lib/api'
 import { useSSEStream } from '../hooks/useSSEStream'
 import { ChatBubble, type BubbleRole } from '../components/chat/ChatBubble'
 import { ChatInput } from '../components/chat/ChatInput'
@@ -10,7 +10,13 @@ import { StreamErrorBanner } from '../components/chat/StreamErrorBanner'
 // ChatScreen: persistent coaching conversation with SSE streaming.
 //
 // Flow:
-//   1. On mount: call createConversation (POST /conversations/) if no id cached
+//   1. On mount: if a conversation id is persisted (localStorage), reload
+//      the EXISTING conversation's messages via getConversationMessages;
+//      otherwise call createConversation (POST /conversations/) and persist
+//      its id. This is item 4 (D-04): after the ['active-conversation']
+//      query cache is GC'd (5min gcTime, unchanged), a reload must resume
+//      the same conversation instead of silently creating a new empty one
+//      -- continuity comes from the persisted id, not from bumping gcTime.
 //   2. User sends a message: open useSSEStream with sseUrl('/chat/stream?conversation_id=...')
 //   3. Render coach/user/adaptation/capability-gap bubbles from message history
 //   4. Show streaming ellipsis while tokens arrive
@@ -20,6 +26,34 @@ import { StreamErrorBanner } from '../components/chat/StreamErrorBanner'
 //
 // Security: streamed content rendered via React safe text (no dangerouslySetInnerHTML).
 // ---------------------------------------------------------------------------
+
+// D-04: localStorage key used to persist the active conversation id across
+// the React Query cache's 5min gcTime window (NOT a gcTime bump — the
+// persisted id is what survives, the cache itself is still GC'd normally).
+const ACTIVE_CONVERSATION_STORAGE_KEY = 'pacerai:active-conversation-id'
+
+function getPersistedConversationId(): string | null {
+  try {
+    return localStorage.getItem(ACTIVE_CONVERSATION_STORAGE_KEY)
+  } catch {
+    return null
+  }
+}
+
+function persistConversationId(id: string): void {
+  try {
+    localStorage.setItem(ACTIVE_CONVERSATION_STORAGE_KEY, id)
+  } catch {
+    // localStorage unavailable (private browsing, quota) — non-fatal; the
+    // conversation simply won't survive a cache-GC reload in this context.
+  }
+}
+
+interface ActiveConversation {
+  id: string
+  /** Present only when this resolution was a reload of an existing conversation. */
+  priorMessages?: { role: string; content: string }[]
+}
 
 interface Message {
   id: string
@@ -62,12 +96,29 @@ function detectBubbleRole(content: string): BubbleRole {
 export function ChatScreen() {
   const queryClient = useQueryClient()
 
-  // Conversation ID persisted via react-query cache
-  const { data: conversation } = useQuery({
+  // Whether a conversation id was already persisted when this component
+  // mounted -- computed once, used only to decide whether to render the
+  // brief "reloading" loading state below (a fresh conversation resolves
+  // near-instantly and doesn't need one).
+  const [hadPersistedConversation] = useState(() => getPersistedConversationId() !== null)
+
+  // Conversation ID persisted via react-query cache + localStorage (D-04).
+  // gcTime is left at its default (5min) deliberately -- cross-GC
+  // continuity comes from the persisted id below, not from a longer gcTime.
+  const { data: conversation, isLoading: isLoadingConversation } = useQuery<ActiveConversation>({
     queryKey: ['active-conversation'],
     queryFn: async () => {
+      const persistedId = getPersistedConversationId()
+      if (persistedId) {
+        // D-04: cache-miss reload -- refetch the EXISTING conversation's
+        // history instead of calling createConversation again (which would
+        // silently create a new empty conversation row and drop history).
+        const priorMessages = await getConversationMessages(persistedId)
+        return { id: persistedId, priorMessages }
+      }
       const conv = await createConversation('Coaching session')
-      return conv
+      persistConversationId(conv.id)
+      return { id: conv.id }
     },
     staleTime: Infinity, // Keep the same conversation for the session
   })
@@ -76,6 +127,26 @@ export function ChatScreen() {
   const [activeStreamUrl, setActiveStreamUrl] = useState<string | null>(null)
   const [pendingUserMessage, setPendingUserMessage] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Hydrate the visible message list once when a reload resolves with prior
+  // messages. Guarded by a ref (not just `messages.length === 0`) so a
+  // later refetch of the same conversation never clobbers messages the user
+  // has since added.
+  const hydratedConversationIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!conversation?.priorMessages) return
+    if (hydratedConversationIdRef.current === conversation.id) return
+    hydratedConversationIdRef.current = conversation.id
+    setMessages(
+      conversation.priorMessages.map((m, i) => ({
+        id: `history-${conversation.id}-${i}`,
+        role: m.role === 'user' ? 'user' : 'coach',
+        content: m.content,
+        bubbleRole: m.role === 'user' ? 'user' : detectBubbleRole(m.content),
+        timestamp: '',
+      })),
+    )
+  }, [conversation])
 
   const { content, isDone, error } = useSSEStream(activeStreamUrl)
 
@@ -177,7 +248,30 @@ export function ChatScreen() {
           padding: '16px',
         }}
       >
-        {messages.length === 0 && !isStreaming && (
+        {/* D-04: brief loading state while an existing conversation's
+            history reloads after a cache-miss, so the empty state doesn't
+            flash before the reloaded history renders. */}
+        {isLoadingConversation && hadPersistedConversation && (
+          <div
+            style={{
+              textAlign: 'center',
+              paddingTop: '60px',
+            }}
+          >
+            <p
+              style={{
+                fontSize: '15px',
+                color: 'var(--color-ink-2)',
+                margin: 0,
+                lineHeight: '1.5',
+              }}
+            >
+              Loading your conversation...
+            </p>
+          </div>
+        )}
+
+        {messages.length === 0 && !isStreaming && !(isLoadingConversation && hadPersistedConversation) && (
           <div
             style={{
               textAlign: 'center',
