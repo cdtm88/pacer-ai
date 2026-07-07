@@ -4,6 +4,7 @@ import { createConversation, sseUrl } from '../lib/api'
 import { useSSEStream } from '../hooks/useSSEStream'
 import { ChatBubble, type BubbleRole } from '../components/chat/ChatBubble'
 import { ChatInput } from '../components/chat/ChatInput'
+import { StreamErrorBanner } from '../components/chat/StreamErrorBanner'
 
 // ---------------------------------------------------------------------------
 // ChatScreen: persistent coaching conversation with SSE streaming.
@@ -13,7 +14,9 @@ import { ChatInput } from '../components/chat/ChatInput'
 //   2. User sends a message: open useSSEStream with sseUrl('/chat/stream?conversation_id=...')
 //   3. Render coach/user/adaptation/capability-gap bubbles from message history
 //   4. Show streaming ellipsis while tokens arrive
-//   5. SSE disconnect: amber reconnect banner above input
+//   5. Transient SSE errors retry silently inside useSSEStream (D-02); once
+//      retries are exhausted, a terminal error clears activeStreamUrl and
+//      renders StreamErrorBanner with a manual Retry.
 //
 // Security: streamed content rendered via React safe text (no dangerouslySetInnerHTML).
 // ---------------------------------------------------------------------------
@@ -71,7 +74,7 @@ export function ChatScreen() {
 
   const [messages, setMessages] = useState<Message[]>([])
   const [activeStreamUrl, setActiveStreamUrl] = useState<string | null>(null)
-  const [_pendingUserMessage, setPendingUserMessage] = useState<string | null>(null)
+  const [pendingUserMessage, setPendingUserMessage] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const { content, isDone, error } = useSSEStream(activeStreamUrl)
@@ -83,9 +86,14 @@ export function ChatScreen() {
     }
   }, [messages, content])
 
-  // When stream completes, commit the accumulated content as a coach message
+  // When stream completes, commit the accumulated content as a coach message.
+  // D-03 (item 3): a tool-only turn produces isDone=true with empty content --
+  // activeStreamUrl/pendingUserMessage must ALWAYS clear on isDone regardless
+  // of content, or handleSend's guard silently bricks every later send. Only
+  // push a coach message when content is non-empty.
   useEffect(() => {
-    if (isDone && content) {
+    if (!isDone) return
+    if (content) {
       setMessages((prev) => [
         ...prev,
         {
@@ -96,14 +104,24 @@ export function ChatScreen() {
           timestamp: formatTime(new Date()),
         },
       ])
-      setActiveStreamUrl(null)
-      setPendingUserMessage(null)
-      // WR-008: do NOT invalidate active-conversation here -- the queryFn calls
-      // createConversation(), so invalidation would create a new DB row and reset
-      // the conversation context on every turn. Only invalidate session/history
-      // queries that reflect content changes from the coaching response.
     }
+    setActiveStreamUrl(null)
+    setPendingUserMessage(null)
+    // WR-008: do NOT invalidate active-conversation here -- the queryFn calls
+    // createConversation(), so invalidation would create a new DB row and reset
+    // the conversation context on every turn. Only invalidate session/history
+    // queries that reflect content changes from the coaching response.
   }, [isDone, content, queryClient])
+
+  // D-02 (item 2): once useSSEStream's silent retries are exhausted and it
+  // surfaces a terminal error, clear activeStreamUrl so isStreaming resolves
+  // to false and the input re-enables. pendingUserMessage is deliberately
+  // NOT cleared here so Retry can re-derive the same request.
+  useEffect(() => {
+    if (error) {
+      setActiveStreamUrl(null)
+    }
+  }, [error])
 
   const handleSend = useCallback(
     async (text: string) => {
@@ -128,6 +146,16 @@ export function ChatScreen() {
     },
     [conversation?.id, activeStreamUrl]
   )
+
+  // Retry re-sends the last user message (no new bubble -- it's already in
+  // the message list) and re-derives a fresh stream URL/token.
+  const handleRetry = useCallback(async () => {
+    if (!conversation?.id || !pendingUserMessage) return
+    const url = await sseUrl(
+      `/api/chat/stream?conversation_id=${encodeURIComponent(conversation.id)}&message=${encodeURIComponent(pendingUserMessage)}`
+    )
+    setActiveStreamUrl(url)
+  }, [conversation?.id, pendingUserMessage])
 
   const isStreaming = activeStreamUrl !== null && !isDone
 
@@ -202,24 +230,13 @@ export function ChatScreen() {
         )}
       </div>
 
-      {/* SSE disconnect banner */}
+      {/* Terminal stream error (retries exhausted) -- manual Retry */}
       {error && (
-        <div
-          style={{
-            padding: '8px 16px',
-            backgroundColor: 'var(--color-warm-soft)',
-            borderTop: '1px solid var(--color-amber)',
-          }}
-        >
-          <span
-            style={{
-              fontSize: '13px',
-              color: 'var(--color-warn)',
-            }}
-          >
-            Connection lost. Reconnecting...
-          </span>
-        </div>
+        <StreamErrorBanner
+          message="Connection failed."
+          onRetry={handleRetry}
+          variant="chat"
+        />
       )}
 
       {/* Input bar */}
