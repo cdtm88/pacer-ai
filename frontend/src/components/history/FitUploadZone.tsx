@@ -27,8 +27,19 @@ export function FitUploadZone() {
         return
       }
       toast.success('Ride uploaded. History updated.')
-      // D-08: invalidate rides query so the list auto-refetches; no redirect
-      await queryClient.invalidateQueries({ queryKey: ['rides'] })
+      // D-08: invalidate every query key affected by a new ride so History,
+      // Today's PMC, and session cards all refresh. Query keys are named
+      // inconsistently across screens (['pmc-history'] vs ['pmc', 'latest']),
+      // so each key is listed explicitly here rather than relying on a
+      // prefix-match shortcut (09-RESEARCH.md Pitfall 2 / Assumption A3).
+      // If a future screen adds a new PMC/session query key, add it here too.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['rides'] }),
+        queryClient.invalidateQueries({ queryKey: ['pmc', 'latest'] }),
+        queryClient.invalidateQueries({ queryKey: ['pmc-history'] }),
+        queryClient.invalidateQueries({ queryKey: ['session', 'today'] }),
+        queryClient.invalidateQueries({ queryKey: ['sessions', 'upcoming'] }),
+      ])
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Unknown error'
@@ -52,9 +63,14 @@ export function FitUploadZone() {
     e.preventDefault()
     setIsDragOver(false)
     const file = e.dataTransfer.files[0]
-    if (file) {
-      void handleUpload(file)
+    if (!file) return
+    // Browsers do not enforce the file-picker's accept=".fit" attribute on
+    // drag-drop, so the extension must be validated here too (item 14b).
+    if (!file.name.toLowerCase().endsWith('.fit')) {
+      toast.error('Only .fit files are supported.')
+      return
     }
+    void handleUpload(file)
   }
 
   function handleClick() {
@@ -151,6 +167,36 @@ export function FitUploadZone() {
           </>
         )}
       </div>
+
+      {/* Indeterminate upload progress bar (09-UI-SPEC.md §4): additive to
+          the existing spinner + text above, rendered only while uploading. */}
+      {isUploading && (
+        <div
+          data-testid="upload-progress-track"
+          style={{
+            height: '3px',
+            borderRadius: '2px',
+            backgroundColor: 'var(--color-line-2)',
+            width: '100%',
+            marginTop: '8px',
+            overflow: 'hidden',
+            position: 'relative',
+          }}
+        >
+          <div
+            data-testid="upload-progress-fill"
+            className="fit-upload-progress-sweep"
+            style={{
+              position: 'absolute',
+              top: 0,
+              height: '100%',
+              width: '40%',
+              borderRadius: '2px',
+              backgroundColor: 'var(--color-blue-6)',
+            }}
+          />
+        </div>
+      )}
     </>
   )
 }

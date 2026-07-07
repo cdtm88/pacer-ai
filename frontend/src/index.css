@@ -49,6 +49,15 @@ body {
   margin: 0;
 }
 
+/* FitUploadZone indeterminate upload progress bar sweep (09-UI-SPEC.md §4) */
+@keyframes fit-upload-progress-sweep {
+  0% { left: -40%; }
+  100% { left: 100%; }
+}
+.fit-upload-progress-sweep {
+  animation: fit-upload-progress-sweep 1.2s ease-in-out infinite;
+}
+
 /* Markdown prose styles for coach chat bubbles */
 .markdown-body p { margin: 0 0 0.5em; }
 .markdown-body p:last-child { margin-bottom: 0; }
