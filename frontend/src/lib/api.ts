@@ -249,8 +249,17 @@ export async function exportSessionZwo(sessionId: string): Promise<void> {
     headers: { Accept: 'application/xml' },
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { error?: string }
-    throw new Error(err?.error ?? `export failed ${res.status}`)
+    // Surface backend structured error detail (shape: {detail: {error, detail}} or {detail: string}).
+    // Error code is checked first (not detail-first like the other helpers below) so that
+    // ZwoExportModal.tsx's `message.includes('session_not_found')` branch stays reachable.
+    let reason = `export failed ${res.status}`
+    try {
+      const body = await res.json()
+      const d = body?.detail
+      const detail = typeof d === 'object' ? d?.error ?? d?.detail : typeof d === 'string' ? d : null
+      if (typeof detail === 'string' && detail.length > 0) reason = detail
+    } catch { /* JSON parse failed — keep status-code fallback */ }
+    throw new Error(reason)
   }
   const disposition = res.headers.get('Content-Disposition') ?? ''
   const filenameMatch = disposition.match(/filename="?([^";\s]+)"?/)
