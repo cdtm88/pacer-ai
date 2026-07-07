@@ -141,3 +141,11 @@ None - no external service configuration required.
 ---
 *Phase: 09-frontend-resilience*
 *Completed: 2026-07-07*
+
+## Self-Check: PASSED
+
+- FOUND: frontend/src/screens/OnboardingScreen.tsx
+- FOUND: frontend/src/tests/onboarding.test.tsx
+- FOUND: .planning/phases/09-frontend-resilience/09-06-SUMMARY.md
+- FOUND: 94e94ae (fix commit)
+- FOUND: f028081 (summary commit)
