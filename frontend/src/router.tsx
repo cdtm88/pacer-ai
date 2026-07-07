@@ -15,6 +15,7 @@ import { OnboardingScreen } from './screens/OnboardingScreen'
 import { HistoryScreen } from './screens/HistoryScreen'
 import { ChatScreen } from './screens/ChatScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
+import { RouteErrorFallback } from './components/ErrorBoundaryFallback'
 
 // ---------------------------------------------------------------------------
 // RootProvider: activate auth listener at the app root.
@@ -173,22 +174,27 @@ export const router = createBrowserRouter([
                   {
                     index: true,
                     element: <TodayScreen />,
+                    ErrorBoundary: RouteErrorFallback,
                   },
                   {
                     path: 'agenda',
                     element: <AgendaScreen />,
+                    ErrorBoundary: RouteErrorFallback,
                   },
                   {
                     path: 'history',
                     element: <HistoryScreen />,
+                    ErrorBoundary: RouteErrorFallback,
                   },
                   {
                     path: 'chat',
                     element: <ChatScreen />,
+                    ErrorBoundary: RouteErrorFallback,
                   },
                   {
                     path: 'settings',
                     element: <SettingsScreen />,
+                    ErrorBoundary: RouteErrorFallback,
                   },
                 ],
               },
