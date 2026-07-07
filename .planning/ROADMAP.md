@@ -92,7 +92,7 @@ Plans:
   4. A missed session causes the agent to re-plan; micro-adjustments (1-3 sessions) are distinguished from macro replanning (2+ signals required); no macro replan shifts more than 30% of upcoming sessions without surfacing a change summary
   5. Every plan change is explained in chat with specific TSS/CTL/ATL/TSB values cited from tool calls and a named sports-science principle; every change is persisted to the adaptation log
 
-**Plans**: 5/5 plans complete
+**Plans**: 6 plans (5 complete, 1 gap-closure pending)
 
 Plans:
 **Wave 1**
@@ -111,6 +111,10 @@ Plans:
 **Wave 4** *(blocked on Wave 3 completion)*
 
 - [x] 03-05-PLAN.md — Wave 4: adaptive re-planning, micro/macro + 30% guard, adaptation log, transparency (ADAPT-01..05, TRANSP-01..03)
+
+**Wave 5 (gap closure)** *(from 03-VERIFICATION.md — CR-01 blocker + WR-06)*
+
+- [ ] 03-06-PLAN.md — Collision-aware scheduled_date resolution (CR-01) + regression test; SSE done-gated assistant persistence (WR-06) (PLAN-01, FIT-04, FIT-05, ADAPT-01, TRANSP-01)
 
 **UI hint**: yes
 
