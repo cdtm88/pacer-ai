@@ -11,14 +11,14 @@ export function AppLayout() {
   return (
     <TooltipProvider>
       <div
-        className="min-h-screen"
+        className="h-dvh"
         style={{ backgroundColor: 'var(--color-bg)' }}
       >
         {/* Desktop sidebar */}
         <DesktopSidebar />
 
         {/* Main content: offset by sidebar on desktop */}
-        <div className="md:ml-60 flex flex-col min-h-screen">
+        <div className="md:ml-60 flex flex-col h-dvh">
           {/* Screen header with Settings gear (mobile: shows gear; desktop: gear also available) */}
           <header
             className="flex items-center justify-end px-4 py-3 shrink-0"
