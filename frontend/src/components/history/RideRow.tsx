@@ -100,7 +100,7 @@ export function RideRow({ ride }: RideRowProps) {
             minWidth: '100px',
           }}
         >
-          {formatDate(ride.ride_date ?? ride.created_at)}
+          {formatDate(ride.ride_date)}
         </span>
 
         {/* Compliance chip */}
@@ -123,7 +123,7 @@ export function RideRow({ ride }: RideRowProps) {
             flexShrink: 0,
           }}
         >
-          {formatDuration(ride.duration_seconds ?? null)}
+          {formatDuration(ride.duration_secs ?? null)}
         </span>
       </button>
 
@@ -164,7 +164,7 @@ export function RideRow({ ride }: RideRowProps) {
                 </div>
               </div>
             )}
-            {ride.avg_power_watts != null && (
+            {ride.avg_power != null && (
               <div>
                 <div
                   style={{
@@ -181,7 +181,7 @@ export function RideRow({ ride }: RideRowProps) {
                     color: 'var(--color-ink)',
                   }}
                 >
-                  {Math.round(ride.avg_power_watts)} W
+                  {Math.round(ride.avg_power)} W
                 </div>
               </div>
             )}
@@ -206,7 +206,7 @@ export function RideRow({ ride }: RideRowProps) {
                 </div>
               </div>
             )}
-            {ride.duration_seconds != null && (
+            {ride.duration_secs != null && (
               <div>
                 <div
                   style={{
@@ -223,7 +223,7 @@ export function RideRow({ ride }: RideRowProps) {
                     color: 'var(--color-ink)',
                   }}
                 >
-                  {formatDuration(ride.duration_seconds)}
+                  {formatDuration(ride.duration_secs)}
                 </div>
               </div>
             )}
@@ -299,19 +299,6 @@ export function RideRow({ ride }: RideRowProps) {
                 </tr>
               </tbody>
             </table>
-          )}
-
-          {/* File name as methodology footnote */}
-          {ride.file_name && (
-            <p
-              style={{
-                margin: 0,
-                fontSize: '12px',
-                color: 'var(--color-ink-3)',
-              }}
-            >
-              Source: {ride.file_name}
-            </p>
           )}
         </div>
       )}

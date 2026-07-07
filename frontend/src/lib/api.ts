@@ -83,15 +83,16 @@ export interface Ride {
   id: string
   user_id: string
   session_id: string | null
-  file_name: string
   ride_date: string
-  duration_seconds: number | null
-  distance_m: number | null
+  duration_secs: number | null
   np_watts: number | null
   tss: number | null
-  avg_power_watts: number | null
+  avg_power: number | null
+  intensity_factor: number | null
+  avg_hr: number | null
+  avg_cadence: number | null
+  ftp_used: number | null
   compliance_pct?: number | null
-  created_at: string
 }
 
 export interface PmcEntry {
