@@ -59,6 +59,18 @@ function Wrapper({ children }: { children: React.ReactNode }) {
   )
 }
 
+// Minimal in-memory localStorage mock — jsdom's built-in localStorage is incomplete in this
+// environment (missing .clear()); same pattern as pwa.test.tsx.
+function makeLocalStorageMock() {
+  const store: Record<string, string> = {}
+  return {
+    getItem: (key: string) => store[key] ?? null,
+    setItem: (key: string, val: string) => { store[key] = val },
+    removeItem: (key: string) => { delete store[key] },
+    clear: () => { Object.keys(store).forEach(k => delete store[k]) },
+  }
+}
+
 async function resolveQuery() {
   // Two microtask rounds to let React Query resolve
   await act(async () => { await Promise.resolve() })
@@ -82,11 +94,14 @@ describe('DuringSessionScreen', () => {
   beforeEach(() => {
     useUiStore.setState({ freeRideDurationMins: null })
     mockAdvanceFn.mockClear()
+    vi.stubGlobal('localStorage', makeLocalStorageMock())
   })
 
   afterEach(() => {
     vi.clearAllMocks()
+    vi.useRealTimers()
     useUiStore.setState({ freeRideDurationMins: null })
+    vi.unstubAllGlobals()
   })
 
   it('renders the first step label and a MM:SS timer', async () => {
@@ -199,5 +214,28 @@ describe('DuringSessionScreen', () => {
     expect(screen.getByText('Session complete')).toBeInTheDocument()
     expect(screen.getByText('3 steps completed')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /back to today/i })).toBeInTheDocument()
+  })
+
+  it('persists sessionId and date alongside step state (item 1, D-06 foundation)', async () => {
+    setupFreeRide()
+    vi.mocked(useSessionTimer).mockReturnValue({ secondsLeft: 180 })
+
+    const { DuringSessionScreen } = await import('@/screens/DuringSessionScreen')
+    render(
+      <Wrapper>
+        <DuringSessionScreen />
+      </Wrapper>
+    )
+
+    await resolveQuery()
+    // Let the resolved session id flow into a re-render + a persistence save.
+    await act(async () => { await Promise.resolve() })
+
+    const raw = localStorage.getItem('pacer-active-session')
+    expect(raw).toBeTruthy()
+    const saved = JSON.parse(raw!)
+    expect(saved).toHaveProperty('sessionId')
+    expect(typeof saved.date).toBe('string')
+    expect(saved.date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 })
