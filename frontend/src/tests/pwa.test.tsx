@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen, fireEvent } from '@testing-library/react'
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { IOSInstallBanner } from '@/components/pwa/IOSInstallBanner'
 
 // Helper: define navigator.userAgent
@@ -50,6 +50,12 @@ beforeEach(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     delete (window as any).ontouchstart
   }
+})
+
+afterEach(() => {
+  // Restore the real jsdom localStorage so this file's stub doesn't leak into
+  // whichever test file runs next in the same worker (was breaking session.test.tsx).
+  vi.unstubAllGlobals()
 })
 
 describe('IOSInstallBanner', () => {
