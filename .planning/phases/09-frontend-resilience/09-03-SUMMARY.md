@@ -174,3 +174,7 @@ None - no external service configuration required.
 ---
 *Phase: 09-frontend-resilience*
 *Completed: 2026-07-07*
+
+## Self-Check: PASSED
+
+All created/modified files confirmed present on disk (`frontend/src/lib/api.ts`, `frontend/src/components/history/RideRow.tsx`, `frontend/src/tests/history.test.tsx`, `frontend/src/tests/zwo-export.test.ts`, this SUMMARY). All 4 commit hashes (`c7ebeea`, `4065855`, `7bf6ca3`, `3359c9d`) confirmed present in `git log --oneline --all`.
