@@ -305,7 +305,13 @@ describe('ChatScreen', () => {
     })
   })
 
-  it('after error event fires before done, "Connection lost. Reconnecting..." banner appears', async () => {
+  // ---------------------------------------------------------------------------
+  // Item 3 (D-03): empty-done-swallow fix -- a tool-only turn (done + empty
+  // content) must always clear activeStreamUrl/pendingUserMessage, silently,
+  // so a subsequent send is never bricked.
+  // ---------------------------------------------------------------------------
+
+  it('a done event with empty content (tool-only turn) clears activeStreamUrl silently and unbricks a subsequent send', async () => {
     render(<ChatScreen />, { wrapper: Wrapper })
     await waitFor(() => expect(screen.getByLabelText('Message input')).not.toBeDisabled())
 
@@ -314,14 +320,153 @@ describe('ChatScreen', () => {
     fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: false })
 
     await waitFor(() => expect(MockEventSource.lastInstance).not.toBeNull())
-    const es = MockEventSource.lastInstance!
+    const firstEs = MockEventSource.lastInstance!
 
     act(() => {
-      es.dispatch('error', { code: 'stream_error', message: 'disconnect' })
+      firstEs.dispatch('done') // no content -- tool-only turn
     })
 
     await waitFor(() => {
-      expect(screen.getByText('Connection lost. Reconnecting...')).toBeInTheDocument()
+      expect(screen.getByLabelText('Message input')).not.toBeDisabled()
     })
+    // No coach bubble was pushed for the empty-content done -- render nothing extra
+    expect(screen.queryByText('Great question!')).toBeNull()
+
+    // A subsequent send must succeed -- previously bricked forever because
+    // activeStreamUrl was never nulled for an empty-content done.
+    fireEvent.change(textarea, { target: { value: 'second message' } })
+    fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: false })
+
+    await waitFor(() => {
+      expect(MockEventSource.lastInstance).not.toBe(firstEs)
+    })
+    expect(screen.getByText('second message')).toBeInTheDocument()
+  })
+
+  it('a done event with non-empty content pushes exactly one coach message and clears activeStreamUrl for a subsequent send', async () => {
+    render(<ChatScreen />, { wrapper: Wrapper })
+    await waitFor(() => expect(screen.getByLabelText('Message input')).not.toBeDisabled())
+
+    const textarea = screen.getByLabelText('Message input')
+    fireEvent.change(textarea, { target: { value: 'hi' } })
+    fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: false })
+
+    await waitFor(() => expect(MockEventSource.lastInstance).not.toBeNull())
+    const firstEs = MockEventSource.lastInstance!
+
+    act(() => {
+      firstEs.dispatch('token', { text: 'Great question!' })
+    })
+    act(() => {
+      firstEs.dispatch('done')
+    })
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Great question!')).toHaveLength(1)
+      expect(screen.getByLabelText('Message input')).not.toBeDisabled()
+    })
+
+    fireEvent.change(textarea, { target: { value: 'second message' } })
+    fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: false })
+
+    await waitFor(() => {
+      expect(MockEventSource.lastInstance).not.toBe(firstEs)
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // Item 2 (D-02): terminal stream error (retries exhausted) renders
+  // StreamErrorBanner with a manual Retry, and the input re-enables. The
+  // stale "Connection lost. Reconnecting..." permanent banner no longer
+  // appears (Pitfall 3).
+  // ---------------------------------------------------------------------------
+
+  it('terminal stream error (after retries exhaust) renders StreamErrorBanner with Retry, and the input re-enables', async () => {
+    render(<ChatScreen />, { wrapper: Wrapper })
+    await waitFor(() => expect(screen.getByLabelText('Message input')).not.toBeDisabled())
+
+    const textarea = screen.getByLabelText('Message input')
+    fireEvent.change(textarea, { target: { value: 'hi' } })
+    fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: false })
+
+    await waitFor(() => expect(MockEventSource.lastInstance).not.toBeNull())
+
+    vi.useFakeTimers()
+    try {
+      let es = MockEventSource.lastInstance!
+      act(() => {
+        es.dispatch('error', { message: 'fail 1' })
+      })
+      act(() => {
+        vi.advanceTimersByTime(500)
+      })
+      es = MockEventSource.lastInstance!
+      act(() => {
+        es.dispatch('error', { message: 'fail 2' })
+      })
+      act(() => {
+        vi.advanceTimersByTime(1500)
+      })
+      es = MockEventSource.lastInstance!
+      act(() => {
+        es.dispatch('error', { message: 'fail 3 terminal' })
+      })
+
+      expect(screen.getByText('Connection failed.')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+      expect(screen.getByLabelText('Message input')).not.toBeDisabled()
+      expect(screen.queryByText('Connection lost. Reconnecting...')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('clicking Retry re-derives the stream URL from the last sent message and re-enters streaming, clearing the banner', async () => {
+    render(<ChatScreen />, { wrapper: Wrapper })
+    await waitFor(() => expect(screen.getByLabelText('Message input')).not.toBeDisabled())
+
+    const textarea = screen.getByLabelText('Message input')
+    fireEvent.change(textarea, { target: { value: 'hi' } })
+    fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: false })
+
+    await waitFor(() => expect(MockEventSource.lastInstance).not.toBeNull())
+    const firstEs = MockEventSource.lastInstance!
+    const callsBeforeRetry = vi.mocked(sseUrl).mock.calls.length
+
+    vi.useFakeTimers()
+    try {
+      let es = firstEs
+      act(() => {
+        es.dispatch('error', { message: 'fail 1' })
+      })
+      act(() => {
+        vi.advanceTimersByTime(500)
+      })
+      es = MockEventSource.lastInstance!
+      act(() => {
+        es.dispatch('error', { message: 'fail 2' })
+      })
+      act(() => {
+        vi.advanceTimersByTime(1500)
+      })
+      es = MockEventSource.lastInstance!
+      act(() => {
+        es.dispatch('error', { message: 'fail 3 terminal' })
+      })
+
+      expect(screen.getByText('Connection failed.')).toBeInTheDocument()
+
+      const retryButton = screen.getByRole('button', { name: /retry/i })
+      await act(async () => {
+        fireEvent.click(retryButton)
+      })
+
+      expect(vi.mocked(sseUrl).mock.calls.length).toBeGreaterThan(callsBeforeRetry)
+      expect(vi.mocked(sseUrl).mock.calls.at(-1)?.[0]).toContain('message=hi')
+      expect(screen.queryByText('Connection failed.')).toBeNull()
+      expect(screen.getByLabelText('Message input')).toBeDisabled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
