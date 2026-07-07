@@ -8,7 +8,11 @@
     "backend": {
       "root": ".",
       "entrypoint": "api.index:app",
-      "maxDuration": 60
+      "functions": {
+        "api/index.py": {
+          "maxDuration": 60
+        }
+      }
     }
   },
   "rewrites": [
