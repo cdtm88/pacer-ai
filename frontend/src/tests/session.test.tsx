@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter } from 'react-router'
-import React from 'react'
+import { MemoryRouter, Routes, Route } from 'react-router'
+import React, { useState } from 'react'
 
 // ---------------------------------------------------------------------------
 // Mocks — set up before imports that use them
@@ -26,10 +26,22 @@ vi.mock('@/lib/api', () => ({
   }),
   getProfileMe: vi.fn().mockResolvedValue(null),
   markSessionDone: vi.fn().mockResolvedValue(undefined),
+  getUpcomingSessions: vi.fn().mockResolvedValue([]),
+  getLatestPmc: vi.fn().mockResolvedValue(null),
+  markSessionMissed: vi.fn().mockResolvedValue(undefined),
+  exportSessionZwo: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@/hooks/useWakeLock', () => ({
   useWakeLock: vi.fn(),
+}))
+
+vi.mock('sonner', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+  },
 }))
 
 // Timer mock: controls the return value per test by setting this ref
@@ -50,8 +62,11 @@ function makeQueryClient() {
 }
 
 function Wrapper({ children }: { children: React.ReactNode }) {
+  // Lazy-init the client once so a `rerender()` on the same root (used by the
+  // live-resume fast-forward tests) does not reset the React Query cache.
+  const [client] = useState(() => makeQueryClient())
   return (
-    <QueryClientProvider client={makeQueryClient()}>
+    <QueryClientProvider client={client}>
       <MemoryRouter>
         {children}
       </MemoryRouter>
@@ -83,6 +98,8 @@ async function resolveQuery() {
 
 import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { useUiStore } from '@/stores/uiStore'
+import { getSessionToday } from '@/lib/api'
+import { saveSession, todayDateString, SESSION_PERSIST_KEY } from '@/lib/sessionPersistence'
 
 // Use the free-ride path to bypass the useQuery for deterministic step data
 // Steps become: Warm-up (3min), Free ride (24min), Cool-down (3min) for 30min ride
@@ -237,5 +254,141 @@ describe('DuringSessionScreen', () => {
     expect(saved).toHaveProperty('sessionId')
     expect(typeof saved.date).toBe('string')
     expect(saved.date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Stale-session mismatch guard (item 1, D-06)
+// ---------------------------------------------------------------------------
+
+function renderTodayScreenAt(TodayScreen: React.ComponentType) {
+  return render(
+    <QueryClientProvider client={makeQueryClient()}>
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route path="/" element={<TodayScreen />} />
+          <Route path="/session" element={<div>SESSION SCREEN</div>} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+describe('TodayScreen stale-session mismatch guard (item 1, D-06)', () => {
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', makeLocalStorageMock())
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('mismatched sessionId is silently discarded — no redirect, no dialog/toast', async () => {
+    saveSession({
+      sessionId: 'stale-session-999',
+      date: todayDateString(),
+      stepIndex: 1,
+      completedDurationSecs: 60,
+      stepStartEpoch: Date.now(),
+      sessionStartTimestamp: Date.now(),
+    })
+    vi.mocked(getSessionToday).mockResolvedValueOnce(null)
+
+    const { TodayScreen } = await import('@/screens/TodayScreen')
+    renderTodayScreenAt(TodayScreen)
+    await resolveQuery()
+
+    // No redirect — Today's real (empty) state renders instead.
+    expect(screen.queryByText('SESSION SCREEN')).toBeNull()
+    expect(screen.getByText('No session today')).toBeInTheDocument()
+    // The stale record is gone.
+    expect(localStorage.getItem(SESSION_PERSIST_KEY)).toBeNull()
+    // D-06: fully silent — no dialog or toast/alert element for the discard.
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('mismatched date is silently discarded — no redirect, no dialog/toast', async () => {
+    saveSession({
+      sessionId: null,
+      date: '2000-01-01',
+      stepIndex: 0,
+      completedDurationSecs: 0,
+      stepStartEpoch: Date.now(),
+      sessionStartTimestamp: Date.now(),
+    })
+    vi.mocked(getSessionToday).mockResolvedValueOnce(null)
+
+    const { TodayScreen } = await import('@/screens/TodayScreen')
+    renderTodayScreenAt(TodayScreen)
+    await resolveQuery()
+
+    expect(screen.queryByText('SESSION SCREEN')).toBeNull()
+    expect(localStorage.getItem(SESSION_PERSIST_KEY)).toBeNull()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('matching sessionId + date resumes — redirects to /session, record left intact', async () => {
+    saveSession({
+      sessionId: null,
+      date: todayDateString(),
+      stepIndex: 1,
+      completedDurationSecs: 60,
+      stepStartEpoch: Date.now(),
+      sessionStartTimestamp: Date.now(),
+    })
+    vi.mocked(getSessionToday).mockResolvedValueOnce(null)
+
+    const { TodayScreen } = await import('@/screens/TodayScreen')
+    renderTodayScreenAt(TodayScreen)
+    await resolveQuery()
+
+    expect(screen.getByText('SESSION SCREEN')).toBeInTheDocument()
+    expect(localStorage.getItem(SESSION_PERSIST_KEY)).not.toBeNull()
+  })
+})
+
+describe('DuringSessionScreen stale-session mismatch guard (item 1, D-06)', () => {
+  beforeEach(() => {
+    useUiStore.setState({ freeRideDurationMins: null })
+    vi.stubGlobal('localStorage', makeLocalStorageMock())
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+    useUiStore.setState({ freeRideDurationMins: null })
+    vi.unstubAllGlobals()
+  })
+
+  it('mismatched persisted session is discarded — live session starts fresh from step 0', async () => {
+    saveSession({
+      sessionId: 'some-other-session',
+      date: todayDateString(),
+      stepIndex: 2, // would be Cool-down if trusted
+      completedDurationSecs: 1620,
+      stepStartEpoch: Date.now(),
+      sessionStartTimestamp: Date.now(),
+    })
+    setupFreeRide()
+    vi.mocked(useSessionTimer).mockReturnValue({ secondsLeft: 180 })
+
+    const { DuringSessionScreen } = await import('@/screens/DuringSessionScreen')
+    render(
+      <Wrapper>
+        <DuringSessionScreen />
+      </Wrapper>
+    )
+    await resolveQuery()
+
+    // Discarded the mismatched record and rendered fresh state (step 0: Warm-up) —
+    // not the stale record's step 2 (Cool-down).
+    expect(screen.getByText('Warm-up')).toBeInTheDocument()
+    expect(screen.queryByText('Cool-down')).toBeNull()
+
+    const stored = JSON.parse(localStorage.getItem(SESSION_PERSIST_KEY)!)
+    expect(stored.stepIndex).toBe(0)
+    expect(stored.sessionId).not.toBe('some-other-session')
   })
 })
