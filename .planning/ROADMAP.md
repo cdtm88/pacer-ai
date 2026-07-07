@@ -92,7 +92,7 @@ Plans:
   4. A missed session causes the agent to re-plan; micro-adjustments (1-3 sessions) are distinguished from macro replanning (2+ signals required); no macro replan shifts more than 30% of upcoming sessions without surfacing a change summary
   5. Every plan change is explained in chat with specific TSS/CTL/ATL/TSB values cited from tool calls and a named sports-science principle; every change is persisted to the adaptation log
 
-**Plans**: 6 plans (5 complete, 1 gap-closure pending)
+**Plans**: 6/6 plans complete
 
 Plans:
 **Wave 1**
@@ -114,7 +114,7 @@ Plans:
 
 **Wave 5 (gap closure)** *(from 03-VERIFICATION.md — CR-01 blocker + WR-06)*
 
-- [ ] 03-06-PLAN.md — Collision-aware scheduled_date resolution (CR-01) + regression test; SSE done-gated assistant persistence (WR-06) (PLAN-01, FIT-04, FIT-05, ADAPT-01, TRANSP-01)
+- [x] 03-06-PLAN.md — Collision-aware scheduled_date resolution (CR-01) + regression test; SSE done-gated assistant persistence (WR-06) (PLAN-01, FIT-04, FIT-05, ADAPT-01, TRANSP-01)
 
 **UI hint**: yes
 
@@ -306,7 +306,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Sports-Science Foundation | 6/6 | Complete    | 2026-06-19 |
 | 2. Agent Core | 6/6 | Complete    | 2026-06-20 |
-| 3. Coaching Loop | 5/5 | Complete    | 2026-06-20 |
+| 3. Coaching Loop | 6/6 | Complete   | 2026-06-20 |
 | 4. UI and Calendar | 21/21 | Complete   | 2026-06-21 |
 | 5. During-Session and ZWO Export | 5/5 | Complete    | 2026-06-21 |
 | 6. Core Loop Persistence | 5/5 | Complete    | 2026-07-03 |
