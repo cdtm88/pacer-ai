@@ -186,6 +186,19 @@ export function OnboardingScreen() {
         })
 
         if (!res.ok || !res.body) {
+          // Item 6 (D-02/D-03, 10-UI-SPEC interaction rule): a 429 skips the
+          // silent retry entirely -- retrying immediately against a rate
+          // limit compounds the problem it's meant to prevent.
+          if (res.status === 429) {
+            const body = await res.json().catch(() => ({}))
+            setStreamError(
+              body.detail?.detail ??
+                body.detail ??
+                "You're sending messages a bit fast. Wait a moment and try again."
+            )
+            setIsStreaming(false)
+            return
+          }
           if (retry()) return
           setStreamError('Could not connect to coach. Try again.')
           setIsStreaming(false)
@@ -351,6 +364,19 @@ export function OnboardingScreen() {
         })
 
         if (!res.ok || !res.body) {
+          // Item 6 (D-02/D-03, 10-UI-SPEC interaction rule): a 429 skips the
+          // silent retry entirely -- retrying immediately against a rate
+          // limit compounds the problem it's meant to prevent.
+          if (res.status === 429) {
+            const body = await res.json().catch(() => ({}))
+            setIsStreaming(false)
+            setStreamError(
+              body.detail?.detail ??
+                body.detail ??
+                "You're sending messages a bit fast. Wait a moment and try again."
+            )
+            return
+          }
           // Item 13/D-05: this branch previously fell through to
           // pollForProfile with no error state set at all -- the
           // stuck-spinner bug. It now sets a terminal error with Retry

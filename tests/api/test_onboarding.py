@@ -16,7 +16,18 @@ asyncio_mode = auto (pytest.ini) -- no @pytest.mark.asyncio needed.
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
+import backend.rate_limit as rate_limit_module
 from tests.api.conftest import TEST_USER_ID, parse_sse_frames, TEST_JWT_SECRET, auth_headers
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limit_log():
+    """Item 6: reset the rate-limit module's request log between tests so
+    exhausting the budget in one test doesn't bleed into another (this file's
+    tests share TEST_USER_ID)."""
+    rate_limit_module._request_log.clear()
+    yield
+    rate_limit_module._request_log.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -592,3 +603,41 @@ def test_onboarding_prompt_covers_lthr_question_and_branches():
     assert "Here is what I have" in prompt
     assert "TOOL ORDER" in prompt
     assert "save_profile" in prompt and "calculate_hr_zones" in prompt and "generate_plan" in prompt
+
+
+# ---------------------------------------------------------------------------
+# Item 6 (D-02/D-03): rate limiting on POST /onboarding/start
+# ---------------------------------------------------------------------------
+
+
+async def test_onboarding_start_over_limit_returns_429(monkeypatch):
+    """
+    Item 6: the (N+1)th POST /onboarding/start within the window returns HTTP
+    429 with a structured body ({"error": "rate_limited", ...}) the
+    frontend's !res.ok branch can read.
+    """
+    import httpx
+    from httpx import ASGITransport
+    from backend.main import app
+    import backend.routes.onboarding as onboarding_module
+    from backend.rate_limit import MAX_REQUESTS_PER_WINDOW
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
+    monkeypatch.setattr(onboarding_module, "run_turn", _mock_interview_run_turn)
+
+    mock_factory, _ = _make_onboarding_mock_supabase()
+    monkeypatch.setattr(onboarding_module, "_get_async_supabase", mock_factory)
+
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        for _ in range(MAX_REQUESTS_PER_WINDOW):
+            r = await client.post("/onboarding/start", headers=auth_headers())
+            assert r.status_code == 200
+
+        response = await client.post("/onboarding/start", headers=auth_headers())
+
+    assert response.status_code == 429
+    body = response.json()
+    assert body["detail"]["error"] == "rate_limited"

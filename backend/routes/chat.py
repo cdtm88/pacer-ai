@@ -61,6 +61,7 @@ from fastapi.responses import StreamingResponse
 # Passing run_turn to sse_generator as _run_turn keeps the monkeypatch effective.
 from backend.agent.loop import run_turn  # noqa: F401 (passed to sse_generator for test compat)
 from backend.auth import get_current_user
+from backend.rate_limit import is_rate_limited
 from backend.routes._sse import sse_generator
 from backend.routes.onboarding import (
     create_conversation,
@@ -160,6 +161,29 @@ async def chat_stream(
     """
     user_id = current_user["user_id"]
     model = os.environ.get("ANTHROPIC_MODEL", _DEFAULT_MODEL)
+
+    # Item 6 (D-02/D-03): best-effort per-user_id rate limit, checked
+    # synchronously BEFORE any streaming begins. A 429 cannot be raised once
+    # StreamingResponse iteration starts (the 200/text-event-stream headers
+    # are already committed), so an over-limit request instead returns a
+    # StreamingResponse yielding a single `error` frame -- mirrors the
+    # existing _invalid_conversation_stream pattern below.
+    if is_rate_limited(user_id):
+        async def _rate_limited_stream():
+            error_data = json.dumps({
+                "code": "rate_limited",
+                "message": "You're sending messages a bit fast. Wait a moment and try again.",
+            })
+            yield f"event: error\ndata: {error_data}\n\n"
+
+        return StreamingResponse(
+            _rate_limited_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",  # Nginx: disables proxy response buffering (Pitfall 2)
+            },
+        )
 
     # CR-03: reject an unverified conversation_id before it reaches any
     # read/write path (load_conversation, sse_generator's audit writes,
