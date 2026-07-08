@@ -305,7 +305,7 @@ Plans:
 **Goal:** The test suite is green and guards the seams: 8 stale SSE tests authenticate properly, capability-gap test-order leak fixed, Playwright mocks match real response shapes, frontend-backend contract tests added (would have caught the Ride/Profile/FTP-key mismatches), short-lived SSE token exchange removes JWTs from query strings, LLM endpoints rate-limited, CI runs pytest+vitest+ruff, repo cleaned (root node_modules, test-ride.fit, root .gitignore).
 **Requirements**: TBD (phase predates REQ-ID mapping; tracked by the 8 scope items in the goal line, covered as ITEM-01..ITEM-08)
 **Depends on:** Phase 9
-**Plans:** 5/5 plans complete
+**Plans:** 6 plans (5 complete + 1 gap closure)
 
 Plans:
 **Wave 1** *(parallel — no file conflicts)*
@@ -321,6 +321,10 @@ Plans:
 **Wave 3** *(blocked on 10-01/10-03/10-04 — CI guards a green suite)*
 
 - [x] 10-05-PLAN.md — Report-only GitHub Actions CI (ruff+pytest+vitest) + repo cleanup (items 7, 8; D-05)
+
+**Gap Closure** *(item 7 failed real-CI verification — e2e job out of D-05 scope + pre-existing frontend flake)*
+
+- [ ] 10-06-PLAN.md — Revert out-of-scope e2e job to restore D-05 scope, guard session.test.tsx flake, confirm green on a REAL GitHub Actions run (item 7; D-05)
 
 ### Phase 11: Google Calendar Production Verification
 
