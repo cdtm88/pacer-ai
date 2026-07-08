@@ -186,6 +186,14 @@ None - no external service configuration required.
 - No blockers for the remaining Phase 10 plans/items.
 - Flag for future UAT: the pre-existing `session.test.tsx` flake (unrelated to this plan) should be investigated separately -- likely a shared-localStorage race across parallel vitest workers, not a functional regression.
 
+## Self-Check: PASSED
+
+- All key-files (created + modified) verified present on disk via `[ -f ]`.
+- All 4 task/summary commits (`c7db50b`, `d09acc3`, `4797beb`, `3a2f767`) verified present via `git log --oneline --all`.
+- Backend: `.venv/bin/pytest tests/api/test_rate_limit.py tests/api/test_chat.py tests/api/test_onboarding.py -q` -> 23 passed. `.venv/bin/pytest tests/ -q` -> 343 passed, no regressions.
+- Frontend: `cd frontend && npx tsc -b --noEmit` -> clean. `npm run test -- --run` -> 133/134 passed; the 1 failure (`session.test.tsx`) is a verified pre-existing, unrelated flake (see Issues Encountered).
+- All plan acceptance-criteria greps re-verified passing (slowapi=0, user_id keying, no IP keying, `rate_limited_user`/`is_rate_limited` wiring, no mid-stream 429, frontend copy/429 greps).
+
 ---
 *Phase: 10-hygiene-safety-nets*
 *Completed: 2026-07-08*
