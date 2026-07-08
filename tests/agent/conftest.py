@@ -23,6 +23,22 @@ from unittest.mock import MagicMock
 
 import pytest
 
+import backend.rate_limit as rate_limit_module
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limit_log():
+    """WR-01 (10-REVIEW.md): reset the rate-limit module's request log between
+    tests so exhausting the budget in one test doesn't bleed into another.
+    test_sse.py's TestSSEEventSequence drives /chat/stream with the same
+    TEST_USER_ID (via auth_headers()) across many tests; without this reset,
+    correctness would depend on collection order and sibling test files'
+    teardown running first, rather than being self-contained."""
+    rate_limit_module._request_log.clear()
+    yield
+    rate_limit_module._request_log.clear()
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
