@@ -305,7 +305,7 @@ Plans:
 **Goal:** The test suite is green and guards the seams: 8 stale SSE tests authenticate properly, capability-gap test-order leak fixed, Playwright mocks match real response shapes, frontend-backend contract tests added (would have caught the Ride/Profile/FTP-key mismatches), short-lived SSE token exchange removes JWTs from query strings, LLM endpoints rate-limited, CI runs pytest+vitest+ruff, repo cleaned (root node_modules, test-ride.fit, root .gitignore).
 **Requirements**: TBD (phase predates REQ-ID mapping; tracked by the 8 scope items in the goal line, covered as ITEM-01..ITEM-08)
 **Depends on:** Phase 9
-**Plans:** 3/5 plans executed
+**Plans:** 4/5 plans executed
 
 Plans:
 **Wave 1** *(parallel — no file conflicts)*
@@ -316,7 +316,7 @@ Plans:
 
 **Wave 2** *(blocked on 10-03 — shared chat.py)*
 
-- [ ] 10-04-PLAN.md — In-process per-user_id rate limiting on LLM endpoints + rate-limit banner (item 6; D-02, D-03)
+- [x] 10-04-PLAN.md — In-process per-user_id rate limiting on LLM endpoints + rate-limit banner (item 6; D-02, D-03)
 
 **Wave 3** *(blocked on 10-01/10-03/10-04 — CI guards a green suite)*
 
@@ -346,7 +346,7 @@ Plans:
 | 7. Deploy Consolidation | 4/4 | Complete    | 2026-07-03 |
 | 8. Trust Model Integrity | 8/8 | Complete    | 2026-07-04 |
 | 9. Frontend Resilience | 7/7 | Complete    | 2026-07-07 |
-| 10. Hygiene and Safety Nets | 3/5 | In Progress|  |
+| 10. Hygiene and Safety Nets | 4/5 | In Progress|  |
 | 11. Google Calendar Production Verification | 0/? | Not planned | - |
 
 - [ ] TBD (run /gsd-plan-phase 11 to break down)
