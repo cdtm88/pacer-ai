@@ -22,7 +22,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 7: Deploy Consolidation** - Vercel is the sole deploy target: remove Railway artifacts, make SSE and background FIT processing serverless-safe, resolve config conflicts, env docs, DB indexes (completed 2026-07-03)
 - [x] **Phase 8: Trust Model Integrity** - Persist audit log, scan tool inputs, tighten attribution, collect LTHR, correct HR zones and load constraints (completed 2026-07-04)
 - [x] **Phase 9: Frontend Resilience** - Chat SSE recovery and history reload, session persistence staleness, iOS export/auth fixes, contract mismatches, error boundary (completed 2026-07-07)
-- [ ] **Phase 10: Hygiene and Safety Nets** - Repair stale tests, contract tests, SSE token exchange, rate limiting, CI, repo cleanup
+- [x] **Phase 10: Hygiene and Safety Nets** - Repair stale tests, contract tests, SSE token exchange, rate limiting, CI, repo cleanup (completed 2026-07-08)
 - [ ] **Phase 11: Google Calendar Production Verification** - Publish privacy policy and ToS pages, add app logo, submit calendar.events scope for Google review, confirm OAuth consent screen moves out of Testing mode
 
 ## Phase Details
@@ -305,7 +305,7 @@ Plans:
 **Goal:** The test suite is green and guards the seams: 8 stale SSE tests authenticate properly, capability-gap test-order leak fixed, Playwright mocks match real response shapes, frontend-backend contract tests added (would have caught the Ride/Profile/FTP-key mismatches), short-lived SSE token exchange removes JWTs from query strings, LLM endpoints rate-limited, CI runs pytest+vitest+ruff, repo cleaned (root node_modules, test-ride.fit, root .gitignore).
 **Requirements**: TBD (phase predates REQ-ID mapping; tracked by the 8 scope items in the goal line, covered as ITEM-01..ITEM-08)
 **Depends on:** Phase 9
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 **Wave 1** *(parallel — no file conflicts)*
@@ -320,7 +320,7 @@ Plans:
 
 **Wave 3** *(blocked on 10-01/10-03/10-04 — CI guards a green suite)*
 
-- [ ] 10-05-PLAN.md — Report-only GitHub Actions CI (ruff+pytest+vitest) + repo cleanup (items 7, 8; D-05)
+- [x] 10-05-PLAN.md — Report-only GitHub Actions CI (ruff+pytest+vitest) + repo cleanup (items 7, 8; D-05)
 
 ### Phase 11: Google Calendar Production Verification
 
@@ -346,7 +346,7 @@ Plans:
 | 7. Deploy Consolidation | 4/4 | Complete    | 2026-07-03 |
 | 8. Trust Model Integrity | 8/8 | Complete    | 2026-07-04 |
 | 9. Frontend Resilience | 7/7 | Complete    | 2026-07-07 |
-| 10. Hygiene and Safety Nets | 4/5 | In Progress|  |
+| 10. Hygiene and Safety Nets | 5/5 | Complete   | 2026-07-08 |
 | 11. Google Calendar Production Verification | 0/? | Not planned | - |
 
 - [ ] TBD (run /gsd-plan-phase 11 to break down)
