@@ -51,8 +51,10 @@ CR-03 note (08-REVIEW.md):
 
 import json
 import os
+import time
 
-from fastapi import APIRouter, Depends, Query
+import jwt
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 # run_turn is imported at module scope so tests can monkeypatch chat_module.run_turn.
@@ -81,6 +83,52 @@ _OPENING_MESSAGE = (
     "Hello! I'm ready to start my cycling training. "
     "What information do you need from me?"
 )
+
+
+@router.post("/token")
+async def issue_sse_token(current_user: dict = Depends(get_current_user)) -> dict:
+    """
+    POST /chat/token
+
+    Mints a short-lived (~60s) ephemeral SSE token for the authenticated
+    caller (item 5, D-04, WR-006 mitigation). Authenticated via the existing
+    get_current_user dependency's Authorization: Bearer path (the real
+    Supabase JWT never appears in a query string for this endpoint).
+
+    The returned token is HS256-signed with a NEW, dedicated SSE_TOKEN_SECRET
+    env var (never SUPABASE_JWT_SECRET) and carries a typ="sse_token" claim
+    namespace guard (T-10-03-02) so it can never be confused with a real
+    Supabase JWT. Callers (sseUrl() in the frontend) carry only this token in
+    the SSE URL's ?token= query param, removing the full Supabase JWT from
+    server access logs (T-10-03-01).
+
+    Stateless by design (D-04): the exp claim is the sole enforcement, no
+    DB/cache row is written.
+
+    Returns: {"token": str, "expires_in": int}
+
+    Raises:
+        HTTPException 500 if SSE_TOKEN_SECRET is not configured -- never
+        mints an unsigned or misconfigured token (T-10-03-03).
+    """
+    secret = os.environ.get("SSE_TOKEN_SECRET")
+    if not secret:
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "server_error", "detail": "SSE_TOKEN_SECRET not configured"},
+        )
+    exp_secs = 60
+    token = jwt.encode(
+        {
+            "sub": current_user["user_id"],
+            "aud": "authenticated",
+            "typ": "sse_token",
+            "exp": int(time.time()) + exp_secs,
+        },
+        secret,
+        algorithm="HS256",
+    )
+    return {"token": token, "expires_in": exp_secs}
 
 
 @router.get("/stream")

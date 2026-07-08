@@ -61,12 +61,12 @@ def _get_jwks_client() -> PyJWKClient | None:
 
 async def get_current_user(
     cred: HTTPAuthorizationCredentials = Depends(HTTPBearer(auto_error=False)),
-    # WR-006 KNOWN LIMITATION: The ?token= query param fallback is required for
-    # SSE clients (EventSource cannot send Authorization headers). This causes the
-    # full JWT to appear in server access logs for SSE endpoints.
-    # TODO: Replace with a short-lived exchange endpoint (POST /chat/token) that
-    # issues an opaque 60-second token. The SSE URL would carry only the ephemeral
-    # token, limiting the exposure window in logs.
+    # WR-006 (item 5, D-04): The ?token= query param fallback is required for
+    # SSE clients (EventSource cannot send Authorization headers). Full Supabase
+    # JWTs previously appeared in server access logs for SSE endpoints. This is
+    # now mitigated -- POST /chat/token issues a short-lived (~60s) namespaced
+    # sse_token (see the verify branch below), and sseUrl() carries only that
+    # ephemeral token, limiting the exposure window in logs to ~60s.
     token: str | None = Query(None),  # SSE fallback: ?token= query param (Pitfall 1)
 ) -> dict:
     """
@@ -92,6 +92,28 @@ async def get_current_user(
             status_code=401,
             detail={"error": "unauthorized", "detail": "Missing authentication token"},
         )
+
+    # --- Ephemeral SSE-token verify path (item 5, D-04; T-10-03-01/02) ---
+    # Query-param path ONLY -- never attempted for the Authorization header.
+    # Uses a dedicated SSE_TOKEN_SECRET (never SUPABASE_JWT_SECRET) and the
+    # typ=="sse_token" claim as a namespace guard so a real Supabase JWT can
+    # never be misinterpreted as one, and vice versa (T-10-03-02). On any
+    # failure (wrong secret, expired, missing typ claim), fall through
+    # unchanged to the existing ES256/HS256 Supabase verification below.
+    if token and not cred:
+        sse_secret = os.environ.get("SSE_TOKEN_SECRET")
+        if sse_secret:
+            try:
+                sse_payload = jwt.decode(
+                    token,
+                    sse_secret,
+                    algorithms=["HS256"],
+                    audience="authenticated",
+                )
+                if sse_payload.get("typ") == "sse_token":
+                    return {"user_id": sse_payload["sub"], "email": None}
+            except jwt.PyJWTError:
+                pass  # not an sse_token (or expired) -- fall through to Supabase verification
 
     # --- ES256 path via JWKS (preferred for new Supabase projects) ---
     jwks_client = _get_jwks_client()
