@@ -130,3 +130,12 @@ Phase 10 (Hygiene and Safety Nets) is now fully executed — this was the last p
 ---
 *Phase: 10-hygiene-safety-nets*
 *Completed: 2026-07-08*
+
+## Self-Check: PASSED
+
+- FOUND: `.github/workflows/ci.yml`
+- FOUND: `.gitignore` (modified)
+- FOUND: `.planning/phases/10-hygiene-safety-nets/10-05-SUMMARY.md`
+- FOUND commit: `ce2b519` (Task 1 - CI workflow)
+- FOUND commit: `492e92c` (Task 2 - cleanup + gitignore)
+- FOUND commit: `356efdf` (SUMMARY.md)
