@@ -305,7 +305,7 @@ Plans:
 **Goal:** The test suite is green and guards the seams: 8 stale SSE tests authenticate properly, capability-gap test-order leak fixed, Playwright mocks match real response shapes, frontend-backend contract tests added (would have caught the Ride/Profile/FTP-key mismatches), short-lived SSE token exchange removes JWTs from query strings, LLM endpoints rate-limited, CI runs pytest+vitest+ruff, repo cleaned (root node_modules, test-ride.fit, root .gitignore).
 **Requirements**: TBD (phase predates REQ-ID mapping; tracked by the 8 scope items in the goal line, covered as ITEM-01..ITEM-08)
 **Depends on:** Phase 9
-**Plans:** 6 plans (5 complete + 1 gap closure)
+**Plans:** 6/6 plans complete
 
 Plans:
 **Wave 1** *(parallel — no file conflicts)*
@@ -324,7 +324,7 @@ Plans:
 
 **Gap Closure** *(item 7 failed real-CI verification — e2e job out of D-05 scope + pre-existing frontend flake)*
 
-- [ ] 10-06-PLAN.md — Revert out-of-scope e2e job to restore D-05 scope, guard session.test.tsx flake, confirm green on a REAL GitHub Actions run (item 7; D-05)
+- [x] 10-06-PLAN.md — Revert out-of-scope e2e job to restore D-05 scope, guard session.test.tsx flake, confirm green on a REAL GitHub Actions run (item 7; D-05)
 
 ### Phase 11: Google Calendar Production Verification
 
@@ -350,7 +350,7 @@ Plans:
 | 7. Deploy Consolidation | 4/4 | Complete    | 2026-07-03 |
 | 8. Trust Model Integrity | 8/8 | Complete    | 2026-07-04 |
 | 9. Frontend Resilience | 7/7 | Complete    | 2026-07-07 |
-| 10. Hygiene and Safety Nets | 5/5 | Complete   | 2026-07-08 |
+| 10. Hygiene and Safety Nets | 6/6 | Complete   | 2026-07-08 |
 | 11. Google Calendar Production Verification | 0/? | Not planned | - |
 
 - [ ] TBD (run /gsd-plan-phase 11 to break down)
