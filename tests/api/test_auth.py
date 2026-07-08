@@ -18,16 +18,22 @@ HTTP-level 401 tests.
 All Supabase calls are mocked; no live DB connections are made.
 asyncio_mode = auto (pytest.ini) -- no @pytest.mark.asyncio needed.
 """
+from unittest.mock import MagicMock
+
+import httpx
 import jwt
 import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
-from unittest.mock import AsyncMock, MagicMock
-
-import httpx
 from httpx import ASGITransport
 
-from tests.api.conftest import TEST_USER_ID, TEST_JWT_SECRET, make_test_token, auth_headers, mock_supabase_factory
+from tests.api.conftest import (
+    TEST_JWT_SECRET,
+    TEST_USER_ID,
+    auth_headers,
+    make_test_token,
+    mock_supabase_factory,
+)
 
 WRONG_SECRET = "this-is-definitely-the-wrong-secret-key"
 
@@ -55,8 +61,8 @@ async def test_missing_token_raises_401(monkeypatch):
     AUTH-01: GET /adaptations/ with no Authorization header and no ?token= returns 401.
     Tests the HTTP-level behavior against the FastAPI app.
     """
-    from backend.main import app
     import backend.routes.adaptations as adapt_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
     monkeypatch.setattr(adapt_module, "_get_async_supabase", mock_supabase_factory([]))
@@ -85,8 +91,8 @@ async def test_garbage_token_raises_401(monkeypatch):
     """
     AUTH-02: A request with a malformed/garbage bearer token returns 401.
     """
-    from backend.main import app
     import backend.routes.adaptations as adapt_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
     monkeypatch.setattr(adapt_module, "_get_async_supabase", mock_supabase_factory([]))
@@ -118,8 +124,8 @@ async def test_wrong_secret_token_raises_401(monkeypatch):
     """
     AUTH-03: A token signed by a different secret returns 401 (signature mismatch).
     """
-    from backend.main import app
     import backend.routes.adaptations as adapt_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
     monkeypatch.setattr(adapt_module, "_get_async_supabase", mock_supabase_factory([]))
@@ -239,8 +245,8 @@ async def test_valid_token_full_http_path(monkeypatch):
     AUTH-07: A valid JWT in the Authorization header reaches the endpoint handler
     and returns 200 with expected data (proves auth does not block valid requests).
     """
-    from backend.main import app
     import backend.routes.adaptations as adapt_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 

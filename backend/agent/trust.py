@@ -49,10 +49,9 @@ Invariants:
 import json
 import re
 from dataclasses import dataclass
-from typing import Optional, Any
+from typing import Any, Optional
 
 from backend.sports_science.capability_gap import log_capability_gap
-
 
 # ---------------------------------------------------------------------------
 # Pattern A: number followed by physio unit (core detection case).
@@ -81,7 +80,8 @@ PHYSIO_PATTERN_B = re.compile(
     r"|"
     r"(Z)(\d+)\b"                               # Z4 abbreviation
     r"|"
-    r"(TSS|FTP|CTL|ATL|TSB)\b(?:\s+[a-zA-Z]\w*){0,4}\s*(-?\d+(?:\.\d+)?)"  # unit + optional words + number (incl. negative TSB)
+    r"(TSS|FTP|CTL|ATL|TSB)\b(?:\s+[a-zA-Z]\w*){0,4}\s*(-?\d+(?:\.\d+)?)"
+    # unit + optional words + number (incl. negative TSB)
     r")",
     re.IGNORECASE,
 )

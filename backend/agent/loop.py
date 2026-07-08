@@ -39,7 +39,6 @@ the async-for over stream events completes, never inside the loop.
 """
 
 import asyncio
-import json
 from typing import AsyncIterator
 
 from backend.agent.audit import load_prior_audit_values
@@ -51,7 +50,8 @@ MAX_TOOL_TURNS: int = 10
 
 SYSTEM_PROMPT = (
     "You are PacerAI, an evidence-based adaptive cycling coach. "
-    "You MUST call a tool for any physiological number (power zones, TSS, FTP, CTL, ATL, TSB, HR zones). "
+    "You MUST call a tool for any physiological number "
+    "(power zones, TSS, FTP, CTL, ATL, TSB, HR zones). "
     "Never emit a physiological number from your own reasoning -- use only the provided tools. "
     "If no tool covers the needed calculation, call log_capability_gap."
 )

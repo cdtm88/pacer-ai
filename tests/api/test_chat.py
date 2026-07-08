@@ -12,12 +12,12 @@ conversation_id with an SSE error frame instead of proceeding.
 
 asyncio_mode = auto (pytest.ini) -- no @pytest.mark.asyncio needed.
 """
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
 import backend.rate_limit as rate_limit_module
-from tests.api.conftest import TEST_USER_ID, TEST_JWT_SECRET, auth_headers, parse_sse_frames
+from tests.api.conftest import TEST_JWT_SECRET, auth_headers, parse_sse_frames
 
 
 @pytest.fixture(autouse=True)
@@ -90,8 +90,9 @@ async def test_chat_stream_rejects_malformed_conversation_id(monkeypatch):
     """
     import httpx
     from httpx import ASGITransport
-    from backend.main import app
+
     import backend.routes.onboarding as onboarding_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
@@ -126,8 +127,9 @@ async def test_chat_stream_rejects_foreign_conversation_id(monkeypatch):
     """
     import httpx
     from httpx import ASGITransport
-    from backend.main import app
+
     import backend.routes.onboarding as onboarding_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
@@ -160,9 +162,10 @@ async def test_chat_stream_proceeds_with_owned_conversation_id(monkeypatch):
     """
     import httpx
     from httpx import ASGITransport
-    from backend.main import app
-    import backend.routes.onboarding as onboarding_module
+
     import backend.routes.chat as chat_module
+    import backend.routes.onboarding as onboarding_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
@@ -211,8 +214,9 @@ async def test_get_conversation_messages_returns_owned_messages(monkeypatch):
     """
     import httpx
     from httpx import ASGITransport
-    from backend.main import app
+
     import backend.routes.onboarding as onboarding_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
@@ -257,8 +261,9 @@ async def test_get_conversation_messages_foreign_id_returns_empty_list(monkeypat
     """
     import httpx
     from httpx import ASGITransport
-    from backend.main import app
+
     import backend.routes.onboarding as onboarding_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
@@ -290,8 +295,9 @@ async def test_get_conversation_messages_rejects_malformed_id(monkeypatch):
     """
     import httpx
     from httpx import ASGITransport
-    from backend.main import app
+
     import backend.routes.onboarding as onboarding_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
@@ -327,9 +333,10 @@ async def test_chat_stream_over_limit_returns_sse_rate_limited_frame(monkeypatch
     """
     import httpx
     from httpx import ASGITransport
-    from backend.main import app
-    import backend.routes.onboarding as onboarding_module
+
     import backend.routes.chat as chat_module
+    import backend.routes.onboarding as onboarding_module
+    from backend.main import app
     from backend.rate_limit import MAX_REQUESTS_PER_WINDOW
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)

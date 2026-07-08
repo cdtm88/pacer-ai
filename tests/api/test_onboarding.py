@@ -13,11 +13,12 @@ Tests cover:
 
 asyncio_mode = auto (pytest.ini) -- no @pytest.mark.asyncio needed.
 """
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 import backend.rate_limit as rate_limit_module
-from tests.api.conftest import TEST_USER_ID, parse_sse_frames, TEST_JWT_SECRET, auth_headers
+from tests.api.conftest import TEST_JWT_SECRET, TEST_USER_ID, auth_headers, parse_sse_frames
 
 
 @pytest.fixture(autouse=True)
@@ -54,7 +55,9 @@ async def _mock_interview_run_turn(messages, client, model, trust_scanner, audit
     yield {"event": "done", "data": {}}
 
 
-async def _mock_interview_with_approval(messages, client, model, trust_scanner, audit_log, **kwargs):
+async def _mock_interview_with_approval(
+    messages, client, model, trust_scanner, audit_log, **kwargs
+):
     """
     Mock that simulates the approval gate sequence:
       1. Token with confirmation summary (includes 'Here is what I have')
@@ -79,7 +82,9 @@ async def _mock_interview_with_approval(messages, client, model, trust_scanner, 
     yield {"event": "done", "data": {}}
 
 
-async def _mock_interview_save_without_approval(messages, client, model, trust_scanner, audit_log, **kwargs):
+async def _mock_interview_save_without_approval(
+    messages, client, model, trust_scanner, audit_log, **kwargs
+):
     """
     Mock that simulates a VIOLATION: save_profile called WITHOUT a prior approval marker.
     Used to confirm the structural test can distinguish compliant vs. non-compliant sequences.
@@ -146,8 +151,9 @@ async def test_onboarding_returns_sse(monkeypatch):
     """
     import httpx
     from httpx import ASGITransport
-    from backend.main import app
+
     import backend.routes.onboarding as onboarding_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
@@ -196,8 +202,9 @@ async def test_confirmation_gate(monkeypatch):
     """
     import httpx
     from httpx import ASGITransport
-    from backend.main import app
+
     import backend.routes.onboarding as onboarding_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
@@ -217,7 +224,6 @@ async def test_confirmation_gate(monkeypatch):
         )
 
     frames = parse_sse_frames(response.text)
-    event_types = [f["event"] for f in frames]
 
     # Find index of the approval marker token ("Here is what I have")
     approval_idx = None
@@ -264,7 +270,9 @@ async def test_confirmation_gate(monkeypatch):
         if f["event"] == "tool_start" and f["data"].get("name") == "save_profile"
     ]
     assert len(approval_tokens) == 0, "Non-compliant sequence must have no approval token"
-    assert len(save_profile_events) == 1, "Non-compliant sequence still emits save_profile (detectable)"
+    assert len(save_profile_events) == 1, (
+        "Non-compliant sequence still emits save_profile (detectable)"
+    )
 
 
 async def test_back_status_constraint(monkeypatch):
@@ -298,7 +306,7 @@ async def test_back_status_constraint(monkeypatch):
 
     from backend.sports_science.profile import save_profile
 
-    result = await save_profile(
+    await save_profile(
         user_id=TEST_USER_ID,
         fitness_goals="fitness and weight loss",
         weekly_hours=3.0,
@@ -330,10 +338,12 @@ async def test_plan_calendar_sync_inline_await(monkeypatch):
         still declares the parameter)
     """
     import inspect
+
     import httpx
     from httpx import ASGITransport
-    from backend.main import app
+
     import backend.routes.onboarding as onboarding_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
@@ -618,8 +628,9 @@ async def test_onboarding_start_over_limit_returns_429(monkeypatch):
     """
     import httpx
     from httpx import ASGITransport
-    from backend.main import app
+
     import backend.routes.onboarding as onboarding_module
+    from backend.main import app
     from backend.rate_limit import MAX_REQUESTS_PER_WINDOW
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)

@@ -10,11 +10,11 @@ asyncio_mode = auto (pytest.ini) means async test functions run without
 explicit @pytest.mark.asyncio decorator.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from tests.agent.conftest import build_fake_client
+import pytest
 
+from tests.agent.conftest import build_fake_client
 
 # ---------------------------------------------------------------------------
 # AGENT-01: raw SDK + claude-agent-sdk absence
@@ -61,7 +61,9 @@ async def test_stop_reason_end_turn(mock_stream_end_turn, no_op_scanner):
     messages = [{"role": "user", "content": "Hello"}]
     audit_log = []
 
-    events = [ev async for ev in run_turn(messages, client, "claude-test", no_op_scanner, audit_log)]
+    events = [
+        ev async for ev in run_turn(messages, client, "claude-test", no_op_scanner, audit_log)
+    ]
 
     event_types = [ev["event"] for ev in events]
     assert "done" in event_types
@@ -84,7 +86,9 @@ async def test_stop_reason_tool_use(
     messages = [{"role": "user", "content": "What are my power zones?"}]
     audit_log = []
 
-    events = [ev async for ev in run_turn(messages, client, "claude-test", no_op_scanner, audit_log)]
+    events = [
+        ev async for ev in run_turn(messages, client, "claude-test", no_op_scanner, audit_log)
+    ]
 
     event_types = [ev["event"] for ev in events]
     assert "tool_start" in event_types
@@ -115,7 +119,9 @@ async def test_parallel_tool_dispatch(
     messages = [{"role": "user", "content": "Give me both power and HR zones."}]
     audit_log = []
 
-    events = [ev async for ev in run_turn(messages, client, "claude-test", no_op_scanner, audit_log)]
+    events = [
+        ev async for ev in run_turn(messages, client, "claude-test", no_op_scanner, audit_log)
+    ]
 
     # Both tools dispatched -> 2 audit entries
     assert len(audit_log) == 2, f"Expected 2 audit entries for parallel dispatch, got: {audit_log}"
@@ -146,7 +152,9 @@ async def test_tool_deduplication(
     messages = [{"role": "user", "content": "Calculate my zones twice."}]
     audit_log = []
 
-    events = [ev async for ev in run_turn(messages, client, "claude-test", no_op_scanner, audit_log)]
+    events = [
+        ev async for ev in run_turn(messages, client, "claude-test", no_op_scanner, audit_log)
+    ]
 
     # Dedup: only one dispatch
     assert len(audit_log) == 1, f"Expected 1 audit entry (dedup), got: {audit_log}"
@@ -169,13 +177,13 @@ async def test_retry_limit(always_violating_scanner):
     after MAX_RETRIES with a final error event code "max_retries".
     Retries must never exceed 3 (MAX_RETRIES).
     """
-    from backend.agent.loop import run_turn, MAX_RETRIES
-    from backend.agent.trust import TrustViolation
+    from unittest.mock import MagicMock
+
+    from backend.agent.loop import MAX_RETRIES, run_turn
 
     # Build a stream that always returns end_turn but with violating text
     # (the always_violating_scanner ignores the text and always returns a violation)
-    from tests.agent.conftest import _build_stream, _delta_event, _final_msg
-    from unittest.mock import MagicMock
+    from tests.agent.conftest import _build_stream, _final_msg
 
     def make_violating_stream():
         msg = _final_msg(
@@ -184,17 +192,28 @@ async def test_retry_limit(always_violating_scanner):
         )
         return _build_stream(delta_events=[], final_msg=msg)
 
-    # Need MAX_RETRIES + 1 stream instances (retries = 0, 1, 2, 3; loop condition: retries <= MAX_RETRIES)
+    # Need MAX_RETRIES + 1 stream instances (retries = 0, 1, 2, 3;
+    # loop condition: retries <= MAX_RETRIES)
     streams = [make_violating_stream() for _ in range(MAX_RETRIES + 2)]
     client = build_fake_client(*streams)
     messages = [{"role": "user", "content": "Tell me my FTP"}]
     audit_log = []
 
-    events = [ev async for ev in run_turn(messages, client, "claude-test", always_violating_scanner, audit_log)]
+    events = [
+        ev async for ev in run_turn(
+            messages, client, "claude-test", always_violating_scanner, audit_log
+        )
+    ]
 
     # Count trust_violation error events
-    violation_events = [ev for ev in events if ev["event"] == "error" and ev["data"].get("code") == "trust_violation"]
-    max_retries_events = [ev for ev in events if ev["event"] == "error" and ev["data"].get("code") == "max_retries"]
+    violation_events = [
+        ev for ev in events
+        if ev["event"] == "error" and ev["data"].get("code") == "trust_violation"
+    ]
+    max_retries_events = [
+        ev for ev in events
+        if ev["event"] == "error" and ev["data"].get("code") == "max_retries"
+    ]
 
     # Loop runs while retries <= MAX_RETRIES: retries goes 0,1,2,...,MAX_RETRIES
     # Each iteration increments retries and yields a trust_violation event.
@@ -222,9 +241,9 @@ async def test_failed_tool_surfaced(no_op_scanner):
     AGENT-03: an unknown/raising tool name results in is_error=True in the
     tool_result event and an error entry in the audit_log (not swallowed).
     """
+
     from backend.agent.loop import run_turn
-    from tests.agent.conftest import _build_stream, _tool_block, _final_msg
-    from unittest.mock import MagicMock
+    from tests.agent.conftest import _build_stream, _final_msg, _tool_block
 
     # A tool_use block naming a tool that doesn't exist in TOOL_REGISTRY
     block = _tool_block("toolu_bad", "nonexistent_tool_xyz", {})
@@ -238,19 +257,18 @@ async def test_failed_tool_surfaced(no_op_scanner):
     messages = [{"role": "user", "content": "Do something unknown."}]
     audit_log = []
 
-    events = [ev async for ev in run_turn(messages, client, "claude-test", no_op_scanner, audit_log)]
+    _events = [
+        ev async for ev in run_turn(messages, client, "claude-test", no_op_scanner, audit_log)
+    ]
 
     # Audit log must record the error (not swallow it)
-    assert len(audit_log) == 1
-    assert audit_log[0]["name"] == "nonexistent_tool_xyz"
-    assert "error" in audit_log[0]
-
-    # tool_result event must carry is_error indication
-    tool_result_events = [ev for ev in events if ev["event"] == "tool_result"]
     # Note: the loop emits tool_result events for successful dispatches only.
     # For is_error blocks, the loop still emits tool_result events since the
     # block is returned by dispatch_tool (with is_error=True in the result_block).
     # The test validates via audit_log that the error was recorded.
+    assert len(audit_log) == 1
+    assert audit_log[0]["name"] == "nonexistent_tool_xyz"
+    assert "error" in audit_log[0]
     assert len(audit_log) >= 1
     assert "error" in audit_log[0] or audit_log[0].get("name") == "nonexistent_tool_xyz"
 
@@ -271,7 +289,9 @@ async def test_audit_log(mock_stream_with_tool_use, mock_stream_end_turn, no_op_
     messages = [{"role": "user", "content": "Calculate my power zones with FTP 200."}]
     audit_log = []
 
-    events = [ev async for ev in run_turn(messages, client, "claude-test", no_op_scanner, audit_log)]
+    _events = [
+        ev async for ev in run_turn(messages, client, "claude-test", no_op_scanner, audit_log)
+    ]
 
     assert len(audit_log) == 1
     entry = audit_log[0]
@@ -352,8 +372,8 @@ async def test_user_id_injected_server_side_through_run_turn(no_op_scanner):
     Postgres uuid/foreign-key checks on every production save_profile call.
     """
     from backend.agent.loop import run_turn
-    from tests.agent.conftest import _build_stream, _final_msg, _tool_block
     from backend.sports_science.types import ToolResult
+    from tests.agent.conftest import _build_stream, _final_msg, _tool_block
 
     save_profile_inputs = {
         "fitness_goals": "weight loss",
@@ -423,6 +443,7 @@ async def test_cross_turn_seed_suppresses_false_positive():
     tool-result JSON.
     """
     import json
+
     from backend.agent.loop import run_turn
     from backend.agent.trust import scan_buffer
     from tests.agent.conftest import _build_stream, _delta_event, _final_msg
@@ -476,7 +497,7 @@ async def test_cross_turn_seed_control_without_conversation_id_still_violates():
     previous test comes from cross-turn seeding, not from some unrelated
     change to scan_buffer or run_turn.
     """
-    from backend.agent.loop import run_turn, MAX_RETRIES
+    from backend.agent.loop import MAX_RETRIES, run_turn
     from backend.agent.trust import scan_buffer
     from tests.agent.conftest import _build_stream, _delta_event, _final_msg
 
@@ -577,7 +598,7 @@ async def test_self_reported_control_hallucinated_number_still_violates():
     attributing the exact user-stated number, not from a blanket relaxation
     of scan_buffer.
     """
-    from backend.agent.loop import run_turn, MAX_RETRIES
+    from backend.agent.loop import MAX_RETRIES, run_turn
     from backend.agent.trust import scan_buffer
     from tests.agent.conftest import _build_stream, _delta_event, _final_msg
 

@@ -169,8 +169,9 @@ ATTRIBUTED: list[tuple[str, set[str]]] = [
         {"85 rpm", "cadence of 85 rpm"},
     ),
 
-    # TRANSP-01 / ADAPT-05: adaptation explanation echoes CTL and TSS from validate_session_vs_actual
-    # and progress_load results. Numbers in explanation_text are tool-sourced (not LLM-invented).
+    # TRANSP-01 / ADAPT-05: adaptation explanation echoes CTL and TSS from
+    # validate_session_vs_actual and progress_load results. Numbers in
+    # explanation_text are tool-sourced (not LLM-invented).
     (
         "Micro-adjustment triggered by underperformance signal on session sess-007 "
         "(compliance: 45.0% of planned TSS from validate_session_vs_actual). "

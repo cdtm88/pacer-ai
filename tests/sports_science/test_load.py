@@ -1,8 +1,8 @@
 # tests/sports_science/test_load.py
 import pytest
-from backend.sports_science.load import progress_load, CTL_RAMP_CEILING_PER_WEEK
-from backend.sports_science.types import ToolResult
 
+from backend.sports_science.load import CTL_RAMP_CEILING_PER_WEEK, progress_load
+from backend.sports_science.types import ToolResult
 
 # --------------------------------------------------------------------------- #
 # TOOL-06: Safe weekly load ramp with back-protective caps (D-09)

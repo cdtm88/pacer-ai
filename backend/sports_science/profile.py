@@ -13,7 +13,9 @@ description and the agent's tool-calling discipline.
 """
 import os
 from typing import Optional
-from supabase import acreate_client, AsyncClient
+
+from supabase import AsyncClient, acreate_client
+
 from .types import ToolResult
 
 # WR-04: Module-level cached client. None until first call; then reused.

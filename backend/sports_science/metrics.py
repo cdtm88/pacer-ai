@@ -1,9 +1,10 @@
 # sports_science/metrics.py
 import numpy as np
+
 from .constants import (
-    NP_SPIKE_MULTIPLIER,
-    NP_SPIKE_FALLBACK_WATTS,
     NP_MIN_DURATION_SECS,
+    NP_SPIKE_FALLBACK_WATTS,
+    NP_SPIKE_MULTIPLIER,
 )
 from .types import ToolResult
 

@@ -14,16 +14,12 @@ All Google API calls are mocked; no live credentials are required.
 """
 
 import json
-import os
-import pytest
+from unittest.mock import MagicMock, patch
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-
 from httpx import ASGITransport, AsyncClient
 
 from tests.api.conftest import TEST_JWT_SECRET, TEST_USER_ID, auth_headers, mock_supabase_factory
-
 
 # ---------------------------------------------------------------------------
 # App fixture
@@ -67,6 +63,7 @@ async def test_token_stored_as_ciphertext(monkeypatch):
     ciphertext, not the plaintext credentials JSON (CAL-03, T-04-22).
     """
     from cryptography.fernet import Fernet
+
     import backend.routes.calendar as cal_mod
 
     fernet_key = Fernet.generate_key()
@@ -200,16 +197,24 @@ async def test_calendar_sync_failure_is_graceful():
     A push/update helper that raises internally must NOT propagate -- the
     adaptation endpoint returns 200 even when calendar sync fails (CAL-04, T-04-23).
     """
-    from backend.calendar_sync import push_session_to_calendar, update_calendar_event, delete_calendar_event
+    from backend.calendar_sync import (
+        delete_calendar_event,
+        push_session_to_calendar,
+        update_calendar_event,
+    )
 
     # Patch _load_credentials to raise -- simulates any credential/network error.
     with patch("backend.calendar_sync._load_credentials", side_effect=Exception("network error")):
         # push_session_to_calendar must return None, not raise.
-        result = await push_session_to_calendar(TEST_USER_ID, {"id": "s1", "scheduled_date": "2025-01-01"})
+        result = await push_session_to_calendar(
+            TEST_USER_ID, {"id": "s1", "scheduled_date": "2025-01-01"}
+        )
         assert result is None, "push_session_to_calendar should return None on failure"
 
         # update_calendar_event must return None, not raise.
-        result = await update_calendar_event(TEST_USER_ID, "event-id", {"scheduled_date": "2025-01-01"})
+        result = await update_calendar_event(
+            TEST_USER_ID, "event-id", {"scheduled_date": "2025-01-01"}
+        )
         assert result is None, "update_calendar_event should return None on failure"
 
         # delete_calendar_event must return None, not raise.

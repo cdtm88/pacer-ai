@@ -103,7 +103,9 @@ async def test_rides_contract(monkeypatch):
     body = response.json()
     ride = body["rides"][0]
 
-    required = {"id", "ride_date", "duration_secs", "avg_power", "np_watts", "tss", "compliance_pct"}
+    required = {
+        "id", "ride_date", "duration_secs", "avg_power", "np_watts", "tss", "compliance_pct",
+    }
     assert required <= set(ride.keys())
 
 
@@ -118,8 +120,9 @@ async def test_sessions_today_contract(monkeypatch):
     the fields frontend code actually reads: id, objective, structure,
     type, duration_mins, scheduled_date, rpe_target.
     """
-    import backend.routes.sessions as sessions_module
     import datetime
+
+    import backend.routes.sessions as sessions_module
 
     today = datetime.date.today().isoformat()
     session_row = {
@@ -154,7 +157,9 @@ async def test_sessions_today_contract(monkeypatch):
     assert response.status_code == 200
     body = response.json()
 
-    required = {"id", "objective", "structure", "type", "duration_mins", "scheduled_date", "rpe_target"}
+    required = {
+        "id", "objective", "structure", "type", "duration_mins", "scheduled_date", "rpe_target",
+    }
     assert required <= set(body.keys())
 
 

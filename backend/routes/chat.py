@@ -64,10 +64,10 @@ from backend.auth import get_current_user
 from backend.rate_limit import is_rate_limited
 from backend.routes._sse import sse_generator
 from backend.routes.onboarding import (
+    _resolve_conversation_id,
     create_conversation,
     load_conversation,
     save_messages,
-    _resolve_conversation_id,
 )
 from backend.utils import validate_uuid
 
@@ -226,7 +226,14 @@ async def chat_stream(
     async def _stream_and_persist():
         """Yield SSE chunks and persist the new turns after the stream completes."""
         assistant_sink: list[str] = []
-        async for chunk in sse_generator(messages, model, _run_turn=run_turn, assistant_sink=assistant_sink, user_id=user_id, conversation_id=conversation_id):
+        async for chunk in sse_generator(
+            messages,
+            model,
+            _run_turn=run_turn,
+            assistant_sink=assistant_sink,
+            user_id=user_id,
+            conversation_id=conversation_id,
+        ):
             yield chunk
         # Persist both turns after the stream is done (best-effort).
         try:

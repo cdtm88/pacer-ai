@@ -6,7 +6,6 @@ Tests are written RED-first (TDD). All tests should fail until agent/trust.py is
 implemented (Task 1 GREEN phase).
 """
 
-import pytest
 
 
 class TestScanBuffer:
@@ -531,10 +530,11 @@ class TestTrustLoopCompliance:
         3. Emits an error event with code "trust_violation".
         4. Never forwards the violating number in a token or done frame.
         """
+        from unittest.mock import MagicMock
+
         from backend.agent.loop import run_turn
         from backend.agent.trust import scan_buffer
-        from tests.agent.conftest import build_fake_client, _build_stream, _delta_event, _final_msg
-        from unittest.mock import MagicMock
+        from tests.agent.conftest import _build_stream, _delta_event, _final_msg, build_fake_client
 
         VIOLATING_TEXT = "Your FTP is 250 watts based on your history."
 
@@ -561,10 +561,11 @@ class TestTrustLoopCompliance:
         messages = [{"role": "user", "content": "What is my FTP?"}]
         audit_log = []
 
-        events = [ev async for ev in run_turn(messages, client, "claude-test", scan_buffer, audit_log)]
+        events = [
+            ev async for ev in run_turn(messages, client, "claude-test", scan_buffer, audit_log)
+        ]
 
         event_types = [ev["event"] for ev in events]
-        data_values = [ev["data"] for ev in events]
 
         # Must have emitted a trust_violation error event
         assert "error" in event_types

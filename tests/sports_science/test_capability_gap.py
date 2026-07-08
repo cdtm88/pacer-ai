@@ -5,7 +5,6 @@ The Supabase async client is patched so no network call happens in unit tests.
 asyncio_mode = auto (pytest.ini) means async test functions run without explicit marks.
 """
 import asyncio
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -135,11 +134,11 @@ async def test_db_error_returns_fallback_tool_result(mock_acreate_client, monkey
     mock_client = MagicMock()
     mock_client.table.return_value = table_mock
     mock_acreate_client.return_value = mock_client
-    from backend.sports_science.capability_gap import log_capability_gap
-    from backend.sports_science.types import ToolResult
-
     # Should not raise even when DB fails
     import logging
+
+    from backend.sports_science.capability_gap import log_capability_gap
+    from backend.sports_science.types import ToolResult
 
     with caplog.at_level(logging.ERROR):
         result = await log_capability_gap("some_tool", {"key": "val"})

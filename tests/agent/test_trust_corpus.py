@@ -18,7 +18,6 @@ import pytest
 from backend.agent.trust import scan_buffer
 from tests.agent.fixtures.trust_corpus import ATTRIBUTED, QUALITATIVE, VIOLATIONS
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -128,6 +127,7 @@ def test_false_negative_rate_is_zero() -> None:
         if scan_buffer(text, set()) is None
     ]
     assert false_negatives == [], (
-        f"scan_buffer missed {len(false_negatives)} violation(s) (false negative) on VIOLATIONS set:\n"
+        f"scan_buffer missed {len(false_negatives)} violation(s) "
+        "(false negative) on VIOLATIONS set:\n"
         + "\n".join(f"  - {t!r}" for t in false_negatives)
     )

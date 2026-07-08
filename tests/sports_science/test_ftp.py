@@ -1,8 +1,6 @@
 # tests/sports_science/test_ftp.py
-import pytest
-from backend.sports_science.ftp import estimate_ftp_from_rides, _is_quality_effort
+from backend.sports_science.ftp import _is_quality_effort, estimate_ftp_from_rides
 from backend.sports_science.types import ToolResult
-
 
 # --------------------------------------------------------------------------- #
 # TOOL-03: FTP estimation via 2-parameter CP model
@@ -11,7 +9,8 @@ from backend.sports_science.types import ToolResult
 
 
 def test_insufficient_efforts_returns_none():
-    """D-04: fewer than 4 quality efforts -> value=None, confidence=insufficient_data; never a fabricated number."""
+    """D-04: fewer than 4 quality efforts -> value=None, confidence=insufficient_data;
+    never a fabricated number."""
     rides = [
         {"duration_secs": 300, "mean_power_watts": 200},
         {"duration_secs": 600, "mean_power_watts": 220},

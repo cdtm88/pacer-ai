@@ -57,8 +57,8 @@ async def _load_credentials(user_id: str):
     user has not connected Google Calendar.
     """
     try:
-        from google.oauth2.credentials import Credentials  # type: ignore[import-untyped]
         from cryptography.fernet import Fernet
+        from google.oauth2.credentials import Credentials  # type: ignore[import-untyped]
 
         supabase = await _get_async_supabase()
         result = await (
@@ -117,7 +117,7 @@ def _build_event_body(session: dict) -> dict:
     targets = session.get("targets") or session.get("power_targets") or ""
     duration_min = session.get("duration_minutes") or session.get("duration_min") or ""
 
-    description_parts = [f"PacerAI Session\n"]
+    description_parts = ["PacerAI Session\n"]
     if objective:
         description_parts.append(f"Objective: {objective}")
     if structure:

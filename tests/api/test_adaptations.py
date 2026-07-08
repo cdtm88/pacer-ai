@@ -18,13 +18,13 @@ DB-dependent functions (detect_signals, log_adaptation) use monkeypatched _get_a
 """
 import datetime
 import inspect
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
 from httpx import ASGITransport
 
-from tests.api.conftest import TEST_USER_ID, mock_supabase_factory, TEST_JWT_SECRET, auth_headers
+from tests.api.conftest import TEST_JWT_SECRET, TEST_USER_ID, auth_headers, mock_supabase_factory
 
 # ---------------------------------------------------------------------------
 # Pure function helpers
@@ -56,7 +56,13 @@ async def test_missed_detection(monkeypatch):
 
     # The sessions table returns one past-due planned session.
     sessions_data = [
-        {"id": "sess-001", "scheduled_date": yesterday, "tss_target": 60, "plan_id": None, "status": "planned"}
+        {
+            "id": "sess-001",
+            "scheduled_date": yesterday,
+            "tss_target": 60,
+            "plan_id": None,
+            "status": "planned",
+        }
     ]
     # The rides table returns no rides (empty -- so no match).
     rides_data: list = []
@@ -112,7 +118,13 @@ async def test_detect_signals_idempotent(monkeypatch):
     yesterday = (today - datetime.timedelta(days=2)).isoformat()
 
     sessions_data = [
-        {"id": "sess-001", "scheduled_date": yesterday, "tss_target": 60, "plan_id": None, "status": "planned"}
+        {
+            "id": "sess-001",
+            "scheduled_date": yesterday,
+            "tss_target": 60,
+            "plan_id": None,
+            "status": "planned",
+        }
     ]
     rides_data: list = []
 
@@ -220,7 +232,13 @@ async def test_consumed_ids_exclude_superseded_proposals(monkeypatch):
     yesterday = (today - datetime.timedelta(days=2)).isoformat()
 
     sessions_data = [
-        {"id": "sess-001", "scheduled_date": yesterday, "tss_target": 60, "plan_id": None, "status": "planned"}
+        {
+            "id": "sess-001",
+            "scheduled_date": yesterday,
+            "tss_target": 60,
+            "plan_id": None,
+            "status": "planned",
+        }
     ]
 
     adaptations_in_calls: list[tuple] = []
@@ -288,7 +306,13 @@ async def test_apply_micro_adjustment_missed_status_value(monkeypatch):
     today = datetime.date.today()
 
     upcoming = [
-        {"id": "sess-next-1", "scheduled_date": today.isoformat(), "tss_target": 60, "duration_minutes": 60, "status": "planned"},
+        {
+            "id": "sess-next-1",
+            "scheduled_date": today.isoformat(),
+            "tss_target": 60,
+            "duration_minutes": 60,
+            "status": "planned",
+        },
     ]
     execute_upcoming = MagicMock()
     execute_upcoming.data = upcoming
@@ -314,7 +338,7 @@ async def test_apply_micro_adjustment_missed_status_value(monkeypatch):
     def _update(payload):
         update_calls.append({"payload": payload, "filters": {}})
         chain = _Chain(mock_client)
-        original_eq = chain.eq
+        _original_eq = chain.eq
 
         def _tracking_eq(field, value):
             update_calls[-1]["filters"][field] = value
@@ -389,7 +413,9 @@ async def test_apply_micro_adjustment_retains_calendar_event_id(monkeypatch):
     mock_client.order.return_value = mock_client
     mock_client.insert.return_value = mock_client
     mock_client.update.return_value = mock_client
-    mock_client.execute = AsyncMock(side_effect=[execute_upcoming, execute_generic, execute_generic])
+    mock_client.execute = AsyncMock(
+        side_effect=[execute_upcoming, execute_generic, execute_generic]
+    )
 
     async def _mock_supabase():
         return mock_client
@@ -472,7 +498,13 @@ async def test_apply_micro_adjustment_null_tss_target_not_zeroed(monkeypatch):
     today = datetime.date.today()
 
     upcoming = [
-        {"id": "sess-null-tss", "scheduled_date": today.isoformat(), "tss_target": None, "duration_minutes": 60, "status": "planned"},
+        {
+            "id": "sess-null-tss",
+            "scheduled_date": today.isoformat(),
+            "tss_target": None,
+            "duration_minutes": 60,
+            "status": "planned",
+        },
     ]
     execute_upcoming = MagicMock()
     execute_upcoming.data = upcoming
@@ -790,10 +822,14 @@ async def test_apply_macro_replan_supersedes_prior_proposal(monkeypatch):
     assert result["status"] == "needs_confirmation"
 
     # A supersede UPDATE (status='superseded') happened before the new proposal's insert.
-    supersede_calls = [c for c in mock_client.update.call_args_list if c.args[0] == {"status": "superseded"}]
+    supersede_calls = [
+        c for c in mock_client.update.call_args_list if c.args[0] == {"status": "superseded"}
+    ]
     assert len(supersede_calls) == 1
 
-    proposed_inserts = [c for c in mock_client.insert.call_args_list if c.args[0].get("status") == "proposed"]
+    proposed_inserts = [
+        c for c in mock_client.insert.call_args_list if c.args[0].get("status") == "proposed"
+    ]
     assert len(proposed_inserts) == 1
     assert proposed_inserts[0].args[0]["trigger_session_ids"] == ["sess-a", "sess-b"]
 
@@ -809,8 +845,8 @@ async def test_weekly_check(monkeypatch):
     When no signals are detected, response is {"signals": [], "scope": None, "result": None}.
     Phase 4: request requires a valid JWT in the Authorization: Bearer header.
     """
-    from backend.main import app
     import backend.routes.adaptations as adapt_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
@@ -862,15 +898,19 @@ async def test_check_adaptations_inline_awaits_calendar_update(monkeypatch):
         deterministic RED signal that the route still schedules calendar sync via
         BackgroundTasks (fails against current code)
     """
-    from backend.main import app
     import backend.routes.adaptations as adapt_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
     signal = _sig(type_="missed", session_id="sess-cal-1")
     monkeypatch.setattr(adapt_module, "detect_signals", AsyncMock(return_value=[signal]))
 
-    applied_session = {"id": "sess-cal-1", "calendar_event_id": "evt-123", "scheduled_date": "2026-07-10"}
+    applied_session = {
+        "id": "sess-cal-1",
+        "calendar_event_id": "evt-123",
+        "scheduled_date": "2026-07-10",
+    }
     applied_result = {
         "status": "applied",
         "scope": "micro",
@@ -880,7 +920,9 @@ async def test_check_adaptations_inline_awaits_calendar_update(monkeypatch):
         "explanation": "x",
         "adaptation_id": "adaptation-uuid-cal",
     }
-    monkeypatch.setattr(adapt_module, "apply_micro_adjustment", AsyncMock(return_value=applied_result))
+    monkeypatch.setattr(
+        adapt_module, "apply_micro_adjustment", AsyncMock(return_value=applied_result)
+    )
 
     mock_update = AsyncMock(return_value=None)
     monkeypatch.setattr(adapt_module, "update_calendar_event", mock_update)
@@ -924,7 +966,13 @@ async def test_intensity_from_tools(monkeypatch):
     # Status 'completed' because the ride-upload pipeline flips a matched session to
     # 'completed' before an underperformance signal can fire (Pattern 5).
     sessions_data = [
-        {"id": "sess-underperf", "scheduled_date": yesterday, "tss_target": 80, "plan_id": None, "status": "completed"}
+        {
+            "id": "sess-underperf",
+            "scheduled_date": yesterday,
+            "tss_target": 80,
+            "plan_id": None,
+            "status": "completed",
+        }
     ]
     rides_data = [
         {"id": "ride-001", "ride_date": yesterday, "tss": 40.0, "session_id": "sess-underperf"}
@@ -968,7 +1016,10 @@ async def test_intensity_from_tools(monkeypatch):
     signals = await adapt_module.detect_signals(TEST_USER_ID)
 
     # validate_session_vs_actual must have been called at least once.
-    assert len(call_log) >= 1, "validate_session_vs_actual was not called -- compliance check bypassed (ADAPT-05 violation)"
+    assert len(call_log) >= 1, (
+        "validate_session_vs_actual was not called -- "
+        "compliance check bypassed (ADAPT-05 violation)"
+    )
     assert call_log[0]["planned"]["tss"] == 80
     assert call_log[0]["actual"]["tss"] == 40.0
 
@@ -990,7 +1041,13 @@ async def test_underperformance_uses_tool_flag_threshold(monkeypatch):
     yesterday = (today - datetime.timedelta(days=1)).isoformat()
 
     sessions_data = [
-        {"id": "sess-65pct", "scheduled_date": yesterday, "tss_target": 100, "plan_id": None, "status": "completed"}
+        {
+            "id": "sess-65pct",
+            "scheduled_date": yesterday,
+            "tss_target": 100,
+            "plan_id": None,
+            "status": "completed",
+        }
     ]
     rides_data = [
         {"id": "ride-65", "ride_date": yesterday, "tss": 65.0, "session_id": "sess-65pct"}
@@ -1089,8 +1146,8 @@ async def test_get_adaptations(monkeypatch):
     TRANSP-03: GET /adaptations/ returns a list of adaptation records for the authenticated user.
     Phase 4: user_id comes from the JWT; no user_id query param needed.
     """
-    from backend.main import app
     import backend.routes.adaptations as adapt_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
@@ -1154,8 +1211,8 @@ async def test_mark_missed_synthesizes_signal_for_marked_session(monkeypatch):
     synthesize the missed signal for the marked session so the manual report
     actually triggers an adaptation (here: micro, since it is the only signal).
     """
-    from backend.main import app
     import backend.routes.adaptations as adapt_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
@@ -1174,7 +1231,9 @@ async def test_mark_missed_synthesizes_signal_for_marked_session(monkeypatch):
     mock_client.update.return_value = mock_client
     # First execute: ownership lookup; all later ones (status flip, consumed
     # pre-query) return empty data.
-    mock_client.execute = AsyncMock(side_effect=[execute_session_lookup, execute_generic, execute_generic])
+    mock_client.execute = AsyncMock(
+        side_effect=[execute_session_lookup, execute_generic, execute_generic]
+    )
 
     async def _mock_supabase():
         return mock_client
@@ -1218,8 +1277,8 @@ async def test_mark_missed_skips_synthesis_when_already_consumed(monkeypatch):
     CR-02 + Pattern 5: if a prior adaptation already consumed the session,
     marking it missed again must NOT re-fire a signal.
     """
-    from backend.main import app
     import backend.routes.adaptations as adapt_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
@@ -1238,7 +1297,9 @@ async def test_mark_missed_skips_synthesis_when_already_consumed(monkeypatch):
     mock_client.eq.return_value = mock_client
     mock_client.in_.return_value = mock_client
     mock_client.update.return_value = mock_client
-    mock_client.execute = AsyncMock(side_effect=[execute_session_lookup, execute_flip, execute_consumed])
+    mock_client.execute = AsyncMock(
+        side_effect=[execute_session_lookup, execute_flip, execute_consumed]
+    )
 
     async def _mock_supabase():
         return mock_client
@@ -1274,8 +1335,8 @@ async def test_mark_missed_inline_awaits_calendar_update(monkeypatch):
         deterministic RED signal that the route still schedules calendar sync via
         BackgroundTasks (fails against current code)
     """
-    from backend.main import app
     import backend.routes.adaptations as adapt_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
@@ -1293,7 +1354,9 @@ async def test_mark_missed_inline_awaits_calendar_update(monkeypatch):
     mock_client.in_.return_value = mock_client
     mock_client.update.return_value = mock_client
     # execute order: ownership lookup, status flip to 'missed', consumed-ids pre-query.
-    mock_client.execute = AsyncMock(side_effect=[execute_session_lookup, execute_generic, execute_generic])
+    mock_client.execute = AsyncMock(
+        side_effect=[execute_session_lookup, execute_generic, execute_generic]
+    )
 
     async def _mock_supabase():
         return mock_client
@@ -1301,7 +1364,11 @@ async def test_mark_missed_inline_awaits_calendar_update(monkeypatch):
     monkeypatch.setattr(adapt_module, "_get_async_supabase", _mock_supabase)
     monkeypatch.setattr(adapt_module, "detect_signals", AsyncMock(return_value=[]))
 
-    applied_session = {"id": session_id, "calendar_event_id": "evt-456", "scheduled_date": "2026-07-11"}
+    applied_session = {
+        "id": session_id,
+        "calendar_event_id": "evt-456",
+        "scheduled_date": "2026-07-11",
+    }
     applied_result = {
         "status": "applied",
         "scope": "micro",
@@ -1311,7 +1378,9 @@ async def test_mark_missed_inline_awaits_calendar_update(monkeypatch):
         "explanation": "x",
         "adaptation_id": "adaptation-uuid-cal-2",
     }
-    monkeypatch.setattr(adapt_module, "apply_micro_adjustment", AsyncMock(return_value=applied_result))
+    monkeypatch.setattr(
+        adapt_module, "apply_micro_adjustment", AsyncMock(return_value=applied_result)
+    )
 
     mock_update = AsyncMock(return_value=None)
     monkeypatch.setattr(adapt_module, "update_calendar_event", mock_update)
@@ -1346,8 +1415,8 @@ async def test_confirm_macro_applies_stored_snapshot(monkeypatch):
     sessions verbatim (not a freshly recomputed one) and flips the adaptation's
     status to 'applied'.
     """
-    from backend.main import app
     import backend.routes.adaptations as adapt_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
@@ -1375,7 +1444,9 @@ async def test_confirm_macro_applies_stored_snapshot(monkeypatch):
     mock_client.select.return_value = mock_client
     mock_client.eq.return_value = mock_client
     mock_client.update.return_value = mock_client
-    mock_client.execute = AsyncMock(side_effect=[execute_select, execute_session_update, execute_status_update])
+    mock_client.execute = AsyncMock(
+        side_effect=[execute_select, execute_session_update, execute_status_update]
+    )
 
     async def _mock_supabase():
         return mock_client
@@ -1396,12 +1467,16 @@ async def test_confirm_macro_applies_stored_snapshot(monkeypatch):
     assert data == {"status": "applied", "adaptation_id": adaptation_id}
 
     # The applied session payload matches the STORED snapshot verbatim.
-    session_update_calls = [c for c in mock_client.update.call_args_list if "tss_target" in c.args[0]]
+    session_update_calls = [
+        c for c in mock_client.update.call_args_list if "tss_target" in c.args[0]
+    ]
     assert len(session_update_calls) == 1
     assert session_update_calls[0].args[0] == {"tss_target": 42.0, "scheduled_date": "2026-07-10"}
 
     # The adaptation row itself flips to 'applied'.
-    status_update_calls = [c for c in mock_client.update.call_args_list if c.args[0] == {"status": "applied"}]
+    status_update_calls = [
+        c for c in mock_client.update.call_args_list if c.args[0] == {"status": "applied"}
+    ]
     assert len(status_update_calls) == 1
 
 
@@ -1411,8 +1486,8 @@ async def test_confirm_macro_idor_returns_404(monkeypatch):
     dual-filter (foreign owner, missing, or already applied/superseded) returns 404
     proposal_not_found -- nothing is applied.
     """
-    from backend.main import app
     import backend.routes.adaptations as adapt_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 

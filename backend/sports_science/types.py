@@ -1,6 +1,7 @@
 # sports_science/types.py
-from pydantic import BaseModel
 from typing import Any
+
+from pydantic import BaseModel
 
 
 class ToolResult(BaseModel):

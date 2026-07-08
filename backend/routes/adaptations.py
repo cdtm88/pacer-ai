@@ -5,8 +5,10 @@ TRANSP-01 through TRANSP-03, D-16 through D-20).
 
 Endpoints:
   GET  /adaptations/                        -- readable adaptation log (TRANSP-03)
-  POST /adaptations/check                   -- weekly signal check, independent of uploads (ADAPT-04)
-  POST /adaptations/sessions/{session_id}/missed -- mark one session missed + re-run detection (D-16)
+  POST /adaptations/check                   -- weekly signal check, independent
+                                                of uploads (ADAPT-04)
+  POST /adaptations/sessions/{session_id}/missed -- mark one session missed
+                                                     + re-run detection (D-16)
 
 Signal detection (ADAPT-01):
   - Missed session: scheduled, past-due, no matching ride within +/-1 day
@@ -34,18 +36,17 @@ Security (Phase 4):
 """
 
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path
-from pydantic import BaseModel
 
 from backend.auth import get_current_user
-from backend.calendar_sync import delete_calendar_event, update_calendar_event
+from backend.calendar_sync import update_calendar_event
 from backend.db import get_async_supabase as _get_async_supabase
-from backend.utils import validate_uuid
 from backend.sports_science.compliance import validate_session_vs_actual
 from backend.sports_science.load import progress_load
+from backend.utils import validate_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -586,7 +587,11 @@ async def apply_macro_replan(user_id: str, signals: list[dict]) -> dict:
         original_tss = session.get("tss_target")
         new_tss = round(original_tss * capacity_ratio, 1) if original_tss is not None else None
         sched = _parse_date(session.get("scheduled_date"))
-        new_date = (sched + timedelta(days=i // 2)).isoformat() if sched else session.get("scheduled_date")
+        new_date = (
+            (sched + timedelta(days=i // 2)).isoformat()
+            if sched
+            else session.get("scheduled_date")
+        )
         after_sessions.append({
             **session,
             "tss_target": new_tss,
@@ -777,7 +782,9 @@ async def check_adaptations(
         # Build lookup of before sessions by id for calendar_event_id.
         before_by_id = {s["id"]: s for s in before_sessions}
         for session in after_sessions:
-            event_id = session.get("calendar_event_id") or before_by_id.get(session["id"], {}).get("calendar_event_id")
+            event_id = session.get("calendar_event_id") or before_by_id.get(
+                session["id"], {}
+            ).get("calendar_event_id")
             if event_id:
                 # --- update_calendar_event inline-awaited (Vercel serverless
                 #     constraint: no BackgroundTasks, which Vercel freezes/kills
@@ -898,7 +905,10 @@ async def mark_session_missed(
     if not session_rows:
         raise HTTPException(
             status_code=404,
-            detail={"error": "session_not_found", "detail": "Session not found or does not belong to this user."},
+            detail={
+                "error": "session_not_found",
+                "detail": "Session not found or does not belong to this user.",
+            },
         )
 
     # Update session status to "missed".
@@ -935,7 +945,9 @@ async def mark_session_missed(
             before_sessions = result.get("before", [])
             before_by_id = {s["id"]: s for s in before_sessions}
             for session in after_sessions:
-                event_id = session.get("calendar_event_id") or before_by_id.get(session["id"], {}).get("calendar_event_id")
+                event_id = session.get("calendar_event_id") or before_by_id.get(
+                    session["id"], {}
+                ).get("calendar_event_id")
                 if event_id:
                     # --- update_calendar_event inline-awaited (Vercel serverless
                     #     constraint: no BackgroundTasks, which Vercel freezes/kills
@@ -943,7 +955,9 @@ async def mark_session_missed(
                     await update_calendar_event(user_id, event_id, session)
     except Exception:
         logger.warning(
-            "Signal detection/adaptation failed for session %s (non-fatal)", session_id, exc_info=True
+            "Signal detection/adaptation failed for session %s (non-fatal)",
+            session_id,
+            exc_info=True,
         )
 
     return {

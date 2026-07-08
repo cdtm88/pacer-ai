@@ -19,7 +19,7 @@ import time
 
 import jwt
 
-from tests.api.conftest import TEST_USER_ID, TEST_JWT_SECRET, auth_headers, make_test_token
+from tests.api.conftest import TEST_JWT_SECRET, TEST_USER_ID, auth_headers, make_test_token
 
 SSE_TOKEN_SECRET_FOR_TESTS = "test-sse-secret-unit-only"
 
@@ -34,6 +34,7 @@ async def test_issue_sse_token_returns_short_lived_token(monkeypatch):
     """
     import httpx
     from httpx import ASGITransport
+
     from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
@@ -67,6 +68,7 @@ async def test_issue_sse_token_requires_auth(monkeypatch):
     """POST /chat/token with no Authorization header returns 401."""
     import httpx
     from httpx import ASGITransport
+
     from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
@@ -89,9 +91,10 @@ async def test_stream_accepts_ephemeral_sse_token(monkeypatch):
     """
     import httpx
     from httpx import ASGITransport
-    from backend.main import app
+
     import backend.routes.chat as chat_module
     import backend.routes.onboarding as onboarding_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
     monkeypatch.setenv("SSE_TOKEN_SECRET", SSE_TOKEN_SECRET_FOR_TESTS)
@@ -153,9 +156,10 @@ async def test_real_supabase_jwt_is_not_an_sse_token(monkeypatch):
     """
     import httpx
     from httpx import ASGITransport
-    from backend.main import app
+
     import backend.routes.chat as chat_module
     import backend.routes.onboarding as onboarding_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
     monkeypatch.setenv("SSE_TOKEN_SECRET", SSE_TOKEN_SECRET_FOR_TESTS)

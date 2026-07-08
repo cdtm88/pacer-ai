@@ -20,12 +20,11 @@ asyncio_mode = auto (pytest.ini) means async tests need no @mark.asyncio.
 """
 
 import json
-import pytest
+
 import httpx
 from httpx import ASGITransport
 
-from tests.api.conftest import TEST_JWT_SECRET, TEST_USER_ID, auth_headers
-
+from tests.api.conftest import TEST_JWT_SECRET, auth_headers
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -98,7 +97,10 @@ async def _mock_run_turn_with_tools(messages, client, model, trust_scanner, audi
     forwards user_id/conversation_id kwargs for a resolved conversation.
     """
     yield {"event": "token", "data": {"text": "Calculating your zones."}}
-    yield {"event": "tool_start", "data": {"name": "calculate_power_zones", "tool_use_id": "toolu_test_001"}}
+    yield {
+        "event": "tool_start",
+        "data": {"name": "calculate_power_zones", "tool_use_id": "toolu_test_001"},
+    }
     yield {"event": "tool_result", "data": {
         "tool_use_id": "toolu_test_001",
         "name": "calculate_power_zones",
@@ -107,7 +109,9 @@ async def _mock_run_turn_with_tools(messages, client, model, trust_scanner, audi
     yield {"event": "done", "data": {}}
 
 
-async def _mock_run_turn_token_then_error(messages, client, model, trust_scanner, audit_log, **kwargs):
+async def _mock_run_turn_token_then_error(
+    messages, client, model, trust_scanner, audit_log, **kwargs
+):
     """
     WR-06: deterministic mock of run_turn terminating on an error event after
     one token. Mirrors run_turn's max_tool_turns/unexpected_stop/max_retries
@@ -121,7 +125,9 @@ async def _mock_run_turn_token_then_error(messages, client, model, trust_scanner
     yield {"event": "error", "data": {"code": "unexpected_stop", "message": "boom"}}
 
 
-async def _mock_run_turn_token_then_done(messages, client, model, trust_scanner, audit_log, **kwargs):
+async def _mock_run_turn_token_then_done(
+    messages, client, model, trust_scanner, audit_log, **kwargs
+):
     """
     WR-06: deterministic mock of run_turn completing normally after one token.
 
@@ -156,8 +162,8 @@ class TestSSEEventSequence:
         """
         AGENT-05: GET /chat/stream returns Content-Type: text/event-stream.
         """
-        from backend.main import app
         import backend.routes.chat as chat_module
+        from backend.main import app
 
         monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_text_only)
@@ -183,8 +189,8 @@ class TestSSEEventSequence:
         """
         AGENT-05: SSE frames are well-formed: event: <type>\\ndata: <json>\\n\\n
         """
-        from backend.main import app
         import backend.routes.chat as chat_module
+        from backend.main import app
 
         monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_text_only)
@@ -219,8 +225,8 @@ class TestSSEEventSequence:
         """
         AGENT-05: text-only turn yields token events then done -- in order.
         """
-        from backend.main import app
         import backend.routes.chat as chat_module
+        from backend.main import app
 
         monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_text_only)
@@ -254,8 +260,8 @@ class TestSSEEventSequence:
         AGENT-05: turn with tool use yields events in order:
         token..., tool_start, tool_result, done
         """
-        from backend.main import app
         import backend.routes.chat as chat_module
+        from backend.main import app
 
         monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_with_tools)
@@ -290,8 +296,8 @@ class TestSSEEventSequence:
 
     async def test_sse_token_data_has_text_field(self, monkeypatch):
         """Token events carry a 'text' field in their data payload."""
-        from backend.main import app
         import backend.routes.chat as chat_module
+        from backend.main import app
 
         monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_text_only)
@@ -317,8 +323,8 @@ class TestSSEEventSequence:
 
     async def test_sse_done_data_is_empty_object(self, monkeypatch):
         """Done event data is an empty object {}."""
-        from backend.main import app
         import backend.routes.chat as chat_module
+        from backend.main import app
 
         monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_text_only)
@@ -338,7 +344,9 @@ class TestSSEEventSequence:
         done_frames = [f for f in frames if f["event"] == "done"]
 
         assert len(done_frames) == 1, f"Expected exactly one done frame, got {len(done_frames)}"
-        assert done_frames[0]["data"] == {}, f"Done data must be {{}}, got: {done_frames[0]['data']}"
+        assert done_frames[0]["data"] == {}, (
+            f"Done data must be {{}}, got: {done_frames[0]['data']}"
+        )
 
     async def test_sse_no_live_anthropic_call(self, monkeypatch):
         """
@@ -346,8 +354,8 @@ class TestSSEEventSequence:
         This is guaranteed by patching run_turn -- the real AsyncAnthropic
         client in sse_generator is never invoked when run_turn is mocked.
         """
-        from backend.main import app
         import backend.routes.chat as chat_module
+        from backend.main import app
 
         monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_text_only)
@@ -380,8 +388,8 @@ class TestSSEEventSequence:
         T-02-09: conversation_id is required. Missing param returns 422 (FastAPI
         validation error), not a 500 or empty stream.
         """
-        from backend.main import app
         import backend.routes.chat as chat_module
+        from backend.main import app
 
         monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_text_only)
@@ -394,7 +402,8 @@ class TestSSEEventSequence:
             # valid auth still correctly returns 422 via FastAPI's own
             # required-Query validation, which fires before any dependency
             # body (ownership check) runs.
-            response = await client.get("/chat/stream", headers=auth_headers())  # no conversation_id
+            # no conversation_id
+            response = await client.get("/chat/stream", headers=auth_headers())
 
         assert response.status_code == 422, (
             f"Expected 422 for missing conversation_id, got {response.status_code}"

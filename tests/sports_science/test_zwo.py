@@ -9,7 +9,6 @@ import xml.etree.ElementTree as ET
 
 from backend.sports_science.zwo import generate_zwo
 
-
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
 # ---------------------------------------------------------------------------

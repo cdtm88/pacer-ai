@@ -1,16 +1,17 @@
 # tests/sports_science/test_metrics.py
-import math
 import pytest
-from backend.sports_science.metrics import compute_tss, _compute_np
+
+from backend.sports_science.constants import NP_SPIKE_MULTIPLIER
+from backend.sports_science.metrics import compute_tss
 from backend.sports_science.types import ToolResult
-from backend.sports_science.constants import NP_SPIKE_MULTIPLIER, NP_MIN_DURATION_SECS
 
 
 class TestNPIncludesZeros:
     """TOOL-04, TOOL-10: NP includes zeros (coasting counts as load)."""
 
     def test_np_includes_zeros(self, variable_power_array, sample_ftp):
-        """NP of array with coasting zeros is lower than flat-power array at same mean non-zero power.
+        """NP of array with coasting zeros is lower than flat-power array at
+        same mean non-zero power.
 
         variable_power_array = [0]*300 + [250]*300 (600 samples)
         Arithmetic mean of non-zero portion = 250W.

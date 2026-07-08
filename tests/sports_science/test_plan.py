@@ -8,11 +8,9 @@ in place (harmless duplication of the pre-D-07 shape assertions); this file
 is the dedicated home for the new PLAN-07 behaviors and future generate_plan
 coverage per the tests/sports_science/ one-file-per-module convention.
 """
-import pytest
 
-from backend.sports_science.plan import generate_plan, _is_true_beginner_ramp
+from backend.sports_science.plan import _is_true_beginner_ramp, generate_plan
 from backend.sports_science.types import ToolResult
-
 
 # --------------------------------------------------------------------------- #
 # _is_true_beginner_ramp unit cases
@@ -162,7 +160,10 @@ def test_true_beginner_cold_start_flat_ramp_weeks_1_to_3_equal():
     )
     sessions = result.value["sessions"]
     by_week = {
-        week: next(s["duration_minutes"] for s in sessions if s["week"] == week and s["day"] == "Monday")
+        week: next(
+            s["duration_minutes"] for s in sessions
+            if s["week"] == week and s["day"] == "Monday"
+        )
         for week in (1, 2, 3)
     }
     assert by_week[1] == by_week[2] == by_week[3], (
@@ -191,7 +192,10 @@ def test_at_risk_beginner_week1_capped_below_30():
 
     # Weeks 1-3 remain flat under the same at-risk cap.
     by_week = {
-        week: next(s["duration_minutes"] for s in sessions if s["week"] == week and s["day"] == "Monday")
+        week: next(
+            s["duration_minutes"] for s in sessions
+            if s["week"] == week and s["day"] == "Monday"
+        )
         for week in (1, 2, 3)
     }
     assert by_week[1] == by_week[2] == by_week[3]
@@ -214,7 +218,10 @@ def test_near_target_non_beginner_preserves_week2_3_full_template():
     )
     sessions = result.value["sessions"]
     by_week = {
-        week: next(s["duration_minutes"] for s in sessions if s["week"] == week and s["day"] == "Monday")
+        week: next(
+            s["duration_minutes"] for s in sessions
+            if s["week"] == week and s["day"] == "Monday"
+        )
         for week in (1, 2, 3)
     }
     # Week 1 stays conservative (<=45); weeks 2/3 are NOT forced equal to week 1

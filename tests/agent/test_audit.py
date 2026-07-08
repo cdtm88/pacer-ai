@@ -15,8 +15,6 @@ explicit marks.
 import json
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 
 def _make_mock_insert_client():
     """Return a mock AsyncClient whose insert chain silently succeeds.

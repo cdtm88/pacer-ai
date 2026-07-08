@@ -1,8 +1,8 @@
 # tests/sports_science/test_compliance.py
 import pytest
+
 from backend.sports_science.compliance import validate_session_vs_actual
 from backend.sports_science.types import ToolResult
-
 
 # --------------------------------------------------------------------------- #
 # TOOL-07: Session compliance percentage, delta, and flags

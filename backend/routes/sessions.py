@@ -26,7 +26,6 @@ from backend.auth import get_current_user
 from backend.db import get_async_supabase as _get_async_supabase
 from backend.utils import validate_uuid
 
-
 # ---------------------------------------------------------------------------
 # Router
 # ---------------------------------------------------------------------------

@@ -19,9 +19,9 @@ Fixture inventory:
 All fixtures avoid any network call (D-16).
 """
 
-from unittest.mock import AsyncMock, MagicMock
-import pytest
+from unittest.mock import MagicMock
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # Helpers

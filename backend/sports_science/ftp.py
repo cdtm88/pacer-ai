@@ -1,11 +1,12 @@
 # sports_science/ftp.py
 import numpy as np
 from scipy.optimize import curve_fit
+
 from .constants import (
+    MIN_QUALITY_EFFORTS,
+    QUALITY_EFFORT_FALLBACK_WATTS,
     QUALITY_EFFORT_MIN_DURATION_SECS,
     QUALITY_EFFORT_MIN_POWER_RATIO,
-    QUALITY_EFFORT_FALLBACK_WATTS,
-    MIN_QUALITY_EFFORTS,
 )
 from .types import ToolResult
 

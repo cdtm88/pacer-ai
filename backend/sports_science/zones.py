@@ -1,5 +1,5 @@
 # sports_science/zones.py
-from .constants import POWER_ZONE_BOUNDARIES, HR_ZONE_BOUNDARIES, LTHR_FROM_MAX_HR_RATIO
+from .constants import HR_ZONE_BOUNDARIES, LTHR_FROM_MAX_HR_RATIO, POWER_ZONE_BOUNDARIES
 from .types import ToolResult
 
 

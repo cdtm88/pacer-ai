@@ -16,7 +16,9 @@ on every log_capability_gap call (connection leak fix).
 import logging
 import os
 from typing import Optional
-from supabase import acreate_client, AsyncClient
+
+from supabase import AsyncClient, acreate_client
+
 from .types import ToolResult
 
 logger = logging.getLogger(__name__)

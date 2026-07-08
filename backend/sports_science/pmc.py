@@ -1,6 +1,7 @@
 # sports_science/pmc.py
 import numpy as np
-from .constants import CTL_TC, ATL_TC, PMC_MIN_DAYS
+
+from .constants import ATL_TC, CTL_TC, PMC_MIN_DAYS
 from .types import ToolResult
 
 # Module-level decay alphas derived from Banister time constants (D-05).

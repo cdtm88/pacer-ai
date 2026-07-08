@@ -144,9 +144,15 @@ def _build_sessions(
                 session_type = "endurance"
                 rpe = 3
                 power_targets = None  # Week 1 always HR/RPE only
-                obj = "Aerobic base building -- zone 2 steady effort, focus on breathing and cadence"
+                obj = (
+                    "Aerobic base building -- zone 2 steady effort, "
+                    "focus on breathing and cadence"
+                )
                 structure = {
-                    "warmup": {"duration_minutes": 5, "description": "Easy spin, HR building gradually"},
+                    "warmup": {
+                        "duration_minutes": 5,
+                        "description": "Easy spin, HR building gradually",
+                    },
                     "main_set": {
                         "duration_minutes": duration - 10,
                         "description": "Zone 2 steady effort, maintain conversation pace",

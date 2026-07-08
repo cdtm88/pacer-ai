@@ -32,9 +32,9 @@ SSE usage (token in query string because EventSource cannot send headers):
 import os
 
 import jwt
-from jwt import PyJWKClient
 from fastapi import Depends, HTTPException, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jwt import PyJWKClient
 
 # ---------------------------------------------------------------------------
 # JWKS client (cached singleton -- fetches public keys on first use)
@@ -135,7 +135,13 @@ async def get_current_user(
     if not secret:
         raise HTTPException(
             status_code=500,
-            detail={"error": "server_error", "detail": "No valid auth configuration (SUPABASE_URL or SUPABASE_JWT_SECRET required)"},
+            detail={
+                "error": "server_error",
+                "detail": (
+                    "No valid auth configuration "
+                    "(SUPABASE_URL or SUPABASE_JWT_SECRET required)"
+                ),
+            },
         )
 
     try:

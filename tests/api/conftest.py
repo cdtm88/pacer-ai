@@ -12,11 +12,10 @@ Provides:
 
 asyncio_mode = auto (pytest.ini) -- no @pytest.mark.asyncio needed.
 """
-import os
 import time
-import jwt
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import jwt
 
 # Fixed test user UUID -- used across all tests/api/ files
 TEST_USER_ID = "00000000-0000-0000-0000-000000000001"

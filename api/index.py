@@ -1,9 +1,10 @@
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import FastAPI
+
 from backend.main import app as _backend_app  # noqa: E402
 
 # Vercel `services` entry point for the backend service (vercel.json

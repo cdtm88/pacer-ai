@@ -41,10 +41,10 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Up
 from backend.auth import get_current_user
 from backend.db import get_async_supabase as _get_async_supabase
 from backend.pmc_recompute import recompute_pmc_for_user
-from backend.utils import validate_uuid
 from backend.sports_science.compliance import validate_session_vs_actual
 from backend.sports_science.ftp import estimate_ftp_from_rides
 from backend.sports_science.metrics import compute_tss
+from backend.utils import validate_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +156,11 @@ def parse_fit_file(file_bytes: bytes) -> Optional[dict]:
     # present. This correctly handles smart-recording devices that emit fewer than
     # 1 record/sec (e.g. Garmin auto-pause, Wahoo ELEMNT variable-rate recording).
     # Fall back to sample count only when timestamps are absent (legacy/synthetic files).
-    if first_record_ts is not None and last_record_ts is not None and last_record_ts > first_record_ts:
+    if (
+        first_record_ts is not None
+        and last_record_ts is not None
+        and last_record_ts > first_record_ts
+    ):
         duration_secs = int((last_record_ts - first_record_ts).total_seconds()) + 1
         logger.info(
             "FIT duration from timestamps: %ds (first=%s, last=%s, samples=%d)",

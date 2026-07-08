@@ -19,16 +19,17 @@ import os
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
-
-load_dotenv()
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.routes.adaptations import router as adaptations_router
 from backend.routes.calendar import router as calendar_router
-from backend.routes.chat import conversations_router, router as chat_router
+from backend.routes.chat import conversations_router
+from backend.routes.chat import router as chat_router
 from backend.routes.onboarding import router as onboarding_router
 from backend.routes.rides import router as rides_router
 from backend.routes.sessions import router as sessions_router
+
+load_dotenv()
 
 app = FastAPI(
     title="PacerAI",

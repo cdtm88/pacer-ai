@@ -1,11 +1,12 @@
 # tests/sports_science/test_zones.py
 import pytest
+
+from backend.sports_science.types import ToolResult
 from backend.sports_science.zones import (
-    calculate_power_zones,
     calculate_hr_zones,
+    calculate_power_zones,
     estimate_lthr_from_max_hr,
 )
-from backend.sports_science.types import ToolResult
 
 
 def test_power_zones_ftp200():
@@ -44,7 +45,8 @@ def test_power_zones_ftp200():
 @pytest.mark.parametrize("ftp,power,expected_zone", [
     (200, 100, 1),   # 50% FTP -> Z1 (100 >= 0, 100 < 110)
     (200, 110, 2),   # 55% FTP boundary -> Z2 (110 >= 110, 110 < 150); exact lower boundary of Z2
-    (200, 150, 3),   # 75% FTP boundary -> Z3 (150 >= 150, 150 < 180); Z2 upper is exclusive (150 < 150 = false)
+    (200, 150, 3),   # 75% FTP boundary -> Z3 (150 >= 150, 150 < 180);
+                     # Z2 upper is exclusive (150 < 150 = false)
     (200, 151, 3),   # just above 75% FTP -> Z3
 ])
 def test_zone_boundary_no_overlap(ftp, power, expected_zone):
@@ -67,7 +69,8 @@ def test_zone_boundary_no_overlap(ftp, power, expected_zone):
 
     # Every power value must belong to exactly one zone
     assert len(matched_zones) == 1, (
-        f"{power}W at FTP={ftp} matched zones {matched_zones}, expected exactly zone {expected_zone}"
+        f"{power}W at FTP={ftp} matched zones {matched_zones}, "
+        f"expected exactly zone {expected_zone}"
     )
     assert matched_zones[0] == expected_zone, (
         f"{power}W at FTP={ftp} matched zone {matched_zones[0]}, expected zone {expected_zone}"
@@ -102,7 +105,8 @@ def test_hr_zone_boundary_no_overlap(lthr, bpm, expected_zone):
                 matched_zones.append(z["zone"])
 
     assert len(matched_zones) == 1, (
-        f"{bpm}bpm at LTHR={lthr} matched zones {matched_zones}, expected exactly zone {expected_zone}"
+        f"{bpm}bpm at LTHR={lthr} matched zones {matched_zones}, "
+        f"expected exactly zone {expected_zone}"
     )
     assert matched_zones[0] == expected_zone, (
         f"{bpm}bpm at LTHR={lthr} matched zone {matched_zones[0]}, expected zone {expected_zone}"

@@ -15,13 +15,13 @@ All Supabase calls are mocked; no live DB connections are made.
 asyncio_mode = auto (pytest.ini) -- no @pytest.mark.asyncio needed.
 """
 import pathlib
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
 from httpx import ASGITransport
 
-from tests.api.conftest import TEST_USER_ID, TEST_JWT_SECRET, auth_headers
+from tests.api.conftest import TEST_JWT_SECRET, TEST_USER_ID, auth_headers
 
 FIXTURE_PATH = pathlib.Path(__file__).parents[1] / "fixtures" / "sample_zwift.fit"
 
@@ -115,8 +115,8 @@ async def test_upload_returns_200(monkeypatch):
     Task 3: the pipeline is inline-awaited (Vercel-safe); the returned status
     is 'processed', not the old BackgroundTasks-era 'processing'.
     """
-    from backend.main import app
     import backend.routes.rides as rides_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
     client_mock, _ = _make_rides_mock()
@@ -153,8 +153,8 @@ async def test_raw_fit_path_matches_storage_object_key(monkeypatch):
     storage.from_('fits').upload -- with no duplicated 'fits/' bucket prefix --
     so a future download(raw_fit_path) resolves.
     """
-    from backend.main import app
     import backend.routes.rides as rides_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
     client_mock, rides_mock = _make_rides_mock()
@@ -198,8 +198,8 @@ async def test_dedup_precheck_short_circuits(monkeypatch):
     Task 2: A byte-identical re-upload is caught by the content-hash pre-check
     SELECT and returns duplicate=true with no second rides insert.
     """
-    from backend.main import app
     import backend.routes.rides as rides_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
@@ -242,7 +242,9 @@ async def test_dedup_precheck_short_circuits(monkeypatch):
     body = response.json()
     assert body.get("duplicate") is True, f"Expected duplicate=True: {body}"
     assert body.get("status") == "duplicate", f"Expected status='duplicate': {body}"
-    assert body.get("ride_id") == "existing-ride-001", f"Expected existing ride_id echoed back: {body}"
+    assert body.get("ride_id") == "existing-ride-001", (
+        f"Expected existing ride_id echoed back: {body}"
+    )
     assert rides_mock.insert.call_count == 0, "Duplicate short-circuit must not call insert"
 
 
@@ -252,8 +254,8 @@ async def test_dedup_unique_violation_returns_duplicate(monkeypatch):
     SELECT and hits the DB UNIQUE(user_id, content_hash) constraint at INSERT
     time is caught and returns the same duplicate=true response, not a 500.
     """
-    from backend.main import app
     import backend.routes.rides as rides_module
+    from backend.main import app
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 
@@ -314,7 +316,9 @@ async def test_dedup_unique_violation_returns_duplicate(monkeypatch):
         f"Expected 200 (duplicate), got {response.status_code}: {response.text}"
     )
     body = response.json()
-    assert body.get("duplicate") is True, f"Expected duplicate=True after unique-violation race: {body}"
+    assert body.get("duplicate") is True, (
+        f"Expected duplicate=True after unique-violation race: {body}"
+    )
     assert body.get("ride_id") == "raced-ride-001", f"Expected raced ride_id echoed back: {body}"
 
 
@@ -329,8 +333,8 @@ async def test_get_user_ftp_writeback(monkeypatch):
     stale 'ftp_watts' key) and, when confidence is medium/high, writes the
     resolved value back to profiles.ftp filtered by user_id (T-06-08).
     """
-    from backend.sports_science.types import ToolResult
     import backend.routes.rides as rides_module
+    from backend.sports_science.types import ToolResult
 
     fake_result = ToolResult(
         value={"ftp": 245.3, "cp": 245.3, "wprime": 20000.0, "confidence": "medium"},
@@ -374,7 +378,9 @@ async def test_get_user_ftp_writeback(monkeypatch):
     assert len(update_calls) == 1, (
         f"Expected exactly one profiles.ftp write-back call, got {update_calls}"
     )
-    assert update_calls[0] == {"ftp": 245.3}, f"Unexpected profiles update payload: {update_calls[0]}"
+    assert update_calls[0] == {"ftp": 245.3}, (
+        f"Unexpected profiles update payload: {update_calls[0]}"
+    )
     profiles_mock.eq.assert_called_with("user_id", TEST_USER_ID)
 
 
@@ -383,8 +389,8 @@ async def test_get_user_ftp_cold_start_unchanged(monkeypatch):
     Task 1 regression guard: insufficient-data confidence still returns the
     cold-start placeholder with is_estimated=True and issues no profiles write.
     """
-    from backend.sports_science.types import ToolResult
     import backend.routes.rides as rides_module
+    from backend.sports_science.types import ToolResult
 
     fake_result = ToolResult(
         value=None,
@@ -448,6 +454,7 @@ def test_missing_fields():
     parse_fit_file returns avg_hr=None and avg_cadence=None without raising.
     """
     import fitdecode
+
     from backend.routes.rides import parse_fit_file
 
     assert FIXTURE_PATH.exists(), f"Test fixture missing: {FIXTURE_PATH}"
@@ -788,8 +795,8 @@ async def test_fit_upload_integration(monkeypatch):
 
     DB is mocked to avoid live Supabase connections.
     """
-    from backend.main import app
     import backend.routes.rides as rides_module
+    from backend.main import app
 
     assert FIXTURE_PATH.exists(), (
         f"Real Zwift .FIT fixture missing at {FIXTURE_PATH}. "
@@ -865,7 +872,6 @@ async def test_corrupt_fit_returns_422(monkeypatch):
     include the Authorization header to exercise the 422 parse-error path.
     """
     from backend.main import app
-    import backend.routes.rides as rides_module
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
 

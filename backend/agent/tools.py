@@ -24,22 +24,22 @@ import hashlib
 import json
 from datetime import date, timedelta
 
-from backend.sports_science import (
-    calculate_power_zones,
-    calculate_hr_zones,
-    estimate_ftp_from_rides,
-    compute_tss,
-    update_pmc,
-    progress_load,
-    validate_session_vs_actual,
-    log_capability_gap,
-)
-from backend.sports_science.zones import estimate_lthr_from_max_hr
-from backend.sports_science.types import ToolResult  # noqa: F401 – referenced in type hints below
-from backend.sports_science.profile import save_profile
-from backend.sports_science.plan import generate_plan
-from backend.db import get_async_supabase as _get_async_supabase
 from backend.agent.audit import write_audit_entry
+from backend.db import get_async_supabase as _get_async_supabase
+from backend.sports_science import (
+    calculate_hr_zones,
+    calculate_power_zones,
+    compute_tss,
+    estimate_ftp_from_rides,
+    log_capability_gap,
+    progress_load,
+    update_pmc,
+    validate_session_vs_actual,
+)
+from backend.sports_science.plan import generate_plan
+from backend.sports_science.profile import save_profile
+from backend.sports_science.types import ToolResult  # noqa: F401 – referenced in type hints below
+from backend.sports_science.zones import estimate_lthr_from_max_hr
 
 # ---------------------------------------------------------------------------
 # Tool Registry
@@ -161,7 +161,10 @@ TOOL_SCHEMAS: list[dict] = [
             "properties": {
                 "power_array": {
                     "type": "array",
-                    "description": "1 Hz power samples in watts (one value per second). Zeros for coasting are valid.",
+                    "description": (
+                        "1 Hz power samples in watts (one value per second). "
+                        "Zeros for coasting are valid."
+                    ),
                     "items": {"type": "number"},
                 },
                 "duration_secs": {
@@ -200,7 +203,9 @@ TOOL_SCHEMAS: list[dict] = [
                 },
                 "days_of_data": {
                     "type": "integer",
-                    "description": "Total days of TSS data accumulated (used for cold-start guard).",
+                    "description": (
+                        "Total days of TSS data accumulated (used for cold-start guard)."
+                    ),
                 },
             },
             "required": ["prev_ctl", "prev_atl", "tss", "days_of_data"],

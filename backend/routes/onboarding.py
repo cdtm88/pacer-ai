@@ -33,17 +33,15 @@ Architecture notes:
 import json
 import os
 
-import anthropic
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel as _PydanticBaseModel
 
 from backend.agent.loop import run_turn  # noqa: F401 -- module-scope import for test monkeypatching
-from backend.agent.trust import scan_buffer
 from backend.auth import get_current_user
 from backend.calendar_sync import push_all_sessions_to_calendar
-from backend.rate_limit import rate_limited_user
 from backend.db import get_async_supabase as _get_async_supabase
+from backend.rate_limit import rate_limited_user
 from backend.routes._sse import sse_generator
 from backend.utils import validate_uuid
 
@@ -66,7 +64,8 @@ ONBOARDING_SYSTEM_PROMPT = (
     "  2. weekly_hours -- How many hours per week they can commit to training\n"
     "  3. preferred_days -- Which days of the week they prefer to train\n"
     "  4. back_status -- Whether they have back issues; if yes, ask severity: "
-    "none, mild (occasional discomfort), or moderate (regular pain or medical advice to limit load)\n"
+    "none, mild (occasional discomfort), or moderate (regular pain or "
+    "medical advice to limit load)\n"
     "  5. equipment -- Confirm their training setup; for most users this will be a "
     "Wahoo Kickr Core trainer with Zwift. Confirm this with the user.\n"
     "  6. rpe_baseline -- Their self-reported fitness baseline: beginner (just getting started), "
@@ -186,7 +185,11 @@ async def save_messages(
             "conversation_id": conversation_id,
             "user_id": user_id,
             "role": msg["role"],
-            "content": msg["content"] if isinstance(msg["content"], str) else json.dumps(msg["content"]),
+            "content": (
+                msg["content"]
+                if isinstance(msg["content"], str)
+                else json.dumps(msg["content"])
+            ),
         }
         for msg in new_messages
     ]
@@ -358,7 +361,9 @@ async def onboarding_start(
                 if new_turns:
                     await save_messages(conversation_id, user_id, new_turns)
         except Exception:
-            pass  # best-effort; a persistence failure must never surface on the already-completed stream
+            # best-effort; a persistence failure must never surface on the
+            # already-completed stream
+            pass
 
     return StreamingResponse(
         _stream_with_metadata(),

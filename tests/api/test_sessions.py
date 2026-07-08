@@ -14,17 +14,15 @@ Covers:
 asyncio_mode = auto (pytest.ini) -- no @pytest.mark.asyncio needed.
 """
 import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import httpx
-import pytest
 from httpx import ASGITransport
 
 from tests.api.conftest import (
     TEST_JWT_SECRET,
     TEST_USER_ID,
     auth_headers,
-    mock_supabase_factory,
 )
 
 
@@ -403,7 +401,6 @@ async def test_create_conversation_returns_id(monkeypatch):
     POST /conversations/ creates a coaching conversation and returns its id.
     """
     import backend.routes.chat as chat_module
-    import backend.routes.onboarding as onboarding_module
 
     conversation_id = "conv-00000000-0001"
 

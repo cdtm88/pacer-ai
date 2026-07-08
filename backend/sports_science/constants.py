@@ -6,7 +6,8 @@ ATL_TC: int = 7
 PMC_MIN_DAYS: int = 28  # days before TSB is meaningful (D-06)
 
 # Coggan/Allen 7-zone power model -- boundaries as % of FTP (decimal)
-# Zone membership: >= lower AND < upper (except Z7: >= lower only) -- avoid dual membership (Pitfall 4)
+# Zone membership: >= lower AND < upper (except Z7: >= lower only)
+# -- avoid dual membership (Pitfall 4)
 POWER_ZONE_BOUNDARIES = [
     {"zone": 1, "name": "Active Recovery",    "lower": 0.00, "upper": 0.55},
     {"zone": 2, "name": "Endurance",          "lower": 0.55, "upper": 0.75},

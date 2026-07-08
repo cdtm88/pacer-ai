@@ -14,7 +14,6 @@ asyncio_mode = auto (pytest.ini) -- no @pytest.mark.asyncio needed.
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
-
 # ---------------------------------------------------------------------------
 # TRUST-02: registry/schema invariant check
 # ---------------------------------------------------------------------------
@@ -117,7 +116,8 @@ def test_power_targets_cold_start():
 
 
 def test_session_schema():
-    """Each session has the required keys: week, day, type, objective, duration_minutes, structure, zone_targets, power_targets, rpe_target."""
+    """Each session has the required keys: week, day, type, objective,
+    duration_minutes, structure, zone_targets, power_targets, rpe_target."""
     from backend.sports_science.plan import generate_plan
 
     result = generate_plan(
@@ -264,6 +264,7 @@ def test_week1_rollforward_avoids_week2_collision():
     instead -- no two sessions may ever share a scheduled_date.
     """
     import datetime
+
     from backend.agent.tools import _resolve_all_scheduled_dates
 
     confirm = datetime.date(2026, 7, 1)  # a Wednesday
@@ -289,6 +290,7 @@ def test_week1_rollforward_avoids_week2_collision():
 def test_resolve_all_dates_no_roll_matches_single_resolver():
     """WR-02 regression: sessions needing no roll keep _resolve_scheduled_date's result."""
     import datetime
+
     from backend.agent.tools import _resolve_all_scheduled_dates, _resolve_scheduled_date
 
     confirm = datetime.date(2026, 6, 29)  # a Monday -- nothing rolls
@@ -317,8 +319,9 @@ def test_scheduled_dates_unique_when_preferred_days_shorter_than_sessions():
     8 of 16 sessions in a 4-week plan shared a scheduled_date.
     """
     import datetime
-    from backend.sports_science.plan import _build_sessions
+
     from backend.agent.tools import _resolve_all_scheduled_dates
+    from backend.sports_science.plan import _build_sessions
 
     sessions = _build_sessions(
         4.0, "none", [], "insufficient_data", None, preferred_days=["Tuesday", "Thursday"]
@@ -987,7 +990,9 @@ async def test_generate_plan_injection_uses_same_turn_ftp_and_load_entries(monke
                     "back_constraints_applied": False,
                 },
                 "unit": "CTL",
-                "methodology": "CTL ramp ceiling 8pts/week; back-protective JSONB constraints applied",
+                "methodology": (
+                    "CTL ramp ceiling 8pts/week; back-protective JSONB constraints applied"
+                ),
                 "inputs": {"current_ctl": 5.0, "target_ctl": 9.0, "constraints": {}},
             },
         },

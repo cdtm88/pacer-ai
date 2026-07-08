@@ -27,15 +27,14 @@ References:
 Verified against anthropic==0.67.x installed in .venv.
 """
 
-import anthropic
 from anthropic import AsyncAnthropic
+from anthropic.lib.streaming._messages import AsyncMessageStream, AsyncMessageStreamManager
 
 # ---------------------------------------------------------------------------
 # Key type imports — these will NameError / ImportError if the SDK renames them,
 # which is the desired fail-loud behaviour.
 # ---------------------------------------------------------------------------
-from anthropic.types import Message, ToolUseBlock, RawContentBlockDeltaEvent, TextDelta
-from anthropic.lib.streaming._messages import AsyncMessageStream, AsyncMessageStreamManager
+from anthropic.types import Message, RawContentBlockDeltaEvent, TextDelta, ToolUseBlock
 
 # Dummy key — inert at construction time; SDK does not validate or contact the
 # network during __init__. No ANTHROPIC_API_KEY env var required.
@@ -216,7 +215,8 @@ def test_content_block_delta_text_path():
         "RawContentBlockDeltaEvent must have a 'delta' field matching event.delta in loop.py"
     )
     assert "type" in RawContentBlockDeltaEvent.model_fields, (
-        "RawContentBlockDeltaEvent must have a 'type' field matching event.type == 'content_block_delta'"
+        "RawContentBlockDeltaEvent must have a 'type' field matching "
+        "event.type == 'content_block_delta'"
     )
 
     # TextDelta is the concrete delta type that carries the text payload
