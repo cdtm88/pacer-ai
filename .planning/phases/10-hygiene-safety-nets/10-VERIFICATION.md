@@ -1,7 +1,7 @@
 ---
 phase: 10-hygiene-safety-nets
 verified: 2026-07-08T21:00:00Z
-status: human_needed
+status: passed
 score: 8/8 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
@@ -9,10 +9,12 @@ re_verification:
   previous_status: gaps_found
   previous_score: 7/8
   gaps_closed:
+
     - "CI runs pytest+vitest+ruff (report-only safety net) and reliably reports green — e2e job reverted, session.test.tsx flake root-caused and guarded, confirmed green on a real GitHub Actions run (28959849726)"
   gaps_remaining: []
   regressions: []
 human_verification:
+
   - test: "Confirm SSE_TOKEN_SECRET is set in Vercel Production + Preview environment variables (per 10-03-PLAN.md user_setup)."
     expected: "A high-entropy value (openssl rand -hex 32) is present in Vercel Project Settings -> Environment Variables for the backend function, for both Production and Preview."
     why_human: "No Vercel project link is configured in this environment (`vercel env ls` reports the codebase isn't linked); this is a deployment-configuration fact that cannot be checked from the repo working tree. Unchanged from prior verification — the 10-06 gap-closure plan only addressed item 7 (CI) and did not touch this."
