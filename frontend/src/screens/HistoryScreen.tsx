@@ -56,20 +56,12 @@ export function HistoryScreen() {
       {/* Header */}
       <div
         style={{
-          padding: '16px 16px 0',
+          width: '100%',
+          maxWidth: 720,
+          margin: '0 auto',
+          padding: '20px 20px 0',
         }}
       >
-        <h1
-          style={{
-            fontSize: '20px',
-            fontWeight: 600,
-            color: 'var(--color-ink)',
-            margin: '0 0 12px',
-          }}
-        >
-          History
-        </h1>
-
         {/* FIT upload zone: always visible */}
         <FitUploadZone />
 
@@ -86,7 +78,10 @@ export function HistoryScreen() {
         style={{
           flex: 1,
           overflowY: 'auto',
-          padding: '12px 16px 32px',
+          width: '100%',
+          maxWidth: 720,
+          margin: '0 auto',
+          padding: '8px 20px 32px',
         }}
       >
         {ridesQuery.isLoading && (

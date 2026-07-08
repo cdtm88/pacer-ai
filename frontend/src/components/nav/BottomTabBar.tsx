@@ -11,7 +11,7 @@ const TABS = [
 export function BottomTabBar() {
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 md:hidden z-40 flex"
+      className="shrink-0 w-full md:hidden z-40 flex"
       style={{
         height: 'calc(56px + env(safe-area-inset-bottom))',
         backgroundColor: 'var(--color-surface)',

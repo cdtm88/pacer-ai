@@ -6,6 +6,7 @@ import { SessionCard } from '@/components/session/SessionCard'
 import { DurationPickerModal } from '@/components/session/DurationPickerModal'
 import { getSessionToday, getUpcomingSessions, getLatestPmc } from '@/lib/api'
 import { loadMatchingSession } from '@/lib/sessionPersistence'
+import { sessionTypeLabel } from '@/lib/format'
 
 function formatNextRideDay(dateStr: string): string {
   const d = new Date(dateStr + 'T12:00:00')
@@ -175,7 +176,7 @@ export function TodayScreen() {
                       {formatStripDate(scheduledDate)}
                     </span>
                     <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-ink)', flex: 1 }}>
-                      {(s as {type?: string | null}).type ?? 'Session'}
+                      {sessionTypeLabel((s as {type?: string | null}).type)}
                     </span>
                     {zoneType && (
                       <span
@@ -253,7 +254,7 @@ export function TodayScreen() {
                       {formatStripDate(scheduledDate)}
                     </span>
                     <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-ink)', flex: 1 }}>
-                      {(s as {type?: string | null}).type ?? 'Session'}
+                      {sessionTypeLabel((s as {type?: string | null}).type)}
                     </span>
                     {zoneType && (
                       <span

@@ -343,10 +343,11 @@ function SessionRunner({
       minHeight: '100dvh',
       display: 'flex',
       flexDirection: 'column',
-      backgroundColor: 'var(--color-surface)',
+      // Subtle zone-tinted wash so the current effort is glanceable at arm's length
+      backgroundColor: `color-mix(in srgb, ${zoneColor} 7%, var(--color-surface))`,
     }}>
       {/* Zone color strip */}
-      <div style={{ height: 5, backgroundColor: zoneColor, width: '100%', flexShrink: 0 }} />
+      <div style={{ height: 6, backgroundColor: zoneColor, width: '100%', flexShrink: 0 }} />
 
       {/* Content — centred column */}
       <div style={{
@@ -407,16 +408,21 @@ function SessionRunner({
             {formatTimer(secondsLeft)}
           </p>
 
-          {/* Power target */}
-          <p style={{
-            fontSize: 28,
+          {/* Power target — filled zone lozenge; the key number to hold on the bike */}
+          <span style={{
+            fontSize: 30,
             fontWeight: 700,
-            color: zoneColor,
+            color: '#fff',
+            backgroundColor: zoneColor,
             letterSpacing: '-0.01em',
             lineHeight: 1,
+            borderRadius: 999,
+            padding: '10px 24px',
+            display: 'inline-block',
+            fontVariantNumeric: 'tabular-nums',
           }}>
             {target}
-          </p>
+          </span>
         </div>
 
         {/* Next step */}

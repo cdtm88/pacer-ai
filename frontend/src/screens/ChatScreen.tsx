@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { MessageCircle } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createConversation, getConversationMessages, sseUrl } from '../lib/api'
 import { useSSEStream } from '../hooks/useSSEStream'
@@ -245,6 +246,9 @@ export function ChatScreen() {
         style={{
           flex: 1,
           overflowY: 'auto',
+          width: '100%',
+          maxWidth: 720,
+          margin: '0 auto',
           padding: '16px',
         }}
       >
@@ -275,15 +279,32 @@ export function ChatScreen() {
           <div
             style={{
               textAlign: 'center',
-              paddingTop: '60px',
+              paddingTop: '96px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
             }}
           >
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'var(--color-blue-0)',
+                marginBottom: 16,
+              }}
+            >
+              <MessageCircle size={26} style={{ color: 'var(--color-blue-6)' }} />
+            </div>
             <h2
               style={{
                 fontSize: '18px',
                 fontWeight: 600,
                 color: 'var(--color-ink)',
-                margin: '0 0 8px',
+                margin: '0 0 6px',
               }}
             >
               Ask your coach anything
@@ -294,6 +315,7 @@ export function ChatScreen() {
                 color: 'var(--color-ink-2)',
                 margin: 0,
                 lineHeight: '1.5',
+                maxWidth: 300,
               }}
             >
               Start by uploading a ride, or ask about your plan.
@@ -334,10 +356,12 @@ export function ChatScreen() {
       )}
 
       {/* Input bar */}
-      <ChatInput
-        onSend={handleSend}
-        disabled={isStreaming || !conversation}
-      />
+      <div style={{ width: '100%', maxWidth: 720, margin: '0 auto' }}>
+        <ChatInput
+          onSend={handleSend}
+          disabled={isStreaming || !conversation}
+        />
+      </div>
     </div>
   )
 }

@@ -48,11 +48,9 @@ function SettingsScreenInner({ onSignOut, onResendMagicLink }: SettingsInnerProp
 
   return (
     <div
-      className="max-w-xl mx-auto px-4 py-8 space-y-8"
+      className="max-w-xl mx-auto px-5 py-8 space-y-8"
       style={{ color: 'var(--color-ink)' }}
     >
-      <h1 className="text-xl font-semibold">Settings</h1>
-
       {/* Profile section */}
       <section className="space-y-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--color-ink-2)' }}>

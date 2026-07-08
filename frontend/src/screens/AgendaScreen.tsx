@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/accordion'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getUpcomingSessions } from '@/lib/api'
+import { sessionTypeLabel } from '@/lib/format'
 
 type ZoneType = 'recovery' | 'endurance' | 'tempo' | 'threshold' | 'vo2'
 const ZONE_VAR: Record<ZoneType, string> = {
@@ -189,8 +190,8 @@ export function AgendaScreen() {
 
                         {/* Type + objective preview */}
                         <div className="flex-1 min-w-0">
-                          <p style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-ink)' }}>
-                            {s.type ?? 'Session'}
+                          <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-ink)' }}>
+                            {sessionTypeLabel(s.type)}
                           </p>
                           {s.objective && (
                             <p

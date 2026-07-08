@@ -13,12 +13,11 @@ import {
   AlertDialogFooter,
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog'
-import { ZoneChip } from './ZoneChip'
-import type { ZoneType } from './ZoneChip'
 import { TsbChip } from './TsbChip'
 import type { PmcRow } from './TsbChip'
 import { ZwoExportModal } from './ZwoExportModal'
 import { markSessionDone, markSessionMissed } from '@/lib/api'
+import { sessionTypeLabel } from '@/lib/format'
 
 const ZONE_COLORS: Record<string, string> = {
   recovery:  '#2B8A5B',
@@ -45,14 +44,6 @@ interface SessionCardProps {
   ftp?: number | null
 }
 
-function formatDate(dateStr: string): { weekday: string; date: string } {
-  const d = new Date(dateStr + 'T12:00:00')
-  return {
-    weekday: d.toLocaleDateString('en-US', { weekday: 'long' }),
-    date: d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' }),
-  }
-}
-
 function getStructureText(structure: SessionData['structure']): string {
   if (!structure) return ''
   if (typeof structure === 'string') return structure
@@ -63,10 +54,6 @@ function getDuration(session: SessionData): number | null {
   return session.duration_minutes ?? session.duration_mins ?? null
 }
 
-function isValidZone(type: string | null): type is ZoneType {
-  return ['recovery', 'endurance', 'tempo', 'threshold', 'vo2'].includes(type ?? '')
-}
-
 export function SessionCard({ session, pmc, ftp = null }: SessionCardProps) {
   const [missedOpen, setMissedOpen] = useState(false)
   const [zwoOpen, setZwoOpen] = useState(false)
@@ -75,7 +62,6 @@ export function SessionCard({ session, pmc, ftp = null }: SessionCardProps) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
 
-  const { weekday, date } = formatDate(session.scheduled_date)
   const structureText = getStructureText(session.structure)
   const duration = getDuration(session)
   const zoneColor = session.type ? (ZONE_COLORS[session.type] ?? null) : null
@@ -127,12 +113,18 @@ export function SessionCard({ session, pmc, ftp = null }: SessionCardProps) {
           <div style={{ height: 4, backgroundColor: zoneColor }} />
         )}
         <div className="p-6">
-        {/* Date line */}
+        {/* Session type eyebrow (zone-colored) */}
         <p
-          className="mb-2"
-          style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-ink-2)' }}
+          className="mb-1.5"
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+            color: zoneColor ?? 'var(--color-ink-3)',
+          }}
         >
-          {weekday}, {date}
+          {sessionTypeLabel(session.type)}
         </p>
 
         {/* Objective */}
@@ -170,7 +162,6 @@ export function SessionCard({ session, pmc, ftp = null }: SessionCardProps) {
               RPE {session.rpe_target}
             </span>
           )}
-          {isValidZone(session.type) && <ZoneChip zone={session.type} />}
           <TsbChip pmc={pmc} />
         </div>
 

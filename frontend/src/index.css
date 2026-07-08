@@ -49,6 +49,18 @@ body {
   margin: 0;
 }
 
+/* iOS Safari auto-zooms the viewport (and never fully zooms back, clipping the
+   page edges) whenever a focused text field has a font-size below 16px. Enforce a
+   16px floor on form controls for touch devices so tapping any input never zooms.
+   Desktop keeps component-level sizing. */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
 /* FitUploadZone indeterminate upload progress bar sweep (09-UI-SPEC.md §4) */
 @keyframes fit-upload-progress-sweep {
   0% { left: -40%; }
