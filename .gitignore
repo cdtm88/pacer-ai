@@ -19,6 +19,10 @@ test-results/
 frontend/test-results/
 .playwright-mcp/
 playwright-report/
+test-ride.fit
+
+# Node dependencies (orphaned root install; real project lives under frontend/)
+/node_modules/
 
 # Planning cache & internal manifests
 .planning/research/.cache/
