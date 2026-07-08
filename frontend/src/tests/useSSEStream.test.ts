@@ -303,6 +303,61 @@ describe('useSSEStream', () => {
     }
   })
 
+  // -------------------------------------------------------------------------
+  // Rate limiting (item 6, D-02/D-03, 10-UI-SPEC interaction rule): a
+  // code: "rate_limited" error event must skip the silent retry entirely and
+  // go straight to the terminal error state -- retrying immediately against
+  // a rate limit compounds the problem it's meant to prevent.
+  // -------------------------------------------------------------------------
+
+  it('a rate_limited error event sets the terminal error immediately and does NOT schedule a retry', () => {
+    vi.useFakeTimers()
+    try {
+      const { result } = renderHook(() => useSSEStream('http://localhost/stream'))
+      const es = MockEventSource.lastInstance!
+
+      act(() => {
+        es.dispatch('tool_start')
+      })
+      expect(result.current.isThinking).toBe(true)
+
+      act(() => {
+        es.dispatch('error', {
+          code: 'rate_limited',
+          message: "You're sending messages a bit fast. Wait a moment and try again.",
+        })
+      })
+
+      // Terminal error surfaces immediately -- no silent-retry delay needed.
+      expect(result.current.error).toBe(
+        "You're sending messages a bit fast. Wait a moment and try again."
+      )
+      expect(result.current.isThinking).toBe(false)
+
+      // No retry EventSource was opened, even after the normal backoff windows elapse.
+      const instanceAfterRateLimit = MockEventSource.lastInstance
+      act(() => {
+        vi.advanceTimersByTime(2000)
+      })
+      expect(MockEventSource.lastInstance).toBe(instanceAfterRateLimit)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('falls back to the default rate-limit copy when the rate_limited event has no message', () => {
+    const { result } = renderHook(() => useSSEStream('http://localhost/stream'))
+    const es = MockEventSource.lastInstance!
+
+    act(() => {
+      es.dispatch('error', { code: 'rate_limited' })
+    })
+
+    expect(result.current.error).toBe(
+      "You're sending messages a bit fast. Wait a moment and try again."
+    )
+  })
+
   it('closes the EventSource on unmount', () => {
     const { unmount } = renderHook(() => useSSEStream('http://localhost/stream'))
     const es = MockEventSource.lastInstance!

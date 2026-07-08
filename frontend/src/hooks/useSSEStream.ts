@@ -90,6 +90,28 @@ export function useSSEStream(url: string | null): SSEStreamState {
       es.addEventListener('error', (e: Event) => {
         if (streamCompleted) return // EventSource fires error on normal server close after done
         es.close()
+
+        // Item 6 (D-02/D-03, 10-UI-SPEC interaction rule): a rate-limit signal
+        // must skip the silent auto-retry entirely and go straight to the
+        // terminal error state -- retrying immediately against a rate limit
+        // compounds the problem it's meant to prevent.
+        try {
+          const rateLimitData = JSON.parse((e as MessageEvent).data) as {
+            code?: string
+            message?: string
+          }
+          if (rateLimitData.code === 'rate_limited') {
+            setError(
+              rateLimitData.message ??
+                "You're sending messages a bit fast. Wait a moment and try again."
+            )
+            setIsThinking(false)
+            return
+          }
+        } catch {
+          // malformed error data -- fall through to the existing retry/terminal logic
+        }
+
         if (retryCount < MAX_RETRIES) {
           const delay = BACKOFF_MS[retryCount]
           retryCount++
