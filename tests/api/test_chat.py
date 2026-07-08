@@ -14,7 +14,20 @@ asyncio_mode = auto (pytest.ini) -- no @pytest.mark.asyncio needed.
 """
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
+import backend.rate_limit as rate_limit_module
 from tests.api.conftest import TEST_USER_ID, TEST_JWT_SECRET, auth_headers, parse_sse_frames
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limit_log():
+    """Item 6: reset the rate-limit module's request log between tests so
+    exhausting the budget in one test doesn't bleed into another (this file's
+    tests share TEST_USER_ID)."""
+    rate_limit_module._request_log.clear()
+    yield
+    rate_limit_module._request_log.clear()
 
 
 async def _mock_chat_run_turn(messages, client, model, trust_scanner, audit_log, **kwargs):
@@ -298,3 +311,58 @@ async def test_get_conversation_messages_rejects_malformed_id(monkeypatch):
 
     assert response.status_code == 400
     assert response.json()["detail"]["error"] == "invalid_id"
+
+
+# ---------------------------------------------------------------------------
+# Item 6 (D-02/D-03): rate limiting on GET /chat/stream
+# ---------------------------------------------------------------------------
+
+
+async def test_chat_stream_over_limit_returns_sse_rate_limited_frame(monkeypatch):
+    """
+    Item 6: an over-limit GET /chat/stream returns HTTP 200 with a single SSE
+    `error` frame whose code is `rate_limited` -- not an HTTP 429 -- proving
+    the streaming-safe path (a 429 cannot be raised once StreamingResponse
+    iteration begins).
+    """
+    import httpx
+    from httpx import ASGITransport
+    from backend.main import app
+    import backend.routes.onboarding as onboarding_module
+    import backend.routes.chat as chat_module
+    from backend.rate_limit import MAX_REQUESTS_PER_WINDOW
+
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
+
+    owned_id = "22222222-2222-2222-2222-222222222222"
+    mock_factory = _make_chat_mock_supabase(
+        conversations_data=[{"id": owned_id}], messages_data=[]
+    )
+    monkeypatch.setattr(onboarding_module, "_get_async_supabase", mock_factory)
+    monkeypatch.setattr(chat_module, "run_turn", _mock_chat_run_turn)
+
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        # Exhaust the window for TEST_USER_ID.
+        for _ in range(MAX_REQUESTS_PER_WINDOW):
+            r = await client.get(
+                "/chat/stream",
+                params={"conversation_id": owned_id, "message": "hi"},
+                headers=auth_headers(),
+            )
+            assert r.status_code == 200
+
+        # The (N+1)th request must be rejected via an SSE error frame, not a 429.
+        response = await client.get(
+            "/chat/stream",
+            params={"conversation_id": owned_id, "message": "hi"},
+            headers=auth_headers(),
+        )
+
+    assert response.status_code == 200
+    frames = parse_sse_frames(response.text)
+    event_types = [f["event"] for f in frames]
+    assert event_types == ["error"], f"Expected only a rate_limited error frame, got: {event_types}"
+    assert frames[0]["data"]["code"] == "rate_limited"

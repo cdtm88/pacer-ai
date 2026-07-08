@@ -42,6 +42,7 @@ from backend.agent.loop import run_turn  # noqa: F401 -- module-scope import for
 from backend.agent.trust import scan_buffer
 from backend.auth import get_current_user
 from backend.calendar_sync import push_all_sessions_to_calendar
+from backend.rate_limit import rate_limited_user
 from backend.db import get_async_supabase as _get_async_supabase
 from backend.routes._sse import sse_generator
 from backend.utils import validate_uuid
@@ -270,7 +271,7 @@ class OnboardingStartBody(_PydanticBaseModel):
 @router.post("/start")
 async def onboarding_start(
     body: OnboardingStartBody = OnboardingStartBody(),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(rate_limited_user),
 ):
     """
     POST /onboarding/start
@@ -285,6 +286,12 @@ async def onboarding_start(
 
     Phase 4: JWT is accepted via Authorization: Bearer header or ?token= query
     param for SSE clients. user_id is sourced exclusively from the verified JWT sub claim.
+
+    Item 6 (D-02/D-03): current_user is resolved via rate_limited_user rather
+    than get_current_user directly -- this endpoint returns a normal JSON
+    response before any StreamingResponse is constructed, so a real HTTP 429
+    (raised by rate_limited_user once the per-user_id budget is spent) is
+    safe here, unlike chat_stream's SSE path.
 
     Returns:
         StreamingResponse (text/event-stream) of SSE frames.
