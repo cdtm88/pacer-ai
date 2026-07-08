@@ -130,13 +130,15 @@ const fixtureRides = [
     id: 'ride-1',
     user_id: 'test-user-id',
     session_id: null,
-    file_name: 'morning_ride.fit',
     ride_date: DAY2,
-    duration_seconds: 3600,
-    distance_m: 30000,
+    duration_secs: 3600,
     np_watts: 185,
     tss: 62,
-    avg_power_watts: 170,
+    avg_power: 170,
+    intensity_factor: 0.85,
+    avg_hr: 145,
+    avg_cadence: 88,
+    ftp_used: 200,
     compliance_pct: 95,
     created_at: '2026-01-01T00:00:00Z',
   },
@@ -144,13 +146,15 @@ const fixtureRides = [
     id: 'ride-2',
     user_id: 'test-user-id',
     session_id: null,
-    file_name: 'evening_ride.fit',
     ride_date: DAY4,
-    duration_seconds: 2700,
-    distance_m: 20000,
+    duration_secs: 2700,
     np_watts: 155,
     tss: 45,
-    avg_power_watts: 140,
+    avg_power: 140,
+    intensity_factor: 0.7,
+    avg_hr: 132,
+    avg_cadence: 84,
+    ftp_used: 200,
     compliance_pct: 82,
     created_at: '2026-01-01T00:00:00Z',
   },
@@ -228,7 +232,7 @@ async function mockBackendApis(page: Page, overrides: {
     route.fulfill(respond(overrides.pmc ?? fixturePmcReady)),
   )
   await page.route(/\/pmc_history\//, (route) => route.fulfill(respond({ history: [] })))
-  await page.route(/\/rides\//, (route) => route.fulfill(respond(overrides.rides ?? fixtureRides)))
+  await page.route(/\/rides\//, (route) => route.fulfill(respond({ rides: overrides.rides ?? fixtureRides })))
   await page.route(/\/rides\/upload/, (route) => route.fulfill(respond(fixtureRides[0])))
   await page.route(/\/adaptations\/sessions\/[^/]+\/missed/, (route) => route.fulfill(respond({})))
   await page.route(/\/adaptations\//, (route) => route.fulfill(respond([])))
