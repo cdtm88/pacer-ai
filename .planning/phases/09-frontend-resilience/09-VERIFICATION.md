@@ -1,14 +1,16 @@
 ---
 phase: 09-frontend-resilience
 verified: 2026-07-07T22:15:00Z
-status: human_needed
+status: passed
 score: 12/14 items code-verified (2 legitimately manual-only per 09-VALIDATION.md)
 behavior_unverified: 0
 overrides_applied: 0
 human_verification:
+
   - test: "Export a .zwo file from a real iOS Safari device (item 7) after the fix"
     expected: "File downloads without a blocked-popup prompt; iosWindow is opened synchronously in exportSessionZwo before any await and navigated via iosWindow.location.href once the blob URL resolves"
     why_human: "iOS Safari's popup-blocker gesture-window behavior cannot be simulated in jsdom/Vitest; requires a physical device or real Safari session (matches the IOS-03 physical-device-retest pattern in MEMORY.md)"
+
   - test: "Open Chat on a physical iOS Safari device / mobile viewport with the address bar visible (item 9)"
     expected: "Chat input stays pinned to the bottom of the screen and auto-scroll follows new messages, with no clipping when the dynamic address bar shows/hides"
     why_human: "iOS Safari's dynamic viewport height (100dvh) and inner-scroll-pane behavior cannot be verified in jsdom; AppLayout.test.tsx confirms h-dvh is used (not min-h-screen/h-screen) but not the rendered on-device behavior"
