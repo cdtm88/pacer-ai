@@ -111,7 +111,10 @@ async def get_current_user(
                     audience="authenticated",
                 )
                 if sse_payload.get("typ") == "sse_token":
-                    return {"user_id": sse_payload["sub"], "email": None}
+                    sub = sse_payload.get("sub")
+                    if sub:
+                        return {"user_id": sub, "email": None}
+                    # missing sub -- fall through to Supabase verification below
             except jwt.PyJWTError:
                 pass  # not an sse_token (or expired) -- fall through to Supabase verification
 
