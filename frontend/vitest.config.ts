@@ -19,9 +19,13 @@ export default defineConfig({
     // causing intermittent cross-file test pollution that only reproduces
     // with the full suite. jsdom's own localStorage is complete and correct
     // for our needs — disable Node's native one so jsdom is the sole source.
-    poolOptions: {
-      threads: { execArgv: ['--no-experimental-webstorage'] },
-      forks: { execArgv: ['--no-experimental-webstorage'] },
-    },
+    //
+    // NOTE (10-06 gap-closure): this was previously nested under
+    // `poolOptions.threads`/`poolOptions.forks`, which Vitest 4 removed —
+    // `poolOptions` config is now flattened to top-level options, so the old
+    // nested shape was silently ignored and the mitigation was never actually
+    // applied. `execArgv` is the top-level replacement (see Vitest 4
+    // migration guide, "pool rework").
+    execArgv: ['--no-experimental-webstorage'],
   },
 })
