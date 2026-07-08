@@ -1,3 +1,15 @@
+# Report-only CI (D-05 locked scope): backend (ruff+pytest) + frontend (vitest) only.
+# No branch protection is configured; commits land directly on main per D-05.
+#
+# End-to-end (Playwright) specs are intentionally EXCLUDED from CI for now. A
+# job running them was added during Phase 10's code-review-fix cycle (WR-02)
+# but was never validated against a real GitHub Actions run -- only local YAML
+# parsing. On real CI it failed reproducibly (2/2 observed runs): locator
+# timeouts and hover interactions that don't fire in a headless-Ubuntu
+# environment across the Login/Agenda/Settings/Session specs. Stabilizing
+# dozens of flaky Playwright specs for headless CI is a large, separate
+# undertaking, so the job is removed here to restore D-05's locked scope.
+# Run e2e specs manually pre-merge via `npm run test:e2e`.
 name: CI
 on:
   push:
@@ -29,19 +41,3 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run test -- --run
-
-  e2e:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
