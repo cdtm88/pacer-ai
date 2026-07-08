@@ -305,14 +305,14 @@ Plans:
 **Goal:** The test suite is green and guards the seams: 8 stale SSE tests authenticate properly, capability-gap test-order leak fixed, Playwright mocks match real response shapes, frontend-backend contract tests added (would have caught the Ride/Profile/FTP-key mismatches), short-lived SSE token exchange removes JWTs from query strings, LLM endpoints rate-limited, CI runs pytest+vitest+ruff, repo cleaned (root node_modules, test-ride.fit, root .gitignore).
 **Requirements**: TBD (phase predates REQ-ID mapping; tracked by the 8 scope items in the goal line, covered as ITEM-01..ITEM-08)
 **Depends on:** Phase 9
-**Plans:** 5 plans
+**Plans:** 3/5 plans executed
 
 Plans:
 **Wave 1** *(parallel — no file conflicts)*
 
-- [ ] 10-01-PLAN.md — Backend test hygiene: fix 8 stale SSE tests, profile.py reset seam, contract tests (items 1, 2, 4; D-01)
-- [ ] 10-02-PLAN.md — Playwright e2e mock field-name fixes to match the real Ride contract (item 3)
-- [ ] 10-03-PLAN.md — Short-lived SSE token exchange, POST /chat/token, removes full JWT from ?token= (item 5; D-04)
+- [x] 10-01-PLAN.md — Backend test hygiene: fix 8 stale SSE tests, profile.py reset seam, contract tests (items 1, 2, 4; D-01)
+- [x] 10-02-PLAN.md — Playwright e2e mock field-name fixes to match the real Ride contract (item 3)
+- [x] 10-03-PLAN.md — Short-lived SSE token exchange, POST /chat/token, removes full JWT from ?token= (item 5; D-04)
 
 **Wave 2** *(blocked on 10-03 — shared chat.py)*
 
@@ -346,7 +346,7 @@ Plans:
 | 7. Deploy Consolidation | 4/4 | Complete    | 2026-07-03 |
 | 8. Trust Model Integrity | 8/8 | Complete    | 2026-07-04 |
 | 9. Frontend Resilience | 7/7 | Complete    | 2026-07-07 |
-| 10. Hygiene and Safety Nets | 0/5 | Planned | - |
+| 10. Hygiene and Safety Nets | 3/5 | In Progress|  |
 | 11. Google Calendar Production Verification | 0/? | Not planned | - |
 
 - [ ] TBD (run /gsd-plan-phase 11 to break down)
