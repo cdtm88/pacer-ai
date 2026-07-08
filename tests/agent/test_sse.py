@@ -24,6 +24,8 @@ import pytest
 import httpx
 from httpx import ASGITransport
 
+from tests.api.conftest import TEST_JWT_SECRET, TEST_USER_ID, auth_headers
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -74,20 +76,26 @@ def parse_sse_frames(body: str) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-async def _mock_run_turn_text_only(messages, client, model, trust_scanner, audit_log):
+async def _mock_run_turn_text_only(messages, client, model, trust_scanner, audit_log, **kwargs):
     """
     Deterministic mock of run_turn for SSE sequence tests.
     Yields: token, done (text-only turn, no tool use).
+
+    Accepts **kwargs because sse_generator (backend/routes/_sse.py) always
+    forwards user_id/conversation_id kwargs for a resolved conversation.
     """
     yield {"event": "token", "data": {"text": "Hello, "}}
     yield {"event": "token", "data": {"text": "let me help you."}}
     yield {"event": "done", "data": {}}
 
 
-async def _mock_run_turn_with_tools(messages, client, model, trust_scanner, audit_log):
+async def _mock_run_turn_with_tools(messages, client, model, trust_scanner, audit_log, **kwargs):
     """
     Deterministic mock of run_turn with tool dispatch.
     Yields: token, tool_start, tool_result, done (in order).
+
+    Accepts **kwargs because sse_generator (backend/routes/_sse.py) always
+    forwards user_id/conversation_id kwargs for a resolved conversation.
     """
     yield {"event": "token", "data": {"text": "Calculating your zones."}}
     yield {"event": "tool_start", "data": {"name": "calculate_power_zones", "tool_use_id": "toolu_test_001"}}
@@ -99,21 +107,41 @@ async def _mock_run_turn_with_tools(messages, client, model, trust_scanner, audi
     yield {"event": "done", "data": {}}
 
 
-async def _mock_run_turn_token_then_error(messages, client, model, trust_scanner, audit_log):
+async def _mock_run_turn_token_then_error(messages, client, model, trust_scanner, audit_log, **kwargs):
     """
     WR-06: deterministic mock of run_turn terminating on an error event after
     one token. Mirrors run_turn's max_tool_turns/unexpected_stop/max_retries
     paths -- each yields `event: error` and then returns normally (a normal
     generator exit, NOT a raised exception).
+
+    Accepts **kwargs because sse_generator (backend/routes/_sse.py) always
+    forwards user_id/conversation_id kwargs for a resolved conversation.
     """
     yield {"event": "token", "data": {"text": "partial reply before failure"}}
     yield {"event": "error", "data": {"code": "unexpected_stop", "message": "boom"}}
 
 
-async def _mock_run_turn_token_then_done(messages, client, model, trust_scanner, audit_log):
-    """WR-06: deterministic mock of run_turn completing normally after one token."""
+async def _mock_run_turn_token_then_done(messages, client, model, trust_scanner, audit_log, **kwargs):
+    """
+    WR-06: deterministic mock of run_turn completing normally after one token.
+
+    Accepts **kwargs because sse_generator (backend/routes/_sse.py) always
+    forwards user_id/conversation_id kwargs for a resolved conversation.
+    """
     yield {"event": "token", "data": {"text": "complete reply"}}
     yield {"event": "done", "data": {}}
+
+
+async def _bypass_resolve(user_id, conversation_id):
+    """
+    Test-only bypass for CR-03's conversation-ownership check.
+
+    These tests exercise SSE framing mechanics, not conversation ownership
+    (ownership is already covered by tests/api/test_chat.py's CR-03-specific
+    tests). Returns conversation_id unchanged so the placeholder
+    "test-001"-style ids used throughout this file resolve successfully.
+    """
+    return conversation_id
 
 
 # ---------------------------------------------------------------------------
@@ -131,13 +159,19 @@ class TestSSEEventSequence:
         from backend.main import app
         import backend.routes.chat as chat_module
 
+        monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_text_only)
+        monkeypatch.setattr(chat_module, "_resolve_conversation_id", _bypass_resolve)
 
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get("/chat/stream", params={"conversation_id": "test-001", "user_id": "test-user-001"})
+            response = await client.get(
+                "/chat/stream",
+                params={"conversation_id": "test-001", "user_id": "test-user-001"},
+                headers=auth_headers(),
+            )
 
         assert response.status_code == 200
         content_type = response.headers.get("content-type", "")
@@ -152,13 +186,19 @@ class TestSSEEventSequence:
         from backend.main import app
         import backend.routes.chat as chat_module
 
+        monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_text_only)
+        monkeypatch.setattr(chat_module, "_resolve_conversation_id", _bypass_resolve)
 
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get("/chat/stream", params={"conversation_id": "test-001", "user_id": "test-user-001"})
+            response = await client.get(
+                "/chat/stream",
+                params={"conversation_id": "test-001", "user_id": "test-user-001"},
+                headers=auth_headers(),
+            )
 
         body = response.text
         # Each frame must be terminated by a blank line
@@ -182,13 +222,19 @@ class TestSSEEventSequence:
         from backend.main import app
         import backend.routes.chat as chat_module
 
+        monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_text_only)
+        monkeypatch.setattr(chat_module, "_resolve_conversation_id", _bypass_resolve)
 
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get("/chat/stream", params={"conversation_id": "test-001", "user_id": "test-user-001"})
+            response = await client.get(
+                "/chat/stream",
+                params={"conversation_id": "test-001", "user_id": "test-user-001"},
+                headers=auth_headers(),
+            )
 
         frames = parse_sse_frames(response.text)
         event_types = [f["event"] for f in frames]
@@ -211,13 +257,19 @@ class TestSSEEventSequence:
         from backend.main import app
         import backend.routes.chat as chat_module
 
+        monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_with_tools)
+        monkeypatch.setattr(chat_module, "_resolve_conversation_id", _bypass_resolve)
 
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get("/chat/stream", params={"conversation_id": "test-001", "user_id": "test-user-001"})
+            response = await client.get(
+                "/chat/stream",
+                params={"conversation_id": "test-001", "user_id": "test-user-001"},
+                headers=auth_headers(),
+            )
 
         frames = parse_sse_frames(response.text)
         event_types = [f["event"] for f in frames]
@@ -241,13 +293,19 @@ class TestSSEEventSequence:
         from backend.main import app
         import backend.routes.chat as chat_module
 
+        monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_text_only)
+        monkeypatch.setattr(chat_module, "_resolve_conversation_id", _bypass_resolve)
 
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get("/chat/stream", params={"conversation_id": "test-001", "user_id": "test-user-001"})
+            response = await client.get(
+                "/chat/stream",
+                params={"conversation_id": "test-001", "user_id": "test-user-001"},
+                headers=auth_headers(),
+            )
 
         frames = parse_sse_frames(response.text)
         token_frames = [f for f in frames if f["event"] == "token"]
@@ -262,13 +320,19 @@ class TestSSEEventSequence:
         from backend.main import app
         import backend.routes.chat as chat_module
 
+        monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_text_only)
+        monkeypatch.setattr(chat_module, "_resolve_conversation_id", _bypass_resolve)
 
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get("/chat/stream", params={"conversation_id": "test-001", "user_id": "test-user-001"})
+            response = await client.get(
+                "/chat/stream",
+                params={"conversation_id": "test-001", "user_id": "test-user-001"},
+                headers=auth_headers(),
+            )
 
         frames = parse_sse_frames(response.text)
         done_frames = [f for f in frames if f["event"] == "done"]
@@ -285,7 +349,9 @@ class TestSSEEventSequence:
         from backend.main import app
         import backend.routes.chat as chat_module
 
+        monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_text_only)
+        monkeypatch.setattr(chat_module, "_resolve_conversation_id", _bypass_resolve)
 
         # If run_turn is patched, the fake is called instead of the real one.
         # We verify the mock is actually used by checking the events are the
@@ -294,7 +360,11 @@ class TestSSEEventSequence:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get("/chat/stream", params={"conversation_id": "test-001", "user_id": "test-user-001"})
+            response = await client.get(
+                "/chat/stream",
+                params={"conversation_id": "test-001", "user_id": "test-user-001"},
+                headers=auth_headers(),
+            )
 
         frames = parse_sse_frames(response.text)
         # The mock yields "Hello, " and "let me help you." tokens -- verify that.
@@ -313,13 +383,18 @@ class TestSSEEventSequence:
         from backend.main import app
         import backend.routes.chat as chat_module
 
+        monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
         monkeypatch.setattr(chat_module, "run_turn", _mock_run_turn_text_only)
 
         async with httpx.AsyncClient(
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get("/chat/stream")  # no conversation_id
+            # No ownership-check bypass needed: omitting conversation_id with
+            # valid auth still correctly returns 422 via FastAPI's own
+            # required-Query validation, which fires before any dependency
+            # body (ownership check) runs.
+            response = await client.get("/chat/stream", headers=auth_headers())  # no conversation_id
 
         assert response.status_code == 422, (
             f"Expected 422 for missing conversation_id, got {response.status_code}"

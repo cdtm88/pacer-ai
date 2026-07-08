@@ -21,6 +21,19 @@ from .types import ToolResult
 _supabase_client: Optional[AsyncClient] = None
 
 
+def _reset_client_for_tests() -> None:
+    """Test-only seam: clear the module-level client cache.
+
+    Without this, a client cached by an earlier test (e.g. a working mock)
+    is returned instead of a later test's freshly-patched client, making
+    DB-failure regression tests order-dependent and non-exercising. Mirrors
+    capability_gap.py's identical pattern (WR-04). Invoked from an autouse
+    conftest fixture before (and after) each test.
+    """
+    global _supabase_client
+    _supabase_client = None
+
+
 async def _get_async_supabase() -> AsyncClient:
     """
     Return a cached async Supabase client using the service-role key (bypasses RLS).
