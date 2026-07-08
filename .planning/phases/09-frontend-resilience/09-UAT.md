@@ -3,7 +3,7 @@ status: complete
 phase: 09-frontend-resilience
 source: [09-VERIFICATION.md]
 started: 2026-07-07T22:15:00Z
-updated: 2026-07-08T13:52:00Z
+updated: 2026-07-08T14:00:00Z
 ---
 
 ## Current Test
@@ -14,8 +14,18 @@ updated: 2026-07-08T13:52:00Z
 
 ### 1. iOS ZWO export downloads without popup-block
 expected: Export flow completes on a real iOS Safari session with no blocked-popup prompt.
-result: skipped
-reason: "User's real workflow downloads .zwo on Mac to import into Zwift; unlikely to ever export via iOS Safari. If verification is needed, use Xcode simulator instead of a physical device."
+result: pass
+verified_via: |
+  iOS Simulator (iPhone 17, Safari), driven via idb (Meta's iOS UI-automation
+  CLI, installed for this test) against a real signed-up test account with a
+  generated training plan. Tapped "Export to Zwift" -> "Download .zwo" on a
+  scheduled session. Safari opened a new tab immediately (the pre-gesture
+  `window.open('', '_blank')`) and showed its native "Do you want to
+  download..." confirmation dialog -- at no point did a "Pop-up Blocked"
+  banner appear. Confirmed "Download" completed by finding the saved file on
+  the simulator's filesystem (Safari's Downloads container) and inspecting
+  its contents: a well-formed .zwo XML workout file matching the session
+  (name, description, FreeRide segments).
 
 ### 2. AppLayout scroll/pin behaves correctly on iOS
 expected: |
@@ -41,10 +51,10 @@ verified_via: |
 ## Summary
 
 total: 2
-passed: 1
+passed: 2
 issues: 0
 pending: 0
-skipped: 1
+skipped: 0
 blocked: 0
 
 ## Gaps
