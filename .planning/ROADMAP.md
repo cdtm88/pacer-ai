@@ -303,13 +303,24 @@ Plans:
 ### Phase 10: Hygiene and Safety Nets
 
 **Goal:** The test suite is green and guards the seams: 8 stale SSE tests authenticate properly, capability-gap test-order leak fixed, Playwright mocks match real response shapes, frontend-backend contract tests added (would have caught the Ride/Profile/FTP-key mismatches), short-lived SSE token exchange removes JWTs from query strings, LLM endpoints rate-limited, CI runs pytest+vitest+ruff, repo cleaned (root node_modules, test-ride.fit, root .gitignore).
-**Requirements**: TBD
+**Requirements**: TBD (phase predates REQ-ID mapping; tracked by the 8 scope items in the goal line, covered as ITEM-01..ITEM-08)
 **Depends on:** Phase 9
-**Plans:** 0 plans
+**Plans:** 5 plans
 
 Plans:
+**Wave 1** *(parallel — no file conflicts)*
 
-- [ ] TBD (run /gsd-plan-phase 10 to break down)
+- [ ] 10-01-PLAN.md — Backend test hygiene: fix 8 stale SSE tests, profile.py reset seam, contract tests (items 1, 2, 4; D-01)
+- [ ] 10-02-PLAN.md — Playwright e2e mock field-name fixes to match the real Ride contract (item 3)
+- [ ] 10-03-PLAN.md — Short-lived SSE token exchange, POST /chat/token, removes full JWT from ?token= (item 5; D-04)
+
+**Wave 2** *(blocked on 10-03 — shared chat.py)*
+
+- [ ] 10-04-PLAN.md — In-process per-user_id rate limiting on LLM endpoints + rate-limit banner (item 6; D-02, D-03)
+
+**Wave 3** *(blocked on 10-01/10-03/10-04 — CI guards a green suite)*
+
+- [ ] 10-05-PLAN.md — Report-only GitHub Actions CI (ruff+pytest+vitest) + repo cleanup (items 7, 8; D-05)
 
 ### Phase 11: Google Calendar Production Verification
 
@@ -334,8 +345,8 @@ Plans:
 | 6. Core Loop Persistence | 5/5 | Complete    | 2026-07-03 |
 | 7. Deploy Consolidation | 4/4 | Complete    | 2026-07-03 |
 | 8. Trust Model Integrity | 8/8 | Complete    | 2026-07-04 |
-| 9. Frontend Resilience | 7/7 | Complete   | 2026-07-07 |
-| 10. Hygiene and Safety Nets | 0/? | Not planned | - |
+| 9. Frontend Resilience | 7/7 | Complete    | 2026-07-07 |
+| 10. Hygiene and Safety Nets | 0/5 | Planned | - |
 | 11. Google Calendar Production Verification | 0/? | Not planned | - |
 
 - [ ] TBD (run /gsd-plan-phase 11 to break down)
