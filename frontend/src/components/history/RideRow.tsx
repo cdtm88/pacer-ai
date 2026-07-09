@@ -241,76 +241,40 @@ export function RideRow({ ride }: RideRowProps) {
             )}
           </div>
 
-          {/* Planned vs Actual table */}
+          {/* Planned vs Actual paired bars */}
           {ride.compliance_pct != null && (
-            <table
-              style={{
-                width: '100%',
-                borderCollapse: 'collapse',
-                fontSize: '13px',
-                marginBottom: '8px',
-              }}
-            >
-              <thead>
-                <tr>
-                  {['Metric', 'Planned', 'Actual', 'Delta'].map((h) => (
-                    <th
-                      key={h}
-                      style={{
-                        textAlign: 'left',
-                        padding: '4px 8px',
-                        fontWeight: 600,
-                        color: 'var(--color-ink-2)',
-                        borderBottom: '1px solid var(--color-line)',
-                      }}
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td
-                    style={{
-                      padding: '4px 8px',
-                      color: 'var(--color-ink-2)',
-                    }}
-                  >
-                    Compliance
-                  </td>
-                  <td
-                    style={{
-                      padding: '4px 8px',
-                      color: 'var(--color-ink-2)',
-                    }}
-                  >
-                    100%
-                  </td>
-                  <td
-                    style={{
-                      padding: '4px 8px',
-                      color: 'var(--color-ink)',
-                    }}
-                  >
-                    {Math.round(ride.compliance_pct)}%
-                  </td>
-                  <td
-                    style={{
-                      padding: '4px 8px',
-                      color:
-                        ride.compliance_pct >= 90
-                          ? 'var(--color-good)'
-                          : 'var(--color-warn)',
-                    }}
-                  >
-                    {ride.compliance_pct >= 100
-                      ? '+0%'
-                      : `-${Math.round(100 - ride.compliance_pct)}%`}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            <div style={{ marginBottom: '8px' }}>
+              <div style={{ marginBottom: '6px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--color-ink-2)', marginBottom: '3px' }}>
+                  Planned
+                </div>
+                <div
+                  style={{
+                    height: '8px',
+                    borderRadius: '4px',
+                    backgroundColor: 'var(--color-line)',
+                    width: '100%',
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: '6px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--color-ink-2)', marginBottom: '3px' }}>
+                  Actual
+                </div>
+                <div
+                  style={{
+                    height: '8px',
+                    borderRadius: '4px',
+                    width: `${Math.min(150, ride.compliance_pct)}%`,
+                    backgroundColor:
+                      ride.compliance_pct >= 90
+                        ? 'var(--color-good)'
+                        : 'var(--color-warn)',
+                  }}
+                />
+              </div>
+              <ComplianceChip pct={ride.compliance_pct} />
+            </div>
           )}
         </div>
       )}

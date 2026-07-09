@@ -14,13 +14,12 @@ import { weekStartOf, weekKey } from './week'
 
 // ---------------------------------------------------------------------------
 // WeeklyLoadChart — last ~8 ISO weeks of ride TSS, bucketed by week.
-// Bars are endurance blue; a week is tinted amber when its load is a large
-// jump (>1.5x) over the prior week, a gentle nudge that ramp was steep.
-// A faint ReferenceLine marks the average load across non-empty weeks.
+// History bars are neutral gray; the current ISO week is highlighted in
+// brand blue. A faint ReferenceLine marks the average load across
+// non-empty weeks.
 // ---------------------------------------------------------------------------
 
 const WEEKS = 8
-const JUMP_FACTOR = 1.5
 
 const AXIS_TICK = { fontSize: 11, fill: 'var(--color-ink-3)', fontVariantNumeric: 'tabular-nums' as const }
 
@@ -86,6 +85,7 @@ export function WeeklyLoadChart({ rides }: WeeklyLoadChartProps) {
   if (nonZero.length === 0) return null
 
   const avg = Math.round(nonZero.reduce((s, b) => s + b.tss, 0) / nonZero.length)
+  const currentWeekKey = weekKey(weekStartOf(new Date()).toISOString())
 
   return (
     <div className="card-elev" style={{ padding: '16px 12px 12px' }}>
@@ -113,13 +113,12 @@ export function WeeklyLoadChart({ rides }: WeeklyLoadChartProps) {
               />
             )}
             <Bar dataKey="tss" radius={[4, 4, 0, 0]} isAnimationActive={false} maxBarSize={40}>
-              {buckets.map((b, i) => {
-                const prev = i > 0 ? buckets[i - 1].tss : 0
-                const jump = prev > 0 && b.tss > prev * JUMP_FACTOR
+              {buckets.map((b) => {
+                const isCurrentWeek = b.key === currentWeekKey
                 return (
                   <Cell
                     key={b.key}
-                    fill={jump ? 'var(--color-zone-tempo)' : 'var(--color-zone-endurance)'}
+                    fill={isCurrentWeek ? 'var(--color-brand)' : 'var(--color-ink-3)'}
                   />
                 )
               })}

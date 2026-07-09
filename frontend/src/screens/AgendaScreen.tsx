@@ -9,18 +9,11 @@ import {
 } from '@/components/ui/accordion'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getUpcomingSessions } from '@/lib/api'
-import { sessionTypeLabel, ZONE_META, type ZoneKey } from '@/lib/format'
+import { sessionTypeLabel } from '@/lib/format'
+import { ZONE_META, zoneColor, type ZoneKey } from '@/lib/zones'
 
-type ZoneType = 'recovery' | 'endurance' | 'tempo' | 'threshold' | 'vo2'
-const ZONE_VAR: Record<ZoneType, string> = {
-  recovery:  '--color-zone-recovery',
-  endurance: '--color-zone-endurance',
-  tempo:     '--color-zone-tempo',
-  threshold: '--color-zone-threshold',
-  vo2:       '--color-zone-vo2',
-}
-function isValidZone(type: string | null): type is ZoneType {
-  return ['recovery', 'endurance', 'tempo', 'threshold', 'vo2'].includes(type ?? '')
+function isValidZone(type: string | null): type is ZoneKey {
+  return !!type && type in ZONE_META
 }
 
 interface SessionRow {
@@ -279,11 +272,12 @@ export function AgendaScreen() {
                         <div className="flex items-center gap-2 shrink-0">
                           {zoneType && (
                             <span
-                              className="rounded-full inline-block"
+                              className="inline-block"
                               style={{
-                                width: 12,
-                                height: 12,
-                                backgroundColor: `var(${ZONE_VAR[zoneType]})`,
+                                width: 24,
+                                height: 4,
+                                borderRadius: 2,
+                                backgroundColor: zoneColor(zoneType),
                               }}
                             />
                           )}
