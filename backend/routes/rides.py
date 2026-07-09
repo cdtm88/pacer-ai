@@ -41,9 +41,11 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Up
 from backend.auth import get_current_user
 from backend.db import get_async_supabase as _get_async_supabase
 from backend.pmc_recompute import recompute_pmc_for_user
+from backend.routes._stream_utils import detect_presence, downsample
 from backend.sports_science.compliance import validate_session_vs_actual
 from backend.sports_science.ftp import estimate_ftp_from_rides
 from backend.sports_science.metrics import compute_tss
+from backend.sports_science.zones import time_in_hr_zones
 from backend.utils import validate_uuid
 
 logger = logging.getLogger(__name__)
@@ -784,3 +786,126 @@ async def list_rides(
     )
 
     return {"rides": result.data}
+
+
+# ---------------------------------------------------------------------------
+# GET /rides/{id}/stream (Phase 11, RIDE-05, RIDE-12)
+# ---------------------------------------------------------------------------
+
+# Channels reported in the `channels` response key, in the order presence is
+# evaluated (D-11-03, RIDE-02).
+_STREAM_CHANNEL_KEYS = ("power", "heart_rate", "cadence", "speed", "altitude", "distance")
+
+
+@router.get("/{ride_id}/stream")
+async def get_ride_stream(
+    ride_id: str,
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """
+    GET /rides/{ride_id}/stream
+
+    Parse-on-demand ride detail endpoint (D-11-01): re-downloads the stored
+    .fit file from Supabase Storage, parses it off-thread with
+    parse_fit_stream (11-01), detects channel presence, downsamples for
+    charting, and computes the HR-zone distribution with time_in_hr_zones
+    (11-02) -- returned as one plain-JSON payload scoped to the caller.
+
+    Security controls:
+    - user_id is sourced from the verified JWT sub claim.
+    - validate_uuid() rejects malformed ride_ids (400) before any DB call
+      (T-11-01, V5).
+    - rides table is queried with dual filter on id AND user_id; a ride
+      belonging to another user returns 404, never that user's data
+      (T-11-01, IDOR -- mirrors sessions.py::export_session_zwo exactly).
+    - Storage download is wrapped in try/except -> 404 on any failure
+      (T-11-02); a null raw_fit_path also returns 404.
+    - parse_fit_stream runs under asyncio.to_thread (D-12, CPU-bound off the
+      event loop); a total parse failure (None) returns 422 (T-11-03).
+    - LTHR is read exclusively from profiles.lthr -- never estimated from
+      max_hr here (RESEARCH.md Pitfall 3) -- so hr_zone_distribution is null
+      whenever lthr is unset, even if heart_rate is present (A3).
+
+    Returns: {"series": [...], "channels": {...}, "laps": [...],
+              "hr_zone_distribution": [...] | null}
+    """
+    user_id = current_user["user_id"]
+
+    # V5: validate UUID format before any DB call (T-11-01)
+    validate_uuid(ride_id, "ride_id")
+
+    supabase = await _get_async_supabase()
+
+    # IDOR guard: dual-filter on id AND user_id (T-11-01)
+    result = await (
+        supabase.table("rides")
+        .select("id, user_id, raw_fit_path")
+        .eq("id", ride_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+
+    if not result.data:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "ride_not_found",
+                "detail": "No ride found for this user with the given id",
+            },
+        )
+
+    ride = result.data[0]
+
+    if not ride.get("raw_fit_path"):
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "ride_not_found", "detail": "No stored file for this ride"},
+        )
+
+    try:
+        file_bytes = await supabase.storage.from_("fits").download(ride["raw_fit_path"])
+    except Exception as exc:
+        logger.warning("stream: storage download failed for ride %s: %s", ride_id, exc)
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "ride_not_found", "detail": "Stored file unavailable"},
+        ) from exc
+
+    # D-12: CPU-bound parse runs off the event loop
+    parsed = await asyncio.to_thread(parse_fit_stream, file_bytes)
+    if parsed is None:
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "fit_parse_failed", "detail": "Could not read this ride file"},
+        )
+
+    series = parsed["series"]
+
+    # D-11-03, RIDE-02: presence is computed from the FULL series, before
+    # downsampling.
+    channels = {
+        key: detect_presence([row[key] for row in series]) for key in _STREAM_CHANNEL_KEYS
+    }
+
+    # D-11-04, RIDE-03: downsample for charting after presence is resolved.
+    downsampled = downsample(series)
+
+    # RESEARCH Pitfall 3: LTHR is read from profiles.lthr only -- never
+    # estimate_lthr_from_max_hr here, no max_hr is persisted.
+    profile_result = await (
+        supabase.table("profiles").select("lthr").eq("user_id", user_id).execute()
+    )
+    lthr = profile_result.data[0]["lthr"] if profile_result.data else None
+
+    hr_zone_distribution = None
+    if lthr is not None and channels["heart_rate"]:
+        # TRUST-01: computed from the FULL HR array, not the downsampled one.
+        hr_array = [row["heart_rate"] for row in series if row["heart_rate"] is not None]
+        hr_zone_distribution = time_in_hr_zones(hr_array, lthr).value
+
+    return {
+        "series": downsampled,
+        "channels": channels,
+        "laps": parsed["lap_bounds"],
+        "hr_zone_distribution": hr_zone_distribution,
+    }
