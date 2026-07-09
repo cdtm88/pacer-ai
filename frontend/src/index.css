@@ -47,6 +47,28 @@
 
   /* Font */
   --font-family-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-family-display: "Barlow Condensed", "Inter", ui-sans-serif, sans-serif;
+
+  /* shadcn button token mapping (fixes undefined-token rendering on <Button>) */
+  --color-primary:              var(--color-brand);
+  --color-primary-foreground:   #FFFFFF;
+  --color-destructive:          var(--color-bad);
+  --color-secondary:            var(--color-bg-2);
+  --color-secondary-foreground: var(--color-ink);
+  --color-accent:                var(--color-blue-0);
+  --color-accent-foreground:    var(--color-brand);
+  --color-background:           var(--color-surface);
+  --color-foreground:           var(--color-ink);
+  --color-border:                var(--color-line);
+  --color-input:                 var(--color-line);
+  --color-ring:                  var(--color-brand);
+
+  /* Scoped dark-cockpit tokens (D-1) — consumed only by DuringSessionScreen (Slice B, 12-04) */
+  --color-cockpit-bg:      #14171D;
+  --color-cockpit-surface: #1D2129;
+  --color-cockpit-ink:     #F2F3F5;
+  --color-cockpit-ink-2:   #9AA0AC;
+  --color-cockpit-line:    #2A2F3A;
 }
 
 body {
