@@ -54,6 +54,7 @@ const MOCK_SESSION: SessionData = {
   rpe_target: 4,
   duration_mins: 60,
   duration_minutes: null,
+  tss_target: 55,
 }
 
 const PMC_NOT_READY: PmcRow = {
@@ -145,20 +146,31 @@ describe('SessionCard', () => {
     expect(screen.getByText('Fresh')).toBeInTheDocument()
   })
 
-  it('Export to Zwift button is enabled and opens the modal', async () => {
+  it('Export .zwo button is enabled and opens the modal', async () => {
     render(
       <Wrapper>
         <SessionCard session={MOCK_SESSION} pmc={PMC_NOT_READY} />
       </Wrapper>
     )
-    const exportBtn = screen.getByRole('button', { name: /export to zwift/i })
+    const exportBtn = screen.getByRole('button', { name: /export \.zwo/i })
     expect(exportBtn).not.toBeDisabled()
     fireEvent.click(exportBtn)
     await waitFor(() => {
-      // Modal title "Export to Zwift" appears alongside the button text
-      const matches = screen.getAllByText('Export to Zwift')
+      // Modal heading "Export .zwo" appears alongside the button text
+      const matches = screen.getAllByText('Export .zwo')
       expect(matches.length).toBeGreaterThan(1)
     })
+  })
+
+  it('renders the Duration / TSS / IF stat tile row', () => {
+    render(
+      <Wrapper>
+        <SessionCard session={MOCK_SESSION} pmc={PMC_NOT_READY} />
+      </Wrapper>
+    )
+    expect(screen.getByText('Duration')).toBeInTheDocument()
+    expect(screen.getByText('TSS')).toBeInTheDocument()
+    expect(screen.getByText('IF')).toBeInTheDocument()
   })
 
   it('clicking Mark missed opens the confirmation dialog with the correct title', async () => {

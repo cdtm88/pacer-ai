@@ -49,7 +49,7 @@ export function ZwoExportModal({ session, ftp, onClose }: ZwoExportPanelProps) {
       }}
     >
       <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-ink)', marginBottom: 4 }}>
-        Export to Zwift
+        Export .zwo
       </p>
       <p style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-ink)', marginBottom: 2 }}>
         {session.type} - {session.scheduled_date}

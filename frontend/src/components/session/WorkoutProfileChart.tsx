@@ -19,6 +19,8 @@ interface WorkoutProfileChartProps {
   structure: StructureObj | { text?: string } | string | null | undefined
   /** Session type drives the main-set block color via zoneColor(). */
   type: string | null
+  /** Bar-row height in px. Defaults to 34 (compact); Today hub passes 56-64 (centerpiece). */
+  height?: number
 }
 
 const ROLE_ORDER: ProfileSegment['role'][] = ['warmup', 'main_set', 'cooldown']
@@ -56,7 +58,7 @@ function toSegments(
  * recovery green; the main set takes the session's zone color. Light mode only.
  * Renders nothing when the structure lacks per-segment timing.
  */
-export function WorkoutProfileChart({ structure, type }: WorkoutProfileChartProps) {
+export function WorkoutProfileChart({ structure, type, height = 34 }: WorkoutProfileChartProps) {
   const segments = toSegments(structure)
   if (segments.length === 0) return null
 
@@ -70,7 +72,7 @@ export function WorkoutProfileChart({ structure, type }: WorkoutProfileChartProp
     <div className="mb-3">
       <div
         className="flex w-full overflow-hidden"
-        style={{ height: 34, borderRadius: 8, gap: 2 }}
+        style={{ height, borderRadius: 8, gap: 2 }}
         role="img"
         aria-label={`Workout profile: ${segments
           .map((s) => `${ROLE_LABEL[s.role]} ${s.duration_minutes} min`)
