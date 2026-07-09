@@ -3,12 +3,9 @@ import { useNavigate } from 'react-router'
 import { Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
+import { ZONE_SPECTRUM } from '@/lib/zones'
 
 type Mode = 'signin' | 'signup'
-
-// Thin zone-spectrum rule under the wordmark: recovery -> endurance -> tempo -> threshold -> vo2.
-const ZONE_SPECTRUM =
-  'linear-gradient(90deg, var(--color-zone-recovery), var(--color-zone-endurance), var(--color-zone-tempo), var(--color-zone-threshold), var(--color-zone-vo2))'
 
 const BENEFITS = ['Structured plan in minutes', 'Adapts to every ride', 'No FTP required']
 

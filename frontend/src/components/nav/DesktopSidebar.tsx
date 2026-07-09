@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router'
 import { Home, Calendar, TrendingUp, Activity, MessageCircle, Settings } from 'lucide-react'
+import { ZONE_SPECTRUM } from '@/lib/zones'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Today', Icon: Home },
@@ -19,12 +20,18 @@ export function DesktopSidebar() {
         borderRight: '1px solid var(--color-line)',
       }}
     >
-      {/* Logotype */}
-      <div
-        className="px-6 py-6 shrink-0"
-        style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-ink)' }}
-      >
-        PacerAI
+      {/* Brand mark: app-wide zone-spectrum wordmark, scaled for the sidebar */}
+      <div className="px-6 py-6 shrink-0">
+        <div
+          className="leading-none"
+          style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-ink)', letterSpacing: '-0.03em' }}
+        >
+          Pace
+        </div>
+        <div
+          className="mt-2 h-[3px] w-[52px] rounded-full"
+          style={{ background: ZONE_SPECTRUM }}
+        />
       </div>
 
       {/* Main nav */}
@@ -34,12 +41,14 @@ export function DesktopSidebar() {
             key={to}
             to={to}
             end={to === '/'}
-            className="flex items-center gap-3 px-4 rounded-md transition-colors"
+            className="flex items-center gap-3 px-4 transition-colors"
             style={({ isActive }) => ({
               height: 44,
+              borderRadius: 999,
               color: isActive ? 'var(--color-brand)' : 'var(--color-ink-2)',
-              backgroundColor: isActive ? 'var(--color-blue-0)' : 'transparent',
-              borderLeft: isActive ? '3px solid var(--color-brand)' : '3px solid transparent',
+              backgroundColor: isActive
+                ? 'color-mix(in srgb, var(--color-brand) 12%, transparent)'
+                : 'transparent',
               fontWeight: 500,
               fontSize: 14,
             })}
@@ -54,12 +63,14 @@ export function DesktopSidebar() {
       <div className="px-2 pb-4 shrink-0">
         <NavLink
           to="/settings"
-          className="flex items-center gap-3 px-4 rounded-md transition-colors"
+          className="flex items-center gap-3 px-4 transition-colors"
           style={({ isActive }) => ({
             height: 44,
+            borderRadius: 999,
             color: isActive ? 'var(--color-brand)' : 'var(--color-ink-2)',
-            backgroundColor: isActive ? 'var(--color-blue-0)' : 'transparent',
-            borderLeft: isActive ? '3px solid var(--color-brand)' : '3px solid transparent',
+            backgroundColor: isActive
+              ? 'color-mix(in srgb, var(--color-brand) 12%, transparent)'
+              : 'transparent',
             fontWeight: 500,
             fontSize: 14,
           })}

@@ -31,23 +31,21 @@ export function BottomTabBar() {
           })}
         >
           {({ isActive }) => (
-            <>
+            <span
+              className="flex flex-col items-center justify-center gap-0.5"
+              style={{
+                backgroundColor: isActive
+                  ? 'color-mix(in srgb, var(--color-brand) 12%, transparent)'
+                  : 'transparent',
+                borderRadius: 999,
+                padding: '6px 14px',
+              }}
+            >
               <Icon size={24} />
-              {isActive && (
-                <span
-                  className="absolute rounded-full"
-                  style={{
-                    width: 4,
-                    height: 4,
-                    backgroundColor: 'var(--color-brand)',
-                    marginTop: '-2px',
-                  }}
-                />
-              )}
-              <span style={{ fontSize: 10, fontWeight: 500, lineHeight: 1.4 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, lineHeight: 1.4 }}>
                 {label}
               </span>
-            </>
+            </span>
           )}
         </NavLink>
       ))}
