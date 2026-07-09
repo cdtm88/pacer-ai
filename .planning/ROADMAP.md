@@ -24,7 +24,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 9: Frontend Resilience** - Chat SSE recovery and history reload, session persistence staleness, iOS export/auth fixes, contract mismatches, error boundary (completed 2026-07-07)
 - [x] **Phase 10: Hygiene and Safety Nets** - Repair stale tests, contract tests, SSE token exchange, rate limiting, CI, repo cleanup (completed 2026-07-08)
 - [x] **Phase 11: Ride Analysis Dashboard** - Per-second ride visualisation (power, HR, cadence, speed, elevation) with lap markers, synced hover readout, and a server-computed time-in-HR-zone breakdown; charts appear only for channels present in the file (completed 2026-07-09)
-- [ ] **Phase 12: Athletic Redesign** - Zwift/Strava-grade visual overhaul: dark ride cockpit with hero watt target and session profile rail, display numerals, Today hub with stat tiles and fat Start CTA, zone-color commitment, unified component system (buttons, tokens, shared zone map), Progress/Agenda/Settings polish
+- [x] **Phase 12: Athletic Redesign** - Zwift/Strava-grade visual overhaul: dark ride cockpit with hero watt target and session profile rail, display numerals, Today hub with stat tiles and fat Start CTA, zone-color commitment, unified component system (buttons, tokens, shared zone map), Progress/Agenda/Settings polish (completed 2026-07-09)
 
 ## Phase Details
 
@@ -378,7 +378,7 @@ Plans (waves; TDD — tests written test-first within each backend/frontend feat
 | 9. Frontend Resilience | 7/7 | Complete    | 2026-07-07 |
 | 10. Hygiene and Safety Nets | 6/6 | Complete    | 2026-07-08 |
 | 11. Ride Analysis Dashboard | 7/7 | Complete    | 2026-07-09 |
-| 12. Athletic Redesign | 3/8 | In Progress|  |
+| 12. Athletic Redesign | 8/8 | Complete   | 2026-07-09 |
 
 ### Phase 12: Athletic Redesign
 
@@ -388,7 +388,7 @@ Plans (waves; TDD — tests written test-first within each backend/frontend feat
 **Reference:** ref-wireframes-full.png (repo root) for structure and flow of the on-bike, pre-ride, and progress states. Design review 2026-07-09 identified: light-tinted during-session screen with timer as hero (should be dark, watts-hero), Inter 800 requested but not loaded, shadcn button tokens disconnected from palette, duplicated zone maps and PromptChip, off-token colors in Settings, HTML table in RideRow.
 **Constraint amendments (user-approved direction):** during-session is a dark cockpit surface (exception to light-mode-only MVP; still no pure blacks); one display face (condensed) permitted for hero numerals only.
 **Decisions:** D-1..D-12 (12-CONTEXT.md) used as requirement IDs — no REQUIREMENTS.md entries (visual overhaul, no new capabilities).
-**Plans:** 3/8 plans executed
+**Plans:** 8/8 plans complete
 
 Plans (delivery order A->E; Wave 1 Foundation is a hard prerequisite for Wave 2):
 
@@ -400,8 +400,8 @@ Plans (delivery order A->E; Wave 1 Foundation is a hard prerequisite for Wave 2)
 
 **Wave 2** *(Slices B-E, parallel; disjoint files, all depend on Wave 1)*
 
-- [ ] 12-04-PLAN.md — Ride cockpit rebuild: dark surface, watts-hero, no-FTP RPE hero, profile rail, achieve CTA (D-1, D-2, D-3, D-4, D-7, D-11)
-- [ ] 12-05-PLAN.md — Today hub: SessionCard stat tiles + Start ride/Export .zwo rename (+test) + TodayScreen mini-bars (D-6, D-7, D-8)
-- [ ] 12-06-PLAN.md — Progress + Agenda: WeeklyLoadChart two-tone, RideRow paired bars, Agenda mini-bars (D-9, D-8, D-7)
-- [ ] 12-07-PLAN.md — Shell chrome: 28px display titles + date eyebrow, filled-pill navs, sidebar brand mark (D-10, D-8)
-- [ ] 12-08-PLAN.md — Secondary surfaces: Settings card redesign + smoke test, ZoneChip + Onboarding/Chat migration (D-12, D-8)
+- [x] 12-04-PLAN.md — Ride cockpit rebuild: dark surface, watts-hero, no-FTP RPE hero, profile rail, achieve CTA (D-1, D-2, D-3, D-4, D-7, D-11)
+- [x] 12-05-PLAN.md — Today hub: SessionCard stat tiles + Start ride/Export .zwo rename (+test) + TodayScreen mini-bars (D-6, D-7, D-8)
+- [x] 12-06-PLAN.md — Progress + Agenda: WeeklyLoadChart two-tone, RideRow paired bars, Agenda mini-bars (D-9, D-8, D-7)
+- [x] 12-07-PLAN.md — Shell chrome: 28px display titles + date eyebrow, filled-pill navs, sidebar brand mark (D-10, D-8)
+- [x] 12-08-PLAN.md — Secondary surfaces: Settings card redesign + smoke test, ZoneChip + Onboarding/Chat migration (D-12, D-8)
