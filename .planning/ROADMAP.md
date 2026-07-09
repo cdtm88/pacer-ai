@@ -23,7 +23,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 8: Trust Model Integrity** - Persist audit log, scan tool inputs, tighten attribution, collect LTHR, correct HR zones and load constraints (completed 2026-07-04)
 - [x] **Phase 9: Frontend Resilience** - Chat SSE recovery and history reload, session persistence staleness, iOS export/auth fixes, contract mismatches, error boundary (completed 2026-07-07)
 - [x] **Phase 10: Hygiene and Safety Nets** - Repair stale tests, contract tests, SSE token exchange, rate limiting, CI, repo cleanup (completed 2026-07-08)
-- [ ] **Phase 11: Ride Analysis Dashboard** - Per-second ride visualisation (power, HR, cadence, speed, elevation) with lap markers, synced hover readout, and a server-computed time-in-HR-zone breakdown; charts appear only for channels present in the file
+- [x] **Phase 11: Ride Analysis Dashboard** - Per-second ride visualisation (power, HR, cadence, speed, elevation) with lap markers, synced hover readout, and a server-computed time-in-HR-zone breakdown; charts appear only for channels present in the file (completed 2026-07-09)
 - [ ] **Phase 12: Athletic Redesign** - Zwift/Strava-grade visual overhaul: dark ride cockpit with hero watt target and session profile rail, display numerals, Today hub with stat tiles and fat Start CTA, zone-color commitment, unified component system (buttons, tokens, shared zone map), Progress/Agenda/Settings polish
 
 ## Phase Details
@@ -334,7 +334,7 @@ Plans:
 **Decisions**: D-11-01..D-11-07 | **Threats**: T-11-01..T-11-03
 **Depends on:** Phase 1 (sports-science tools), Phase 6 (rides + Storage persistence)
 **Context seeded:** `.planning/phases/11-ride-analysis-dashboard/11-CONTEXT.md` (from author PRD `docs/phase-11-ride-analysis-roadmap.html`)
-**Plans:** 6/7 plans executed
+**Plans:** 7/7 plans complete
 
 Plans (waves; TDD — tests written test-first within each backend/frontend feature plan, RIDE-12 distributed across them + gated in 11-07):
 
@@ -361,7 +361,7 @@ Plans (waves; TDD — tests written test-first within each backend/frontend feat
 
 **Wave 5** *(phase gate, depends on 11-05 + 11-06)*
 
-- [ ] 11-07-PLAN.md — Full-suite green (fixtures already placed) + blocking human visual/interaction smoke-check (BE+FE; RIDE-12) — wave 5
+- [x] 11-07-PLAN.md — Full-suite green (fixtures already placed) + blocking human visual/interaction smoke-check (BE+FE; RIDE-12) — wave 5
 
 ## Progress Table
 
@@ -377,7 +377,7 @@ Plans (waves; TDD — tests written test-first within each backend/frontend feat
 | 8. Trust Model Integrity | 8/8 | Complete    | 2026-07-04 |
 | 9. Frontend Resilience | 7/7 | Complete    | 2026-07-07 |
 | 10. Hygiene and Safety Nets | 6/6 | Complete    | 2026-07-08 |
-| 11. Ride Analysis Dashboard | 6/7 | In Progress|  |
+| 11. Ride Analysis Dashboard | 7/7 | Complete   | 2026-07-09 |
 | 12. Athletic Redesign | 0/0 | Not planned | - |
 
 ### Phase 12: Athletic Redesign
