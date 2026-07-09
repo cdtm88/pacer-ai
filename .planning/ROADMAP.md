@@ -334,14 +334,14 @@ Plans:
 **Decisions**: D-11-01..D-11-07 | **Threats**: T-11-01..T-11-03
 **Depends on:** Phase 1 (sports-science tools), Phase 6 (rides + Storage persistence)
 **Context seeded:** `.planning/phases/11-ride-analysis-dashboard/11-CONTEXT.md` (from author PRD `docs/phase-11-ride-analysis-roadmap.html`)
-**Plans:** 0/7 plans
+**Plans:** 2/7 plans executed
 
 Plans (waves; TDD — tests written test-first within each backend/frontend feature plan, RIDE-12 distributed across them + gated in 11-07):
 
 **Wave 0** *(backend data layer, parallel — disjoint files)*
 
-- [ ] 11-01-PLAN.md — [tdd] Sibling `parse_fit_stream` + `_stream_utils` (presence, downsample) + backend parser tests (BE; RIDE-01/02/03/12) — wave 0
-- [ ] 11-02-PLAN.md — [tdd] `time_in_hr_zones` ToolResult reusing `calculate_hr_zones` + hand-checked tests (BE; RIDE-04/12) — wave 0
+- [x] 11-01-PLAN.md — [tdd] Sibling `parse_fit_stream` + `_stream_utils` (presence, downsample) + backend parser tests (BE; RIDE-01/02/03/12) — wave 0
+- [x] 11-02-PLAN.md — [tdd] `time_in_hr_zones` ToolResult reusing `calculate_hr_zones` + hand-checked tests (BE; RIDE-04/12) — wave 0
 
 **Wave 1** *(stream endpoint, depends on 11-01 + 11-02)*
 
@@ -377,7 +377,7 @@ Plans (waves; TDD — tests written test-first within each backend/frontend feat
 | 8. Trust Model Integrity | 8/8 | Complete    | 2026-07-04 |
 | 9. Frontend Resilience | 7/7 | Complete    | 2026-07-07 |
 | 10. Hygiene and Safety Nets | 6/6 | Complete    | 2026-07-08 |
-| 11. Ride Analysis Dashboard | 0/7 | Not planned | - |
+| 11. Ride Analysis Dashboard | 2/7 | In Progress|  |
 | 12. Athletic Redesign | 0/0 | Not planned | - |
 
 ### Phase 12: Athletic Redesign
