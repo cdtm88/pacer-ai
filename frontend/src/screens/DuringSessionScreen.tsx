@@ -27,6 +27,24 @@ export interface SessionStep {
   zone?: ZoneType
 }
 
+// Cockpit no-FTP fallback copy (D-4): effort word + short imperative cue per
+// zone, consistent with the recovery->vo2 ordering (Copywriting Contract).
+const EFFORT_WORD: Record<ZoneType, string> = {
+  recovery: 'EASY',
+  endurance: 'STEADY',
+  tempo: 'BRISK',
+  threshold: 'HARD',
+  vo2: 'MAX EFFORT',
+}
+
+const EFFORT_CUE: Record<ZoneType, string> = {
+  recovery: 'spin easy',
+  endurance: 'hold steady',
+  tempo: 'drive it',
+  threshold: 'push',
+  vo2: 'empty it',
+}
+
 function powerTarget(zone: ZoneType, ftp: number | null): string {
   const { pctLow, pctHigh } = ZONE_META[zone]
   if (ftp && ftp > 0) {
@@ -160,11 +178,13 @@ export function computeRestoredState(saved: PersistedSession | null, steps: Sess
 function SessionRunner({
   steps,
   ftp,
+  rpe_target,
   freeRideDurationMins,
   sessionId,
 }: {
   steps: SessionStep[]
   ftp: number | null
+  rpe_target: number | null
   freeRideDurationMins: number | null
   sessionId: string | null
 }) {
@@ -369,6 +389,7 @@ function SessionRunner({
   const zoneColor = zoneColorFor(zone)
   const zoneLabel = zoneLabelFor(zone)
   const target = powerTarget(zone, ftp)
+  const hasFtp = !!ftp && ftp > 0
   const nextStep = steps[currentIndex + 1]
   const nearEnd = !isPaused && displaySecs <= 3 && displaySecs > 0 && nextStep
 
@@ -497,23 +518,49 @@ function SessionRunner({
 
         {/* Watts (hero) + timer (demoted, secondary) — D-2 hierarchy inversion. */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          {/* Watt target — the hero. Re-keyed on step change to replay the scale/opacity-in. */}
-          <p
-            key={`target-${currentIndex}`}
-            className="ds-step-in"
-            style={{
-              fontSize: 'clamp(96px, 18vw, 160px)',
-              fontWeight: 700,
-              fontFamily: 'var(--font-family-display)',
-              color: 'var(--color-cockpit-ink)',
-              fontVariantNumeric: 'tabular-nums',
-              letterSpacing: '-0.01em',
-              lineHeight: 1,
-              marginBottom: 8,
-            }}
-          >
-            {target}
-          </p>
+          {/* Watt target — the hero. No-FTP rides show an effort-word + RPE cue at the
+              same hero scale/position instead (D-4). Re-keyed on step change to replay
+              the scale/opacity-in. */}
+          {hasFtp ? (
+            <p
+              key={`target-${currentIndex}`}
+              className="ds-step-in"
+              style={{
+                fontSize: 'clamp(96px, 18vw, 160px)',
+                fontWeight: 700,
+                fontFamily: 'var(--font-family-display)',
+                color: 'var(--color-cockpit-ink)',
+                fontVariantNumeric: 'tabular-nums',
+                letterSpacing: '-0.01em',
+                lineHeight: 1,
+                marginBottom: 8,
+              }}
+            >
+              {target}
+            </p>
+          ) : (
+            <p
+              key={`effort-${currentIndex}`}
+              className="ds-step-in"
+              style={{
+                fontSize: 'clamp(96px, 18vw, 160px)',
+                fontWeight: 700,
+                fontFamily: 'var(--font-family-display)',
+                color: 'var(--color-cockpit-ink)',
+                letterSpacing: '-0.01em',
+                lineHeight: 1,
+                marginBottom: 8,
+              }}
+            >
+              {EFFORT_WORD[zone]}
+              {rpe_target != null && (
+                <span className="stat-num-hero">
+                  {', '}{rpe_target}/10
+                </span>
+              )}
+              {`, ${EFFORT_CUE[zone]}`}
+            </p>
+          )}
 
           {/* Timer — demoted, large-but-secondary. */}
           <p style={{
@@ -721,5 +768,13 @@ export function DuringSessionScreen() {
     )
   }
 
-  return <SessionRunner steps={steps} ftp={ftp} freeRideDurationMins={freeRideDurationMins} sessionId={session?.id ?? null} />
+  return (
+    <SessionRunner
+      steps={steps}
+      ftp={ftp}
+      rpe_target={session?.rpe_target ?? null}
+      freeRideDurationMins={freeRideDurationMins}
+      sessionId={session?.id ?? null}
+    />
+  )
 }
