@@ -35,3 +35,10 @@ export function zoneLabel(type: string | null): string {
   if (type && type in ZONE_META) return ZONE_META[type as ZoneKey].label
   return ''
 }
+
+/**
+ * Thin zone-spectrum gradient rule: recovery -> endurance -> tempo -> threshold -> vo2.
+ * The app-wide brand mark (LoginScreen wordmark, DesktopSidebar sidebar logotype).
+ */
+export const ZONE_SPECTRUM =
+  'linear-gradient(90deg, var(--color-zone-recovery), var(--color-zone-endurance), var(--color-zone-tempo), var(--color-zone-threshold), var(--color-zone-vo2))'

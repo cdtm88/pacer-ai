@@ -47,17 +47,17 @@ export function AppLayout() {
             }}
           >
             <div className="min-w-0">
-              <h1
-                className="truncate"
-                style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-ink)', letterSpacing: '-0.01em', lineHeight: 1.1 }}
-              >
-                {title}
-              </h1>
               {isToday && (
-                <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-ink-3)', marginTop: 2 }}>
+                <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-ink-3)', marginBottom: 2 }}>
                   {todayLabel()}
                 </p>
               )}
+              <h1
+                className="truncate"
+                style={{ fontSize: 28, fontWeight: 600, color: 'var(--color-ink)', letterSpacing: '-0.01em', lineHeight: 1.15 }}
+              >
+                {title}
+              </h1>
             </div>
             {showSettingsGear && (
               <button
