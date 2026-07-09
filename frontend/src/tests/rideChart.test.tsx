@@ -91,7 +91,7 @@ describe('RideChart', () => {
     expect(screen.getByText('Endurance')).toBeInTheDocument()
     expect(screen.getByText('Tempo')).toBeInTheDocument()
     expect(screen.getByText('Threshold')).toBeInTheDocument()
-    expect(screen.getByText('VO2max')).toBeInTheDocument()
+    expect(screen.getByText('VO2 Max')).toBeInTheDocument()
   })
 
   it('formats readout time as Mm SSs', () => {
