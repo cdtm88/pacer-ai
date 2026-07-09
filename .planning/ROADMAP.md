@@ -334,7 +334,7 @@ Plans:
 **Decisions**: D-11-01..D-11-07 | **Threats**: T-11-01..T-11-03
 **Depends on:** Phase 1 (sports-science tools), Phase 6 (rides + Storage persistence)
 **Context seeded:** `.planning/phases/11-ride-analysis-dashboard/11-CONTEXT.md` (from author PRD `docs/phase-11-ride-analysis-roadmap.html`)
-**Plans:** 5/7 plans executed
+**Plans:** 6/7 plans executed
 
 Plans (waves; TDD — tests written test-first within each backend/frontend feature plan, RIDE-12 distributed across them + gated in 11-07):
 
@@ -357,7 +357,7 @@ Plans (waves; TDD — tests written test-first within each backend/frontend feat
 
 **Wave 4** *(screen + routing + nav, depends on 11-04 + 11-05)*
 
-- [ ] 11-06-PLAN.md — `AnalysisScreen` + `/analysis` and `/rides/:rideId` routes + Analysis nav tab (both navs) + RideRow "View analysis" link + AppLayout title (FE; RIDE-10/11) — wave 4
+- [x] 11-06-PLAN.md — `AnalysisScreen` + `/analysis` and `/rides/:rideId` routes + Analysis nav tab (both navs) + RideRow "View analysis" link + AppLayout title (FE; RIDE-10/11) — wave 4
 
 **Wave 5** *(phase gate, depends on 11-05 + 11-06)*
 
@@ -377,7 +377,7 @@ Plans (waves; TDD — tests written test-first within each backend/frontend feat
 | 8. Trust Model Integrity | 8/8 | Complete    | 2026-07-04 |
 | 9. Frontend Resilience | 7/7 | Complete    | 2026-07-07 |
 | 10. Hygiene and Safety Nets | 6/6 | Complete    | 2026-07-08 |
-| 11. Ride Analysis Dashboard | 5/7 | In Progress|  |
+| 11. Ride Analysis Dashboard | 6/7 | In Progress|  |
 | 12. Athletic Redesign | 0/0 | Not planned | - |
 
 ### Phase 12: Athletic Redesign
