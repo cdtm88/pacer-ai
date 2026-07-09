@@ -1,9 +1,9 @@
 ---
 phase: 12
 slug: athletic-redesign
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: approved
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-07-09
 ---
 
@@ -78,4 +78,4 @@ This phase has no REQUIREMENTS.md IDs (visual overhaul, no new product capabilit
 - [ ] Feedback latency < 3s
 - [ ] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved 2026-07-09 (plan-checker verification passed; all three Wave 0 gaps addressed inside 12-02, 12-05, 12-08)
