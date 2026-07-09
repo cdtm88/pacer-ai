@@ -9,6 +9,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/': 'Today',
   '/agenda': 'Agenda',
   '/progress': 'Progress',
+  '/analysis': 'Analysis',
   '/chat': 'Coach',
   '/settings': 'Settings',
 }
@@ -20,7 +21,7 @@ function todayLabel(): string {
 export function AppLayout() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
-  const title = ROUTE_TITLES[pathname] ?? 'PacerAI'
+  const title = pathname.startsWith('/rides/') ? 'Analysis' : (ROUTE_TITLES[pathname] ?? 'PacerAI')
   const isToday = pathname === '/'
   // Settings is a self-link on its own screen, so hide the redundant header gear there.
   const showSettingsGear = pathname !== '/settings'

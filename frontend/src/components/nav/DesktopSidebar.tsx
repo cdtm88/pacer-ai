@@ -1,10 +1,11 @@
 import { NavLink } from 'react-router'
-import { Home, Calendar, TrendingUp, MessageCircle, Settings } from 'lucide-react'
+import { Home, Calendar, TrendingUp, Activity, MessageCircle, Settings } from 'lucide-react'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Today', Icon: Home },
   { to: '/agenda', label: 'Agenda', Icon: Calendar },
   { to: '/progress', label: 'Progress', Icon: TrendingUp },
+  { to: '/analysis', label: 'Analysis', Icon: Activity },
   { to: '/chat', label: 'Coach', Icon: MessageCircle },
 ] as const
 

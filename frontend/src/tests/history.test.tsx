@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router'
 import { HistoryScreen } from '../screens/HistoryScreen'
 import { CtlSparkline } from '../components/history/CtlSparkline'
 import { RideRow } from '../components/history/RideRow'
@@ -123,7 +124,11 @@ function makeRide(overrides: Partial<Ride> = {}): Ride {
 
 describe('RideRow (item 5 — Ride interface field alignment)', () => {
   it('renders real formatted duration and average power for a backend-shaped Ride', () => {
-    render(<RideRow ride={makeRide()} />)
+    render(
+      <MemoryRouter>
+        <RideRow ride={makeRide()} />
+      </MemoryRouter>
+    )
 
     // Duration: 3600s -> "1h 0m" (collapsed row)
     expect(screen.getAllByText('1h 0m').length).toBeGreaterThan(0)
@@ -135,18 +140,34 @@ describe('RideRow (item 5 — Ride interface field alignment)', () => {
 
   it('renders graceful fallback (not a crash) when duration_secs/avg_power are null', () => {
     render(
-      <RideRow
-        ride={makeRide({ duration_secs: null, avg_power: null, np_watts: null, tss: null })}
-      />
+      <MemoryRouter>
+        <RideRow
+          ride={makeRide({ duration_secs: null, avg_power: null, np_watts: null, tss: null })}
+        />
+      </MemoryRouter>
     )
 
     expect(screen.getAllByText('--').length).toBeGreaterThan(0)
   })
 
   it('does not render "Source:" filename text (dead file_name block removed)', () => {
-    render(<RideRow ride={makeRide()} />)
+    render(
+      <MemoryRouter>
+        <RideRow ride={makeRide()} />
+      </MemoryRouter>
+    )
     fireEvent.click(screen.getByRole('button'))
     expect(screen.queryByText(/Source:/)).not.toBeInTheDocument()
+  })
+
+  it('renders a "View analysis" link to /rides/:id', () => {
+    render(
+      <MemoryRouter>
+        <RideRow ride={makeRide()} />
+      </MemoryRouter>
+    )
+    const link = screen.getByRole('link', { name: 'View analysis' })
+    expect(link).toHaveAttribute('href', '/rides/ride-1')
   })
 })
 
