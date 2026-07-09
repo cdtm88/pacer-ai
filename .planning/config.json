@@ -45,7 +45,7 @@
     "security_enforcement": true,
     "security_asvs_level": 1,
     "security_block_on": "high",
-    "tdd_mode": false,
+    "tdd_mode": true,
     "ui_review": true,
     "_auto_chain_active": true
   },

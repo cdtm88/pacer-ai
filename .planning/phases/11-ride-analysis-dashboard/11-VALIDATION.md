@@ -1,8 +1,8 @@
 ---
 phase: 11
 slug: ride-analysis-dashboard
-status: draft
-nyquist_compliant: false
+status: approved
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-07-09
 ---
@@ -43,7 +43,7 @@ created: 2026-07-09
 | 11-03 | 03 | 1 | RIDE-05 | T-11-01 / T-11-02 / T-11-03 | Scoped 404, missing-file 404, corrupt-file 422 | integration | `pytest tests/api/test_rides_stream.py -x` | ❌ Wave 1 | ⬜ pending |
 | 11-04 | 04 | 2 | RIDE-06 | — | Typed fetcher, implicit via component test | unit (implicit) | `npx vitest run src/tests/rideChart.test.tsx` | ❌ Wave 2 | ⬜ pending |
 | 11-05 | 05 | 2 | RIDE-07, RIDE-08, RIDE-09 | — | Per-present-channel charts, synced readout, zone bars | component | `npx vitest run src/tests/rideChart.test.tsx` | ❌ Wave 2/3 | ⬜ pending |
-| 11-06 | 06 | 2 | RIDE-10, RIDE-11 | — | Route + nav tab + `RideRow` link | component/manual | `npx vitest run src/tests/routerErrorBoundary.test.tsx` (routing smoke) + manual click-through | Partial — routing infra exists, new routes don't | ⬜ pending |
+| 11-06 | 06 | 2 | RIDE-10, RIDE-11 | — | Route + nav tab + `RideRow` link | component/manual | `cd frontend && npx tsc --noEmit && npx vitest run src/tests/AppLayout.test.tsx src/tests/history.test.tsx` + manual click-through | Partial — routing infra exists, new routes don't | ⬜ pending |
 | 11-07 | 07 | 3 | RIDE-12 | — | Fixture-driven backend + frontend assertions (6 laps, not 7 — RESEARCH.md Pitfall 4) | integration + component | `pytest tests/api/test_rides_stream.py -x` + `npx vitest run src/tests/rideChart.test.tsx` | ❌ Wave 3 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
@@ -70,11 +70,11 @@ created: 2026-07-09
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 30s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 30s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved 2026-07-09 (gsd-plan-checker VERIFICATION PASSED; see 11-01..11-07-PLAN.md verify blocks)
