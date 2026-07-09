@@ -336,17 +336,32 @@ Plans:
 **Context seeded:** `.planning/phases/11-ride-analysis-dashboard/11-CONTEXT.md` (from author PRD `docs/phase-11-ride-analysis-roadmap.html`)
 **Plans:** 0/7 plans
 
-Plans (waves):
+Plans (waves; TDD — tests written test-first within each backend/frontend feature plan, RIDE-12 distributed across them + gated in 11-07):
 
-- [ ] 11-01-PLAN.md — Sibling parser + channel presence + downsample (BE; RIDE-01/02/03) — wave 0
-- [ ] 11-02-PLAN.md — `time_in_hr_zones` tool reusing `calculate_hr_zones` (BE; RIDE-04) — wave 0
-- [ ] 11-03-PLAN.md — `GET /rides/{id}/stream` endpoint (BE; RIDE-05; T-11-01/02/03) — wave 1
+**Wave 0** *(backend data layer, parallel — disjoint files)*
+
+- [ ] 11-01-PLAN.md — [tdd] Sibling `parse_fit_stream` + `_stream_utils` (presence, downsample) + backend parser tests (BE; RIDE-01/02/03/12) — wave 0
+- [ ] 11-02-PLAN.md — [tdd] `time_in_hr_zones` ToolResult reusing `calculate_hr_zones` + hand-checked tests (BE; RIDE-04/12) — wave 0
+
+**Wave 1** *(stream endpoint, depends on 11-01 + 11-02)*
+
+- [ ] 11-03-PLAN.md — [tdd] `GET /rides/{id}/stream` endpoint + integration tests (BE; RIDE-05/12; T-11-01/02/03) — wave 1
+
+**Wave 2** *(frontend contract, depends on 11-03)*
+
 - [ ] 11-04-PLAN.md — `RideStream` type + `getRideStream` fetcher (FE; RIDE-06) — wave 2
-- [ ] 11-05-PLAN.md — `RideChart` component: dynamic channels, syncId, lap lines, zone bar (FE; RIDE-07/08/09) — wave 2
-- [ ] 11-06-PLAN.md — `AnalysisScreen` + routes + Analysis nav tab + RideRow links (FE; RIDE-10/11) — wave 2
-- [ ] 11-07-PLAN.md — Fixtures + backend/frontend tests (BE+FE; RIDE-12) — wave 3
 
-*Run `/gsd-plan-phase 11` to break the waves into executable plans.*
+**Wave 3** *(chart component, depends on 11-04)*
+
+- [ ] 11-05-PLAN.md — `RideChart`: per-present-channel charts, syncId hover, lap lines, backend-sourced zone bar + frontend test (FE; RIDE-07/08/09/12) — wave 3
+
+**Wave 4** *(screen + routing + nav, depends on 11-04 + 11-05)*
+
+- [ ] 11-06-PLAN.md — `AnalysisScreen` + `/analysis` and `/rides/:rideId` routes + Analysis nav tab (both navs) + RideRow "View analysis" link + AppLayout title (FE; RIDE-10/11) — wave 4
+
+**Wave 5** *(phase gate, depends on 11-05 + 11-06)*
+
+- [ ] 11-07-PLAN.md — Full-suite green (fixtures already placed) + blocking human visual/interaction smoke-check (BE+FE; RIDE-12) — wave 5
 
 ## Progress Table
 
