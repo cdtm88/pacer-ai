@@ -36,7 +36,6 @@ The LLM owns judgement; a validated tool library owns numbers.
 - Manual .FIT file ingestion: parse power/HR/cadence/duration, compute TSS/IF/NP, update PMC — Phase 03 (Zwift .FIT acceptance test)
 - Adaptive re-planning based on missed sessions, holidays, actual performance, and training load — Phase 03 (micro/macro distinction, 30% guard)
 - Adaptation transparency: agent explains every re-plan in chat with data and principle cited; changes logged — Phase 03
-- Google Calendar integration: push and sync planned sessions as calendar events — Phase 04 (development OAuth only; production app verification pending)
 - Web UI: onboarding, Today/Home, Agenda, History, Chat screens and during-session scaffold; mobile bottom tabs / desktop sidebar — Phase 04
 - ZWO export: export structured session as valid .zwo file for Zwift import — Phase 05 (Zwift acceptance test passed)
 - During-session stepper: iOS-safe timer with wake lock, auto-advance, free-ride path — Phase 05 (IOS-03 kill-to-root fix committed; physical device retest pending)
@@ -70,7 +69,6 @@ None. All v1.0 requirements shipped.
 - **PWA**: Web-first, mobile-responsive; During-session view must work on iOS Safari
 - **Light mode only**: No pure blacks anywhere for MVP; design system from PRD applies
 - **No em dashes**: In any generated content or copy — use commas, semicolons, colons, or separate sentences
-- **Calendar**: Google Calendar API (OAuth2) for push/sync
 
 ## Key Decisions
 

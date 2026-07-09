@@ -3,8 +3,8 @@
 Shared async Supabase client singleton for PacerAI (WR-003).
 
 Centralises the _supabase_client singleton that was previously duplicated
-across six modules (adaptations, calendar, onboarding, rides, sessions,
-calendar_sync). A single connection pool is more efficient and any change to
+across modules (adaptations, onboarding, rides, sessions). A single
+connection pool is more efficient and any change to
 initialisation logic (pool limits, lifespan, service-role key rotation)
 now only needs to be made here.
 

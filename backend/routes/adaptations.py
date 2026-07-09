@@ -42,7 +42,6 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Path
 
 from backend.auth import get_current_user
-from backend.calendar_sync import update_calendar_event
 from backend.db import get_async_supabase as _get_async_supabase
 from backend.sports_science.compliance import validate_session_vs_actual
 from backend.sports_science.load import progress_load
@@ -396,7 +395,7 @@ async def apply_micro_adjustment(user_id: str, signal: dict) -> dict:
     # Fetch the next 3 upcoming planned sessions for this user.
     resp = await (
         supabase.table("sessions")
-        .select("id, scheduled_date, tss_target, duration_minutes, status, calendar_event_id")
+        .select("id, scheduled_date, tss_target, duration_minutes, status")
         .eq("user_id", user_id)
         .eq("status", "planned")
         .gte("scheduled_date", today.isoformat())
@@ -522,7 +521,7 @@ async def apply_macro_replan(user_id: str, signals: list[dict]) -> dict:
     # Load upcoming planned sessions (the "before" state).
     upcoming_resp = await (
         supabase.table("sessions")
-        .select("id, scheduled_date, tss_target, duration_minutes, status, calendar_event_id")
+        .select("id, scheduled_date, tss_target, duration_minutes, status")
         .eq("user_id", user_id)
         .eq("status", "planned")
         .gte("scheduled_date", today.isoformat())
@@ -758,10 +757,6 @@ async def check_adaptations(
 
     Runs signal detection independently of upload events (weekly check).
     Dispatches to micro or macro adaptation when signals are present.
-    Calendar sync is inline-awaited before responding (Vercel serverless
-    constraint: no BackgroundTasks, which Vercel freezes/kills after the
-    response is sent); CAL-04: a calendar failure never breaks this endpoint,
-    and the underlying Google API calls are timeout-bounded (CAL-02).
     user_id is sourced from the verified JWT.
     """
     user_id = current_user["user_id"]
@@ -774,22 +769,6 @@ async def check_adaptations(
         result = await apply_micro_adjustment(user_id, signals[0])
     elif scope == "macro":
         result = await apply_macro_replan(user_id, signals)
-
-    # CAL-02: calendar sync after sessions change (CAL-04: never 500 on failure).
-    if result and result.get("status") == "applied":
-        after_sessions = result.get("after", [])
-        before_sessions = result.get("before", [])
-        # Build lookup of before sessions by id for calendar_event_id.
-        before_by_id = {s["id"]: s for s in before_sessions}
-        for session in after_sessions:
-            event_id = session.get("calendar_event_id") or before_by_id.get(
-                session["id"], {}
-            ).get("calendar_event_id")
-            if event_id:
-                # --- update_calendar_event inline-awaited (Vercel serverless
-                #     constraint: no BackgroundTasks, which Vercel freezes/kills
-                #     after the response is sent) ---
-                await update_calendar_event(user_id, event_id, session)
 
     return {
         "signals": signals,
@@ -860,19 +839,6 @@ async def confirm_macro_replan(
         .execute()
     )
 
-    # CAL-02: calendar sync after sessions change (CAL-04: never 500 on failure).
-    # WR-01: confirm_macro_replan applies proposed_sessions but, unlike
-    # check_adaptations/mark_session_missed, previously never synced the
-    # calendar -- mirror those call sites using proposed_sessions'
-    # calendar_event_id (present once CR-02's select fix ships).
-    for session in proposed_sessions:
-        event_id = session.get("calendar_event_id")
-        if event_id:
-            # --- update_calendar_event inline-awaited (Vercel serverless
-            #     constraint: no BackgroundTasks, which Vercel freezes/kills
-            #     after the response is sent) ---
-            await update_calendar_event(user_id, event_id, session)
-
     return {"status": "applied", "adaptation_id": adaptation_id}
 
 
@@ -938,21 +904,6 @@ async def mark_session_missed(
             result = await apply_micro_adjustment(user_id, signals[0])
         elif scope == "macro":
             result = await apply_macro_replan(user_id, signals)
-
-        # CAL-02: calendar sync (CAL-04: never 500 on failure).
-        if result and result.get("status") == "applied":
-            after_sessions = result.get("after", [])
-            before_sessions = result.get("before", [])
-            before_by_id = {s["id"]: s for s in before_sessions}
-            for session in after_sessions:
-                event_id = session.get("calendar_event_id") or before_by_id.get(
-                    session["id"], {}
-                ).get("calendar_event_id")
-                if event_id:
-                    # --- update_calendar_event inline-awaited (Vercel serverless
-                    #     constraint: no BackgroundTasks, which Vercel freezes/kills
-                    #     after the response is sent) ---
-                    await update_calendar_event(user_id, event_id, session)
     except Exception:
         logger.warning(
             "Signal detection/adaptation failed for session %s (non-fatal)",

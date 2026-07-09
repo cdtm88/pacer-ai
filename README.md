@@ -32,7 +32,6 @@ An evidence-based, adaptive AI cycling coach for a beginner returning to fitness
 | FIT parsing | fitdecode (not fitparse, which is abandoned) |
 | Sports science | numpy, scipy, pandas (PMC, NP, TSS, IF, FTP) |
 | Database / auth | Supabase (managed Postgres + auth + storage), accessed via the `supabase` client and raw SQL migrations under `supabase/migrations/` -- no SQLAlchemy/Alembic |
-| Calendar | Google Calendar API (OAuth2) |
 
 ---
 
@@ -60,7 +59,7 @@ This constraint is enforced at code level and verifiable in logs (the `capabilit
 | `/history` | Ride list, CTL sparkline, `.FIT` upload |
 | `/session` | During-session stepper (iOS-safe timer, wake lock) |
 | `/chat` | Ongoing coaching conversation |
-| `/settings` | Google Calendar connection |
+| `/settings` | Profile, training numbers, and account |
 
 ---
 
@@ -79,8 +78,6 @@ The FastAPI backend exposes these route groups. In production, Vercel's root `ve
 - `GET /sessions/upcoming` -- upcoming session list
 - `GET /pmc_history/latest` -- current PMC state (CTL/ATL/TSB)
 - `GET /profiles/me` -- authenticated user profile
-- `GET /calendar/auth` -- begin Google Calendar OAuth flow
-- `GET /calendar/settings` -- calendar connection status
 - `GET /health` -- liveness check
 
 ---
@@ -169,12 +166,9 @@ The FastAPI app runs as a Vercel Python Function, entrypoint `api/index.py`. Ver
 | `SUPABASE_URL` | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
 | `SUPABASE_JWT_SECRET` | Secret used to verify Supabase-issued JWTs |
-| `CALENDAR_FERNET_KEY` | Symmetric key for encrypting/decrypting stored Google Calendar OAuth tokens |
 | `BACKEND_BASE_URL` | Publicly reachable base URL of the backend (used to build OAuth redirect URIs) |
 | `ANTHROPIC_MODEL` | Claude model identifier used by the coaching agent |
 | `FRONTEND_URL` | Deployed frontend URL (used for CORS) |
-| `GOOGLE_CLIENT_ID` | Google OAuth client ID (for calendar) |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 
 These vars must be set in Vercel Project Settings -> Environment Variables (per environment) for production.
 
@@ -209,7 +203,7 @@ The project was built with an AI-assisted workflow across 5 sequential phases. P
 | 01: Sports Science Foundation | Tool library with 64 unit tests (power zones, HR zones, FTP estimation, TSS/IF/NP, PMC, load progression) |
 | 02: Agent Core | Anthropic tool-use loop, trust-model enforcement, capability-gap logging |
 | 03: Coaching Loop | Onboarding interview, plan generation, `.FIT` ingestion, adaptive re-planning |
-| 04: UI + Calendar | Full React UI (all screens), Supabase auth, Google Calendar integration |
+| 04: UI | Full React UI (all screens), Supabase auth, Vercel deployment |
 | 05: During-session + ZWO Export | iOS-safe session stepper, wake lock, ZWO file export for Zwift |
 
 Current status is in `.planning/PROJECT.md`. The roadmap is in `.planning/ROADMAP.md`.

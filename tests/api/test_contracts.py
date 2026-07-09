@@ -139,7 +139,6 @@ async def test_sessions_today_contract(monkeypatch):
         "power_targets": None,
         "rpe_target": 4,
         "tss_target": 50.0,
-        "calendar_event_id": None,
     }
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)

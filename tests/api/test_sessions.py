@@ -83,7 +83,6 @@ async def test_sessions_today_returns_row(monkeypatch):
         "power_targets": None,
         "rpe_target": None,
         "tss_target": 50.0,
-        "calendar_event_id": None,
     }
 
     monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
@@ -152,7 +151,6 @@ async def test_sessions_upcoming_returns_list(monkeypatch):
             "power_targets": None,
             "rpe_target": 7,
             "tss_target": 80.0,
-            "calendar_event_id": None,
         },
         {
             "id": "sess-003",
@@ -168,7 +166,6 @@ async def test_sessions_upcoming_returns_list(monkeypatch):
             "power_targets": None,
             "rpe_target": 3,
             "tss_target": 20.0,
-            "calendar_event_id": None,
         },
     ]
 

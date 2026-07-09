@@ -2,7 +2,6 @@ import React from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { useQuery } from '@tanstack/react-query'
-import { CalendarStatus } from '@/components/settings/CalendarStatus'
 import { getProfileMe } from '@/lib/api'
 import { supabase } from '@/lib/supabase'
 export function SettingsScreen() {
@@ -122,20 +121,6 @@ function SettingsScreenInner({ onSignOut, onResendMagicLink }: SettingsInnerProp
             </button>
           )}
         </div>
-      </section>
-
-      <div style={{ height: 1, backgroundColor: 'var(--color-line)' }} />
-
-      {/* Google Calendar section */}
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--color-ink-2)' }}>
-          Google Calendar
-        </h2>
-        <p className="text-sm" style={{ color: 'var(--color-ink-2)' }}>
-          Connect your Google Calendar to automatically sync planned sessions. Sessions appear as
-          all-day events with full workout details.
-        </p>
-        <CalendarStatus />
       </section>
 
       <div style={{ height: 1, backgroundColor: 'var(--color-line)' }} />

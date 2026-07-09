@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light only">
+<title>Phase 11 · Ride Analysis Dashboard — GSD Roadmap</title>
+<style>
+:root{color-scheme:light only;}
+*{box-sizing:border-box;}
+body{margin:0;background:#f5f4ef;color:#1a1a18;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.6;padding:24px;}
+.wrap{max-width:860px;margin:0 auto;}
+h1{font-size:24px;font-weight:600;margin:0 0 2px;color:#1a1a18;}
+h2{font-size:19px;font-weight:600;margin:36px 0 10px;color:#1a1a18;border-bottom:2px solid #e4e2da;padding-bottom:6px;}
+h3{font-size:15px;font-weight:600;margin:20px 0 6px;color:#1a1a18;}
+p,li{font-size:14.5px;color:#2a2a26;}
+.meta{color:#6b6a64;font-size:13px;margin:0 0 4px;}
+code{background:#efeee7;color:#1a1a18;padding:1px 5px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;}
+pre{background:#fff;border:1px solid #e4e2da;border-radius:8px;padding:12px 14px;overflow-x:auto;font-size:12px;line-height:1.5;color:#1a1a18;}
+pre code{background:none;padding:0;}
+.callout{border-left:4px solid #c0632a;background:#fff;border:1px solid #e4e2da;border-radius:8px;padding:10px 15px;margin:14px 0;}
+.callout.good{border-left-color:#4a8d5b;}
+.callout.warn{border-left-color:#e0a800;}
+.callout .t{font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em;color:#6b6a64;margin-bottom:3px;}
+.callout p{margin:0;font-size:14px;}
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin:12px 0;background:#fff;border:1px solid #e4e2da;border-radius:8px;overflow:hidden;}
+th{text-align:left;padding:8px 11px;background:#efeee7;color:#3a3a36;font-weight:600;font-size:12.5px;border-bottom:1px solid #e4e2da;}
+td{padding:8px 11px;border-bottom:1px solid #eceae2;color:#2a2a26;vertical-align:top;}
+tr:last-child td{border-bottom:none;}
+td code{white-space:nowrap;}
+.req{font-family:ui-monospace,monospace;font-weight:600;font-size:12.5px;color:#2a5a78;white-space:nowrap;}
+.tag{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:10px;}
+.tag.be{background:#dce8f0;color:#2a5a78;}
+.tag.fe{background:#e0efe4;color:#2a6a45;}
+.tag.db{background:#f0e6dc;color:#8a5a2a;}
+ul.tight{margin:5px 0;} ul.tight li{margin:2px 0;}
+.wave{background:#fff;border:1px solid #e4e2da;border-radius:8px;padding:2px 18px 14px;margin:14px 0;}
+.wavehdr{font-weight:600;font-size:15px;color:#1a1a18;margin:14px 0 2px;}
+.frontmatter{background:#2a2a26;color:#e8e6df;border-radius:8px;padding:12px 14px;font-family:ui-monospace,monospace;font-size:12px;line-height:1.55;overflow-x:auto;}
+hr{border:none;border-top:1px solid #e4e2da;margin:28px 0;}
+.small{font-size:13px;color:#6b6a64;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Phase 11 — Ride Analysis Dashboard</h1>
+<p class="meta">GSD roadmap · new dashboard tab · target: <code>/gsd-new-project</code> intake</p>
+
+<div class="callout good">
+<div class="t">One-line intent</div>
+<p>Add a Ride Analysis tab that renders a per-second visualisation of any uploaded ride (power, HR, cadence, speed, elevation) with lap markers, a synced hover readout, and a time-in-HR-zone breakdown. Charts appear only for channels present in the file, so indoor Zwift rides with no elevation or GPS render cleanly.</p>
+</div>
+
+<h2>PROJECT identity</h2>
+<table>
+<tr><td style="width:150px"><strong>Phase</strong></td><td><code>11-ride-analysis-dashboard</code></td></tr>
+<tr><td><strong>Depends on</strong></td><td>Phase 1 (sports-science tools: <code>calculate_hr_zones</code>), Phase 6 (rides + Storage persistence), the existing <code>rides.py</code> FIT parse pipeline</td></tr>
+<tr><td><strong>Stack touched</strong></td><td>FastAPI route, one new sports-science tool, React 19 + Recharts, React Router v8, TanStack Query, new nav tab</td></tr>
+<tr><td><strong>New user setup</strong></td><td>None. No new env vars, no new services, no migration.</td></tr>
+</table>
+
+<div class="callout warn">
+<div class="t">Trust-model constraint (TRUST-01) — non-negotiable</div>
+<p>Every physiological number (HR-zone boundaries, time-in-zone percentages) MUST come from a deterministic tool in <code>backend/sports_science/</code> that returns a <code>ToolResult</code> with a named methodology. No zone boundary or zone percentage may be computed in TypeScript. The frontend renders values the backend already calculated. Any zone maths in JS is a defect regardless of correctness.</p>
+</div>
+
+<h2>Architecture decisions (locked)</h2>
+<table>
+<tr><th>ID</th><th>Decision</th><th>Rationale</th></tr>
+<tr><td class="req">D-11-01</td><td>Serve ride time series via <strong>parse-on-demand</strong>: a new <code>GET /api/rides/{id}/stream</code> re-downloads the stored <code>.fit</code> from Supabase Storage and re-parses it. No time-series persistence, no migration.</td><td>A 30-min ride parses in ~10ms. Persisting arrays adds a table, a write path, and storage cost for zero user-visible benefit at current ride lengths.</td></tr>
+<tr><td class="req">D-11-02</td><td>Time-in-zone is computed by a new Python tool <code>time_in_hr_zones</code>, reusing <code>calculate_hr_zones</code> for boundaries. Returned as part of the stream payload.</td><td>TRUST-01. One definition of a zone in the codebase.</td></tr>
+<tr><td class="req">D-11-03</td><td>Channel presence rule: a channel is "present" iff it has more than one distinct non-null value. Absent channels are omitted from the payload and get no chart, no card, no lap-table column.</td><td>This is what hides elevation and GPS on indoor Zwift files. Noise guarantees real sensors vary; a flat channel means no sensor.</td></tr>
+<tr><td class="req">D-11-04</td><td>Server-side downsample to a target of ~1 point / 3s, capped so no payload exceeds ~4000 points.</td><td>Recharts on mobile Safari (the PWA target) degrades past ~4k points. A 3h ride stays under the cap.</td></tr>
+<tr><td class="req">D-11-05</td><td>New top-level route <code>/rides/:rideId</code> under <code>AppLayout</code>, plus a new "Rides" tab is NOT added; instead the History tab's rows link into this route. A dedicated <strong>Analysis</strong> tab is added showing the most recent ride by default.</td><td>Keeps History as the list; Analysis is the deep-dive. Matches the existing tab pattern in <code>BottomTabBar</code> / <code>DesktopSidebar</code>.</td></tr>
+<tr><td class="req">D-11-06</td><td>Recharts <code>syncId</code> provides cross-chart hover sync. No custom crosshair code.</td><td>Built-in. Deletes the fiddliest part of the prototype.</td></tr>
+<tr><td class="req">D-11-07</td><td>The zone-model selector and power-smoothing toggle from the prototype are OUT of scope.</td><td>The selector conflicts with single-source-of-truth (D-11-02). Smoothing is a later nice-to-have.</td></tr>
+</table>
+
+<h2>Threats / mitigations</h2>
+<table>
+<tr><th>ID</th><th>Threat</th><th>Mitigation</th></tr>
+<tr><td class="req">T-11-01</td><td>Cross-user ride access via <code>/stream</code></td><td>Query scoped to <code>user_id</code> from JWT sub (existing T-04-03 pattern). Return 404 if the ride isn't the caller's.</td></tr>
+<tr><td class="req">T-11-02</td><td>Storage download of a missing/oversized object</td><td>404 if <code>raw_fit_path</code> is null. Reuse the 25 MB cap already enforced at upload; no re-check needed since only already-accepted files are stored.</td></tr>
+<tr><td class="req">T-11-03</td><td>Corrupt stored file crashes the stream parse</td><td>fitdecode <code>ErrorHandling.WARN</code> (same as upload). On unreadable file return 422 with structured detail.</td></tr>
+</table>
+
+<h2>Requirements</h2>
+<table>
+<tr><th>REQ</th><th>Statement</th><th>Layer</th></tr>
+<tr><td class="req">RIDE-01</td><td>A sibling parser extracts full per-second arrays for power, HR, cadence, speed, altitude, distance, plus lap-message boundaries, from raw FIT bytes.</td><td><span class="tag be">BE</span></td></tr>
+<tr><td class="req">RIDE-02</td><td>Channel presence is detected per D-11-03 and returned as a <code>channels</code> map.</td><td><span class="tag be">BE</span></td></tr>
+<tr><td class="req">RIDE-03</td><td>Series is downsampled per D-11-04 before serialisation.</td><td><span class="tag be">BE</span></td></tr>
+<tr><td class="req">RIDE-04</td><td><code>time_in_hr_zones(hr_array, lthr)</code> returns a <code>ToolResult</code> of per-zone seconds and percentages, reusing <code>calculate_hr_zones</code>.</td><td><span class="tag be">BE</span></td></tr>
+<tr><td class="req">RIDE-05</td><td><code>GET /api/rides/{id}/stream</code> returns the series, channels, laps, and HR-zone distribution, scoped to the caller.</td><td><span class="tag be">BE</span></td></tr>
+<tr><td class="req">RIDE-06</td><td><code>RideStream</code> type and <code>getRideStream(id)</code> fetcher added to <code>api.ts</code>.</td><td><span class="tag fe">FE</span></td></tr>
+<tr><td class="req">RIDE-07</td><td><code>RideChart</code> component renders one chart per present channel using Recharts, shared <code>syncId</code>, lap <code>ReferenceLine</code>s, and CSS-var strokes.</td><td><span class="tag fe">FE</span></td></tr>
+<tr><td class="req">RIDE-08</td><td>A synced readout row shows time (<code>Mm SSs</code>), lap number, and each present channel's value at the hovered point.</td><td><span class="tag fe">FE</span></td></tr>
+<tr><td class="req">RIDE-09</td><td>A time-in-zone bar + row list renders from the backend distribution, using <code>--color-zone-*</code> tokens. Absent if HR is not present.</td><td><span class="tag fe">FE</span></td></tr>
+<tr><td class="req">RIDE-10</td><td>New <code>AnalysisScreen</code> at route <code>/rides/:rideId</code> and a default <code>/analysis</code> (latest ride); new nav tab in both <code>BottomTabBar</code> and <code>DesktopSidebar</code>.</td><td><span class="tag fe">FE</span></td></tr>
+<tr><td class="req">RIDE-11</td><td>History <code>RideRow</code> links each row to <code>/rides/:id</code>.</td><td><span class="tag fe">FE</span></td></tr>
+<tr><td class="req">RIDE-12</td><td>Fixtures + tests: both <code>.fit</code> files land in <code>tests/fixtures/</code>; backend tests assert zone maths and no-elevation channel detection; a frontend test asserts the elevation chart is absent when <code>channels.altitude</code> is false.</td><td><span class="tag be">BE</span> <span class="tag fe">FE</span></td></tr>
+</table>
+
+<h2>Roadmap: waves and plans</h2>
+
+<div class="wave">
+<div class="wavehdr">Wave 0 — Backend data layer</div>
+<p class="small">No frontend yet. Everything here is independently testable with the two fixtures.</p>
+
+<h3>Plan 11-01 — sibling parser + presence + downsample <span class="tag be">BE</span></h3>
+<p><strong>Requirements:</strong> RIDE-01, RIDE-02, RIDE-03. <strong>Files:</strong> <code>backend/routes/rides.py</code> (add <code>parse_fit_stream</code> beside <code>parse_fit_file</code>), <code>backend/routes/_stream_utils.py</code> (new: <code>detect_presence</code>, <code>downsample</code>).</p>
+<ul class="tight">
+<li>Refactor the record loop into a form that keeps per-sample <code>speed</code>, <code>altitude</code>, <code>distance</code> alongside the existing power/HR/cadence, and captures <code>lap</code> messages into <code>lap_bounds</code> (seconds from ride start).</li>
+<li>Do NOT modify <code>parse_fit_file</code> or the upload path. This is additive.</li>
+<li>Presence: <code>len({v for v in arr if v is not None}) &gt; 1</code>.</li>
+</ul>
+
+<h3>Plan 11-02 — time_in_hr_zones tool <span class="tag be">BE</span></h3>
+<p><strong>Requirements:</strong> RIDE-04. <strong>Files:</strong> <code>backend/sports_science/zones.py</code>, <code>tests/sports_science/test_zones.py</code>.</p>
+<pre><code>def time_in_hr_zones(hr_array: list[float], lthr: float) -> ToolResult:
+    """Seconds and % of ride in each Coggan HR zone.
+    Reuses calculate_hr_zones so a zone has one definition (TRUST-01)."""
+    zones = calculate_hr_zones(lthr).value
+    secs = [0] * len(zones)
+    for hr in hr_array:
+        for i in range(len(zones) - 1, -1, -1):
+            if hr >= zones[i]["lower_bpm"]:
+                secs[i] += 1
+                break
+    total = sum(secs) or 1
+    dist = [{"zone": z["zone"], "name": z["name"],
+             "secs": s, "pct": round(s / total * 100, 1)}
+            for z, s in zip(zones, secs)]
+    return ToolResult(value=dist, unit="seconds",
+        methodology="Time-in-zone from Coggan/Allen HR zones (LTHR)",
+        inputs={"lthr": lthr, "sample_count": len(hr_array)})</code></pre>
+</div>
+
+<div class="wave">
+<div class="wavehdr">Wave 1 — Stream endpoint</div>
+
+<h3>Plan 11-03 — GET /rides/{id}/stream <span class="tag be">BE</span></h3>
+<p><strong>Requirements:</strong> RIDE-05. Threats: T-11-01, T-11-02, T-11-03. <strong>Files:</strong> <code>backend/routes/rides.py</code>.</p>
+<pre><code>@router.get("/{ride_id}/stream")
+async def get_ride_stream(ride_id: str, current_user = Depends(get_current_user)):
+    user_id = current_user["user_id"]
+    validate_uuid(ride_id, "ride_id")
+    supabase = await _get_async_supabase()
+
+    row = await (supabase.table("rides")
+        .select("raw_fit_path")
+        .eq("id", ride_id).eq("user_id", user_id)   # T-11-01
+        .single().execute())
+    path = (row.data or {}).get("raw_fit_path")
+    if not path:
+        raise HTTPException(404, {"error": "no_raw_file"})   # T-11-02
+
+    file_bytes = await supabase.storage.from_("fits").download(path)
+    parsed = await asyncio.to_thread(parse_fit_stream, file_bytes)
+    if parsed is None:
+        raise HTTPException(422, {"error": "fit_parse_failed"})   # T-11-03
+
+    series = downsample(parsed, target_secs=3)     # D-11-04
+    ftp_lthr = await get_user_lthr(user_id)        # reuse profile; fallback to est_lthr
+    zone_dist = (time_in_hr_zones(parsed["hr_array"], ftp_lthr).value
+                 if series["channels"].get("heart_rate") else None)
+
+    return {
+        "t": series["t"],
+        "channels": series["channels"],
+        "power": series.get("power"),
+        "heart_rate": series.get("heart_rate"),
+        "cadence": series.get("cadence"),
+        "speed": series.get("speed"),
+        "altitude": series.get("altitude"),
+        "distance": series.get("distance"),
+        "laps": parsed["lap_bounds"],
+        "hr_zone_distribution": zone_dist,
+    }</code></pre>
+<p class="small">If no stored LTHR exists, resolve it via the existing profile / <code>estimate_lthr_from_max_hr</code> path. Do not invent one in the route.</p>
+</div>
+
+<div class="wave">
+<div class="wavehdr">Wave 2 — Frontend</div>
+
+<h3>Plan 11-04 — API type + fetcher <span class="tag fe">FE</span></h3>
+<p><strong>Requirements:</strong> RIDE-06. <strong>Files:</strong> <code>frontend/src/lib/api.ts</code>.</p>
+<pre><code>export interface RideStream {
+  t: number[]
+  channels: Record&lt;string, boolean&gt;
+  power?: (number | null)[]
+  heart_rate?: (number | null)[]
+  cadence?: (number | null)[]
+  speed?: (number | null)[]
+  altitude?: (number | null)[]
+  distance?: (number | null)[]
+  laps: number[]
+  hr_zone_distribution?: { zone: number; name: string; secs: number; pct: number }[]
+}
+
+export async function getRideStream(rideId: string): Promise&lt;RideStream&gt; {
+  const res = await apiFetch(`/api/rides/${rideId}/stream`)
+  if (!res.ok) throw new Error(`getRideStream failed: ${res.status}`)
+  return res.json()
+}</code></pre>
+
+<h3>Plan 11-05 — RideChart component <span class="tag fe">FE</span></h3>
+<p><strong>Requirements:</strong> RIDE-07, RIDE-08, RIDE-09. <strong>Files:</strong> <code>frontend/src/components/rides/RideChart.tsx</code> (new).</p>
+<ul class="tight">
+<li>Build a <code>CHART_CONFIG</code> array; map over it, render a chart only when <code>stream.channels[key]</code> is true. Follows the prototype's dynamic-chart logic.</li>
+<li>Recharts <code>&lt;LineChart&gt;</code> (or <code>&lt;ComposedChart&gt;</code> for cadence+speed), all sharing <code>syncId="ride"</code> for hover sync (D-11-06).</li>
+<li>X axis in seconds; tick formatter <code>Nm</code>, tooltip label <code>Mm SSs</code>.</li>
+<li>Lap markers: <code>{stream.laps.slice(1,-1).map(s =&gt; &lt;ReferenceLine x={s} strokeDasharray="4 3" /&gt;)}</code>.</li>
+<li>Strokes from tokens: power <code>--color-amber</code>, HR <code>--color-bad</code>, elevation green token, cadence <code>--color-blue-6</code>, speed green. <code>isAnimationActive={false}</code> throughout (match <code>CtlSparkline</code>).</li>
+<li>Time-in-zone bar + rows from <code>stream.hr_zone_distribution</code> using <code>--color-zone-recovery/-endurance/-tempo/-threshold/-vo2</code>. Render nothing if the distribution is null.</li>
+</ul>
+
+<h3>Plan 11-06 — Analysis screen, route, nav tab <span class="tag fe">FE</span></h3>
+<p><strong>Requirements:</strong> RIDE-10, RIDE-11. <strong>Files:</strong> <code>frontend/src/screens/AnalysisScreen.tsx</code> (new), <code>frontend/src/router.tsx</code>, <code>frontend/src/components/nav/BottomTabBar.tsx</code>, <code>frontend/src/components/nav/DesktopSidebar.tsx</code>, <code>frontend/src/components/history/RideRow.tsx</code>.</p>
+<ul class="tight">
+<li><code>AnalysisScreen</code> reads <code>:rideId</code> from the route; if absent, fetches latest ride id from <code>getRides()[0]</code>. Uses a TanStack Query on <code>['ride-stream', rideId]</code> with <code>staleTime: Infinity</code>.</li>
+<li>Add route under the <code>AppLayout</code> children in <code>router.tsx</code>: <code>{ path: 'rides/:rideId', element: &lt;AnalysisScreen /&gt; }</code> and <code>{ path: 'analysis', element: &lt;AnalysisScreen /&gt; }</code>.</li>
+<li>Add a tab to both nav components, matching the existing <code>{ to, label, Icon }</code> shape. Suggested: <code>{ to: '/analysis', label: 'Analysis', Icon: Activity }</code> (lucide <code>Activity</code>).</li>
+<li>In <code>RideRow</code>, wrap the row in a link to <code>/rides/${ride.id}</code> (keep the existing expand for the quick summary, or replace expand with navigation, your call).</li>
+</ul>
+</div>
+
+<div class="wave">
+<div class="wavehdr">Wave 3 — Verification</div>
+
+<h3>Plan 11-07 — fixtures + tests <span class="tag be">BE</span> <span class="tag fe">FE</span></h3>
+<p><strong>Requirements:</strong> RIDE-12. <strong>Files:</strong> <code>tests/fixtures/hilly_ride_30min.fit</code>, <code>tests/fixtures/zwift_ride_30min.fit</code>, <code>tests/sports_science/test_zones.py</code>, <code>tests/api/test_rides_stream.py</code> (new), <code>frontend/src/tests/rideChart.test.tsx</code> (new).</p>
+<ul class="tight">
+<li>Backend: <code>time_in_hr_zones</code> with a known HR array and hand-checked percentages.</li>
+<li>Backend: stream endpoint against <code>zwift_ride_30min.fit</code> asserts <code>channels["altitude"] is False</code> and <code>len(laps) == 7</code> (6 laps + final bound).</li>
+<li>Backend: stream endpoint against <code>hilly_ride_30min.fit</code> asserts <code>channels["altitude"] is True</code>.</li>
+<li>Frontend: render <code>RideChart</code> with <code>channels.altitude=false</code>, assert no elevation chart in the DOM.</li>
+</ul>
+</div>
+
+<hr>
+
+<h2>Ready-to-paste GSD frontmatter</h2>
+<p class="small">Drop this at the top of <code>.planning/phases/11-ride-analysis-dashboard/11-CONTEXT.md</code> to seed the phase.</p>
+<div class="frontmatter">phase: 11-ride-analysis-dashboard<br>
+depends_on: [01-sports-science-foundation, 06-core-loop-persistence]<br>
+provides:<br>
+&nbsp;&nbsp;- GET /api/rides/{id}/stream (parse-on-demand time series)<br>
+&nbsp;&nbsp;- time_in_hr_zones tool (ToolResult, reuses calculate_hr_zones)<br>
+&nbsp;&nbsp;- RideChart Recharts component (dynamic channels, syncId, lap lines)<br>
+&nbsp;&nbsp;- AnalysisScreen at /rides/:rideId and /analysis<br>
+&nbsp;&nbsp;- Analysis nav tab (BottomTabBar + DesktopSidebar)<br>
+requirements: [RIDE-01, RIDE-02, RIDE-03, RIDE-04, RIDE-05, RIDE-06,<br>
+&nbsp;&nbsp;RIDE-07, RIDE-08, RIDE-09, RIDE-10, RIDE-11, RIDE-12]<br>
+decisions: [D-11-01, D-11-02, D-11-03, D-11-04, D-11-05, D-11-06, D-11-07]<br>
+threats: [T-11-01, T-11-02, T-11-03]<br>
+trust_model: TRUST-01 enforced — all zone maths server-side in ToolResult<br>
+no_migration: true<br>
+no_new_env: true<br>
+waves:<br>
+&nbsp;&nbsp;0: [11-01, 11-02]&nbsp;&nbsp;# backend data layer<br>
+&nbsp;&nbsp;1: [11-03]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# stream endpoint<br>
+&nbsp;&nbsp;2: [11-04, 11-05, 11-06]&nbsp;&nbsp;# frontend<br>
+&nbsp;&nbsp;3: [11-07]&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# fixtures + tests</div>
+
+<h2>Explicitly out of scope</h2>
+<ul class="tight">
+<li>Time-series persistence (a <code>ride_streams</code> table). Revisit only if parse-on-demand latency becomes a problem, which it will not at current ride lengths.</li>
+<li>Zone-model selector (%max vs LTHR) and power-smoothing toggle. Per D-11-07.</li>
+<li>A local file-input loader. The tab reads from the DB via the stream endpoint; upload stays in History.</li>
+</ul>
+
+<p class="small" style="margin-top:24px">Two fixture files (<code>hilly_ride_30min.fit</code>, <code>zwift_ride_30min.fit</code>) accompany this roadmap. Place them in <code>tests/fixtures/</code> before running Wave 3.</p>
+
+</div>
+</body>
+</html>

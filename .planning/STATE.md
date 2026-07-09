@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 11
-current_phase_name: Google Calendar Production Verification
+current_phase_name: Ride Analysis Dashboard
 status: executing
 stopped_at: Phase 10 UI-SPEC approved
 last_updated: "2026-07-08T17:05:22.831Z"
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-21)
 
 ## Current Position
 
-Phase: 11 — Google Calendar Production Verification
+Phase: 11 — Ride Analysis Dashboard
 Plan: Not started
 Status: Executing Phase 10
 Last activity: 2026-07-08 — Phase 10 complete, transitioned to Phase 11
@@ -100,7 +100,9 @@ Progress: [████████████████████] 32/32 p
   - Phase 8: Trust Model Integrity (audit log dropped, tool inputs unscanned, LTHR never collected)
   - Phase 9: Frontend Resilience (chat SSE brick, stale session hijack, iOS export, contract mismatches)
   - Phase 10: Hygiene and Safety Nets (stale tests, contract tests, token exchange, rate limit, CI)
-- Phase 11 added 2026-07-07: Google Calendar Production Verification — formalizes the CAL-03b gap left open in 04-VERIFICATION.md (Google OAuth consent screen still in Testing mode). Deferred from Phase 4, re-confirmed deferred in Phase 7 pending a live backend URL (now satisfied by the Vercel deploy); no privacy policy/ToS page exists yet, so the Google verification submission has not started.
+- Phase 11 (later renumbered to Phase 12) added 2026-07-07: Google Calendar Production Verification — formalizes the CAL-03b gap left open in 04-VERIFICATION.md (Google OAuth consent screen still in Testing mode). Deferred from Phase 4, re-confirmed deferred in Phase 7 pending a live backend URL (now satisfied by the Vercel deploy); no privacy policy/ToS page exists yet, so the Google verification submission has not started.
+- Phase 11 inserted 2026-07-09 as Ride Analysis Dashboard (from author PRD `docs/phase-11-ride-analysis-roadmap.html`; context seeded in `.planning/phases/11-ride-analysis-dashboard/11-CONTEXT.md`). Google Calendar Production Verification renumbered 11 → 12 (was unplanned, empty dir, so the renumber was clean). Ride Analysis takes slot 11 to keep the PRD's `11-*` plan/decision/threat IDs consistent. Delivers the deferred ride-analysis viz work noted in project-ui-followups (per-ride power/HR trace + zone distribution), now via a parse-on-demand `GET /api/rides/{id}/stream`. Two fixtures placed in `tests/fixtures/` (zwift_ride_30min.fit, hilly_ride_30min.fit).
+- Google Calendar integration removed entirely 2026-07-09 (quick task 260709-pxu): no longer a requirement. Deleted backend calendar_sync.py + routes/calendar.py + the /calendar router, the /onboarding/plan-calendar-sync endpoint, and all adaptations.py calendar-sync blocks + calendar_event_id selects; removed the frontend CalendarStatus + Settings section + api.ts fetchers; dropped the google-*/cryptography deps; scrubbed CAL-01..04 from REQUIREMENTS, the Phase 12 gcal entry from ROADMAP, and Google Calendar from CLAUDE.md/PROJECT/README/prd. LEFT AS-IS: applied Supabase migrations (oauth_states table + calendar_event_id column remain, unused; a drop migration is a follow-up), the completed Phase 4 "UI and Calendar" historical record, and .env.example (GOOGLE_*/CALENDAR_FERNET_KEY vars need manual removal, file is permission-protected).
 
 ### Decisions
 
@@ -132,7 +134,6 @@ Recent decisions affecting current work:
 - [Phase ?]: Pydantic model for JSON body
 - [Phase ?]: Use Pydantic body model instead of raw Body(str) for JSON object bodies
 - [Phase ?]: detect_signals underperformance threshold comes from tool compliance_pct not a hardcoded literal
-- [Phase ?]: CAL-03 partial: consent screen In production; Google verification submission is operational task
 - [Phase ?]: compliance_pct reads tss_target/type matching _SESSION_COLUMNS; training_sessions table ref removed
 - [Phase ?]: onboarding SSE multi-turn: capture create_conversation return, load prior turns via load_conversation, no new sse_generator param
 - [Phase ?]: Playwright LIFO: specific route handlers registered after general ones to win the match

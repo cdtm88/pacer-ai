@@ -39,7 +39,6 @@ from pydantic import BaseModel as _PydanticBaseModel
 
 from backend.agent.loop import run_turn  # noqa: F401 -- module-scope import for test monkeypatching
 from backend.auth import get_current_user
-from backend.calendar_sync import push_all_sessions_to_calendar
 from backend.db import get_async_supabase as _get_async_supabase
 from backend.rate_limit import rate_limited_user
 from backend.routes._sse import sse_generator
@@ -227,42 +226,15 @@ async def _resolve_conversation_id(user_id: str, conversation_id: str | None) ->
                 conversation_id = None
         except Exception:
             # Best-effort ownership check; treat any failure as "not resumable"
-            # rather than surfacing an error (matches CAL-04-style graceful fallback).
+            # rather than surfacing an error (graceful fallback).
             conversation_id = None
 
     return conversation_id
 
 
 # ---------------------------------------------------------------------------
-# Endpoint
+# Endpoints
 # ---------------------------------------------------------------------------
-
-
-@router.post("/plan-calendar-sync")
-async def onboarding_plan_calendar_sync(
-    current_user: dict = Depends(get_current_user),
-) -> dict:
-    """
-    POST /onboarding/plan-calendar-sync
-
-    Called by the frontend after the onboarding agent finishes generating the
-    initial plan and sessions are persisted to the database (CAL-01).
-
-    Pushes all planned sessions for this user to Google Calendar, inline-awaited
-    before responding (Vercel serverless constraint: no BackgroundTasks, which
-    Vercel freezes/kills after the response is sent). A calendar failure never
-    blocks this endpoint (CAL-04). The helper is a no-op when the user has not
-    connected Google Calendar, and its Google API calls are individually
-    timeout-bounded so a stale/expired refresh token cannot stall this request.
-
-    Returns {"status": "completed"} once the push has finished (or no-opped).
-    """
-    user_id = current_user["user_id"]
-    # --- push_all_sessions_to_calendar inline-awaited (Vercel serverless
-    #     constraint: no BackgroundTasks, which Vercel freezes/kills after the
-    #     response is sent) ---
-    await push_all_sessions_to_calendar(user_id)
-    return {"status": "completed"}
 
 
 class OnboardingStartBody(_PydanticBaseModel):

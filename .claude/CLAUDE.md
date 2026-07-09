@@ -15,7 +15,6 @@ PacerAI is an evidence-based, adaptive AI cycling coach for a beginner returning
 - **PWA**: Web-first, mobile-responsive; During-session view must work on iOS Safari
 - **Light mode only**: No pure blacks anywhere for MVP; design system from PRD applies
 - **No em dashes**: In any generated content or copy — use commas, semicolons, colons, or separate sentences
-- **Calendar**: Google Calendar API (OAuth2) for push/sync
 
 <!-- GSD:project-end -->
 
@@ -56,7 +55,7 @@ PacerAI is an evidence-based, adaptive AI cycling coach for a beginner returning
 | Pydantic | 2.x | Data validation / models | Bundled with FastAPI; v2 is 5-20x faster than v1 |
 | Uvicorn | 0.30.x | ASGI server | Used for local dev; Vercel's Python runtime invokes the ASGI app directly, no process manager needed in production |
 | python-multipart | latest | File upload parsing | Required for FastAPI file upload endpoints (.FIT ingestion) |
-| httpx | 0.27.x | Async HTTP client | Used for Google Calendar API calls and any outbound requests |
+| httpx | 0.27.x | Async HTTP client | Used for outbound HTTP requests |
 | asyncpg | 0.29.x | Async Postgres driver | Fastest async Postgres driver; use with SQLAlchemy 2.x async or directly |
 | SQLAlchemy | 2.x | ORM | Async-native in v2; supports asyncpg; alembic migrations |
 | alembic | 1.x | DB migrations | Standard with SQLAlchemy; keep schema changes tracked |
@@ -90,7 +89,6 @@ PacerAI is an evidence-based, adaptive AI cycling coach for a beginner returning
 |------------|---------|---------------|
 | **fitdecode** (0.10.x) | .FIT file parsing | `fitdecode` (PyPI); NOT `fitparse` (inactive) |
 | **ZWO export** | Zwift workout XML | Python stdlib `xml.etree.ElementTree`; no library needed |
-| **Google Calendar API** | Push/sync sessions | `google-api-python-client`, `google-auth-oauthlib`, `google-auth-httplib2` |
 | **PMC calculations** | CTL/ATL/TSB | Custom numpy EWMA; no third-party PMC library (they're either unmaintained or too opinionated) |
 
 ### Dev / Deploy
@@ -143,7 +141,6 @@ PacerAI is an evidence-based, adaptive AI cycling coach for a beginner returning
 | Anthropic SDK version + tool-use loop pattern | MEDIUM | PyPI release confirmed; pattern from official docs and community |
 | Tailwind v4 + shadcn/ui Tailwind v4 compat | HIGH | Official shadcn/ui changelog Feb 2025 is authoritative |
 | FastAPI + Supabase async pattern | MEDIUM | supabase-py-async 2.5.6 confirmed on PyPI; lifespan pattern from community |
-| Google Calendar OAuth2 | MEDIUM | Official Google docs pattern; standard OAuth2 flow |
 | PMC math formulas | HIGH | Published in Coggan/Allen "Training and Racing with a Power Meter"; TrainingPeaks blog confirms |
 | ZWO file format | MEDIUM | Community-reverse-engineered reference (h4l/zwift-workout-file-reference); no official Zwift schema published |
 | vite-plugin-pwa + iOS Safari | MEDIUM | Plugin docs + community; iOS PWA limitations are well-documented |

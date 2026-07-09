@@ -23,7 +23,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 8: Trust Model Integrity** - Persist audit log, scan tool inputs, tighten attribution, collect LTHR, correct HR zones and load constraints (completed 2026-07-04)
 - [x] **Phase 9: Frontend Resilience** - Chat SSE recovery and history reload, session persistence staleness, iOS export/auth fixes, contract mismatches, error boundary (completed 2026-07-07)
 - [x] **Phase 10: Hygiene and Safety Nets** - Repair stale tests, contract tests, SSE token exchange, rate limiting, CI, repo cleanup (completed 2026-07-08)
-- [ ] **Phase 11: Google Calendar Production Verification** - Publish privacy policy and ToS pages, add app logo, submit calendar.events scope for Google review, confirm OAuth consent screen moves out of Testing mode
+- [ ] **Phase 11: Ride Analysis Dashboard** - Per-second ride visualisation (power, HR, cadence, speed, elevation) with lap markers, synced hover readout, and a server-computed time-in-HR-zone breakdown; charts appear only for channels present in the file
 
 ## Phase Details
 
@@ -326,16 +326,26 @@ Plans:
 
 - [x] 10-06-PLAN.md — Revert out-of-scope e2e job to restore D-05 scope, guard session.test.tsx flake, confirm green on a REAL GitHub Actions run (item 7; D-05)
 
-### Phase 11: Google Calendar Production Verification
+### Phase 11: Ride Analysis Dashboard
 
-**Goal:** The Google Calendar OAuth consent screen is approved for production use: a privacy policy page and terms of service page are published, an app logo is uploaded, the calendar.events sensitive-scope verification request is submitted to the Google Verification Centre and approved, and a real (non-test) Google account can complete the Calendar OAuth flow without an unverified-app warning.
-**Requirements**: TBD
-**Depends on:** Phase 7 (requires the live production backend URL for the OAuth callback and verification review)
-**Plans:** 0 plans
+**Goal:** A Ride Analysis tab renders a per-second visualisation of any uploaded ride (power, HR, cadence, speed, elevation) with lap markers, a synced hover readout, and a time-in-HR-zone breakdown. Time series is served parse-on-demand via a new `GET /api/rides/{id}/stream` (re-parses the stored .fit, no persistence, no migration). Channels appear only when present, so indoor Zwift rides with no elevation or GPS render cleanly. All zone maths are computed server-side in a `time_in_hr_zones` ToolResult that reuses `calculate_hr_zones` (TRUST-01).
+**Requirements**: RIDE-01..RIDE-12 (see 11-CONTEXT.md)
+**Decisions**: D-11-01..D-11-07 | **Threats**: T-11-01..T-11-03
+**Depends on:** Phase 1 (sports-science tools), Phase 6 (rides + Storage persistence)
+**Context seeded:** `.planning/phases/11-ride-analysis-dashboard/11-CONTEXT.md` (from author PRD `docs/phase-11-ride-analysis-roadmap.html`)
+**Plans:** 0/7 plans
 
-Plans:
+Plans (waves):
 
-- [ ] TBD (run /gsd-plan-phase 11 to break down)
+- [ ] 11-01-PLAN.md — Sibling parser + channel presence + downsample (BE; RIDE-01/02/03) — wave 0
+- [ ] 11-02-PLAN.md — `time_in_hr_zones` tool reusing `calculate_hr_zones` (BE; RIDE-04) — wave 0
+- [ ] 11-03-PLAN.md — `GET /rides/{id}/stream` endpoint (BE; RIDE-05; T-11-01/02/03) — wave 1
+- [ ] 11-04-PLAN.md — `RideStream` type + `getRideStream` fetcher (FE; RIDE-06) — wave 2
+- [ ] 11-05-PLAN.md — `RideChart` component: dynamic channels, syncId, lap lines, zone bar (FE; RIDE-07/08/09) — wave 2
+- [ ] 11-06-PLAN.md — `AnalysisScreen` + routes + Analysis nav tab + RideRow links (FE; RIDE-10/11) — wave 2
+- [ ] 11-07-PLAN.md — Fixtures + backend/frontend tests (BE+FE; RIDE-12) — wave 3
+
+*Run `/gsd-plan-phase 11` to break the waves into executable plans.*
 
 ## Progress Table
 
@@ -351,6 +361,4 @@ Plans:
 | 8. Trust Model Integrity | 8/8 | Complete    | 2026-07-04 |
 | 9. Frontend Resilience | 7/7 | Complete    | 2026-07-07 |
 | 10. Hygiene and Safety Nets | 6/6 | Complete    | 2026-07-08 |
-| 11. Google Calendar Production Verification | 0/? | Not planned | - |
-
-- [ ] TBD (run /gsd-plan-phase 11 to break down)
+| 11. Ride Analysis Dashboard | 0/7 | Not planned | - |

@@ -121,10 +121,6 @@ export interface Conversation {
   updated_at: string
 }
 
-export interface CalendarSettings {
-  connected: boolean
-}
-
 // GET /profiles/me — returns null on 404 (no profile yet, triggers first-run gate)
 // Throws an auth error (status 401/403) so callers can redirect to /login.
 // Throws a non-auth error for 500/network so callers can show an error state
@@ -367,20 +363,4 @@ export async function uploadRide(file: File): Promise<UploadRideResponse> {
     throw new Error(reason)
   }
   return res.json() as Promise<UploadRideResponse>
-}
-
-// GET /calendar/settings
-export async function getCalendarSettings(): Promise<CalendarSettings> {
-  const res = await apiFetch('/api/calendar/settings')
-  if (!res.ok) throw new Error(`getCalendarSettings failed: ${res.status}`)
-  return res.json() as Promise<CalendarSettings>
-}
-
-// POST /calendar/disconnect
-export async function disconnectCalendar(): Promise<void> {
-  const res = await apiFetch('/api/calendar/disconnect', {
-    method: 'POST',
-    body: JSON.stringify({}),
-  })
-  if (!res.ok) throw new Error(`disconnectCalendar failed: ${res.status}`)
 }

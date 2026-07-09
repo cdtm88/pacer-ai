@@ -36,7 +36,7 @@ router = APIRouter()
 _SESSION_COLUMNS = (
     "id, objective, structure, targets, duration_mins, duration_minutes, "
     "status, scheduled_date, type, zone_targets, power_targets, rpe_target, "
-    "tss_target, calendar_event_id"
+    "tss_target"
 )
 
 

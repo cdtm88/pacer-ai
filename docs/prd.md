@@ -99,10 +99,7 @@ Each line is intended to become one requirement.
    reasoning by default in chat, citing the data and the principle behind the
    change. Every change is persisted to an adaptation log (trigger, reasoning shown,
    timestamp).
-10. Google Calendar integration: push planned sessions as calendar events with the
-    session detail in the body; when the plan changes, update/move/delete the
-    affected events to stay in sync.
-11. ZWO export: export a planned structured session as a valid .zwo workout file that
+10. ZWO export: export a planned structured session as a valid .zwo workout file that
     Zwift can import, with power targets expressed correctly as % FTP and
     round-tripping cleanly into Zwift.
 12. Web UI, desktop and mobile adaptive (PWA), light mode only for MVP. Screens:
@@ -141,7 +138,6 @@ Each line is intended to become one requirement.
 - Missing a session, or adding a holiday, causes the agent to re-plan and explain the
   change in chat.
 - A planned session exports to a .zwo that imports cleanly into Zwift.
-- Planned sessions appear in Google Calendar and update when the plan changes.
 - The web app is usable and clean on both a phone and a desktop browser.
 
 ## Phase 2 capabilities (post-MVP, not part of v1)
@@ -169,7 +165,6 @@ Each line is intended to become one requirement.
 - Database: Postgres (Supabase or Railway).
 - FIT parsing: fitparse / fitdecode.
 - Hosting: Vercel (frontend) plus Railway (API/DB).
-- Calendar: Google Calendar API (OAuth2).
 
 ## Build-order guidance (preferred phase shape)
 
@@ -179,7 +174,7 @@ Each line is intended to become one requirement.
 3. Interview -> profile -> first plan (cold-start, no FTP).
 4. FIT upload -> training-load update -> adaptive re-planning loop.
 5. Web UI (the screens above).
-6. Google Calendar push plus ZWO export.
+6. ZWO export for Zwift.
 7. Phase 2 items.
 
 ## Design system (for the UI phase)

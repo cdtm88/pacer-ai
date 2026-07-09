@@ -80,13 +80,6 @@
 - [x] **TRANSP-02**: Every plan change is persisted to an adaptation log with: trigger event, reasoning shown to user, and timestamp
 - [x] **TRANSP-03**: The adaptation log is readable (not just a raw database table); the user can review past adaptation decisions
 
-### Google Calendar Integration
-
-- [x] **CAL-01**: Planned sessions are pushed to the user's Google Calendar as events with the session detail in the event body (objective, structure, targets, duration)
-- [x] **CAL-02**: When the plan changes (sessions moved, added, or removed), the corresponding calendar events are updated, moved, or deleted to stay in sync
-- [x] **CAL-03**: Google Calendar OAuth uses production credentials (not Testing mode) before any real user testing; refresh token health is checked before every Calendar API call; tokens are stored encrypted in the database, never in browser storage
-- [x] **CAL-04**: Calendar sync failures are surfaced to the user gracefully; a failed sync does not disrupt the plan or chat
-
 ### ZWO Export
 
 - [x] **ZWO-01**: A planned structured session can be exported as a valid .zwo workout file that Zwift can import
@@ -211,10 +204,6 @@
 | GAP-01 | Phase 1 | Complete |
 | GAP-02 | Phase 1 | Complete |
 | GAP-03 | Phase 1 | Complete |
-| CAL-01 | Phase 4 | Complete |
-| CAL-02 | Phase 4 | Complete |
-| CAL-03 | Phase 4 | Complete |
-| CAL-04 | Phase 4 | Complete |
 | UI-01 | Phase 4 | Complete |
 | UI-02 | Phase 4 | Complete |
 | UI-03 | Phase 4 | Complete |
