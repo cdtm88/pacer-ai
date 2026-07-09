@@ -3,8 +3,8 @@ status: complete
 phase: 04-ui-and-calendar
 source: [04-01-SUMMARY.md, 04-02-SUMMARY.md, 04-03-SUMMARY.md, 04-04-SUMMARY.md, 04-05-SUMMARY.md, 04-06-SUMMARY.md, 04-07-SUMMARY.md, 04-08-SUMMARY.md, 04-09-SUMMARY.md]
 started: 2026-06-20T00:00:00Z
-updated: 2026-06-21T22:00:00Z
-closed_reason: "All 7 gaps fixed by plans 04-12 through 04-21; phase already transitioned 2026-06-20"
+updated: 2026-07-09T00:00:00Z
+closed_reason: "All 7 gaps fixed by plans 04-12 through 04-21; phase already transitioned 2026-06-20. Re-audited 2026-07-09 (/gsd-audit-uat): tests 7 and 11 confirmed resolved via codebase inspection; test 17 closed as obsolete (Google Calendar integration removed entirely, commit a174e47)."
 ---
 
 ## Current Test
@@ -43,8 +43,9 @@ note: "Design improvements applied: zone color accent bar added to card top, act
 
 ### 7. TSB Chip Gate
 expected: On the Today screen (or wherever the TSB chip would appear), confirm the TSB chip (showing "Fresh", "Balanced", or "Fatigued") is absent when no ride data exists yet (tss_display_ready is false on the backend). It should only appear after enough rides have been uploaded to compute TSB.
-result: skipped
-reason: Not enough ride data to verify; will revisit later
+result: pass
+source: automated
+note: "Closed 2026-07-09: gating behavior verified by frontend/src/tests/today.test.tsx and history.test.tsx (asserts chip absent when tss_display_ready is false, renders Fresh/Balanced/Fatigued correctly when true). No manual ride-data setup needed."
 
 ### 8. Mark Session Missed
 expected: On a SessionCard for today, click "Mark missed". An alert dialog appears with the title "Mark this session as missed?" and body "This will trigger a re-plan. Your coach will adjust upcoming sessions." Two buttons: "Yes, mark missed" (destructive CTA) and "Keep it" (cancel). Clicking "Yes, mark missed" closes the dialog and triggers a replan. No em dashes in the dialog copy.
@@ -63,9 +64,10 @@ expected: Navigate to Agenda. Sessions are grouped by week with sticky week head
 result: pass
 
 ### 11. Export to Zwift Disabled
-expected: On a SessionCard, the "Export to Zwift" button is visually disabled (greyed out). Hovering over it shows a tooltip: "Coming in the next update". Clicking it does nothing.
-result: skipped
-reason: Spec removed — button is active and functional; no disabled state needed
+expected: ~~On a SessionCard, the "Export to Zwift" button is visually disabled (greyed out). Hovering over it shows a tooltip: "Coming in the next update". Clicking it does nothing.~~ Superseded: button is enabled and opens the ZWO export modal (feature shipped ahead of this spec).
+result: pass
+source: automated
+note: "Closed 2026-07-09: original disabled-state spec is stale (superseded by shipped export functionality). Current behavior verified by frontend/src/tests/today.test.tsx: 'Export to Zwift button is enabled and opens the modal'."
 
 ### 12. History Screen
 expected: Navigate to History. A FIT upload zone appears at the top (drag-drop area or click to browse). Below it, a list of uploaded rides shows with compliance chip (green >=90%, amber <90%, "Unmatched" for null), TSS, and duration. If no rides have been uploaded, an empty state shows "No rides yet" with an upload prompt.
@@ -96,10 +98,9 @@ expected: Navigate to Settings. The screen shows a Profile section (display name
 result: pass
 
 ### 17. Calendar Connect
-expected: In Settings, click "Connect Google Calendar". The browser redirects to Google's OAuth consent page asking permission for calendar access. (The page may show an "unverified app" warning -- that is expected until Google verification is complete.) After granting access, the user is returned to the app and the Calendar section shows a "Connected" state.
-result: blocked
-blocked_by: third-party
-reason: "Google OAuth app not configured — production verification deferred to a future phase"
+expected: ~~In Settings, click "Connect Google Calendar". The browser redirects to Google's OAuth consent page asking permission for calendar access...~~ N/A: Google Calendar integration was removed from the product entirely.
+result: removed
+reason: "Closed 2026-07-09: not a prerequisite gap, the feature is gone. Google Calendar integration deleted in commit a174e47 ('remove Google Calendar integration (no longer a requirement)'). No calendar code remains in backend or frontend. This item is obsolete, not blocked."
 
 ### 18. During-Session Screen
 expected: Navigate to /session. The screen shows a static step list with a current step displayed prominently (40px bold with a zone-color left border), a "Next: ..." step below, and remaining steps at smaller size. A "00:00" timer is shown with the caption "Timer activates in next phase". An "End session" button at the bottom navigates back to /.
@@ -108,11 +109,12 @@ result: pass
 ## Summary
 
 total: 18
-passed: 8
+passed: 10
 issues: 7
 pending: 0
-skipped: 2
-blocked: 1
+skipped: 0
+blocked: 0
+removed: 1
 
 ## Gaps
 
