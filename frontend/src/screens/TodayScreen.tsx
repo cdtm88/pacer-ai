@@ -7,6 +7,7 @@ import { DurationPickerModal } from '@/components/session/DurationPickerModal'
 import { getSessionToday, getUpcomingSessions, getLatestPmc } from '@/lib/api'
 import { loadMatchingSession } from '@/lib/sessionPersistence'
 import { sessionTypeLabel } from '@/lib/format'
+import { zoneColor } from '@/lib/zones'
 
 function formatNextRideDay(dateStr: string): string {
   const d = new Date(dateStr + 'T12:00:00')
@@ -16,18 +17,6 @@ function formatNextRideDay(dateStr: string): string {
 function formatStripDate(dateStr: string): string {
   const d = new Date(dateStr + 'T12:00:00')
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
-type ZoneType = 'recovery' | 'endurance' | 'tempo' | 'threshold' | 'vo2'
-const ZONE_VAR: Record<ZoneType, string> = {
-  recovery:  '--color-zone-recovery',
-  endurance: '--color-zone-endurance',
-  tempo:     '--color-zone-tempo',
-  threshold: '--color-zone-threshold',
-  vo2:       '--color-zone-vo2',
-}
-function isValidZone(type: string | null): type is ZoneType {
-  return ['recovery', 'endurance', 'tempo', 'threshold', 'vo2'].includes(type ?? '')
 }
 
 export function TodayScreen() {
@@ -153,9 +142,7 @@ export function TodayScreen() {
             </h3>
             <div className="flex md:flex-col gap-3 overflow-x-auto md:overflow-visible pb-2 md:pb-0">
               {emptyStateUpcoming.map((s) => {
-                const zoneType = isValidZone((s as {type?: string | null}).type ?? null)
-                  ? ((s as {type?: string | null}).type as ZoneType)
-                  : null
+                const zoneType = (s as {type?: string | null}).type ?? null
                 const scheduledDate = (s as {scheduled_date?: string}).scheduled_date ?? ''
                 const durationMins = (s as {duration_mins?: number | null}).duration_mins
                   ?? (s as {duration_minutes?: number | null}).duration_minutes
@@ -180,11 +167,12 @@ export function TodayScreen() {
                     </span>
                     {zoneType && (
                       <span
-                        className="rounded-full shrink-0"
+                        className="shrink-0"
                         style={{
-                          width: 8,
-                          height: 8,
-                          backgroundColor: `var(${ZONE_VAR[zoneType]})`,
+                          width: 24,
+                          height: 4,
+                          borderRadius: 2,
+                          backgroundColor: zoneColor(zoneType),
                           display: 'inline-block',
                         }}
                       />
@@ -213,9 +201,13 @@ export function TodayScreen() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
+      {/* TodayScreen has no ftp query today; ftp is passed explicitly as null so the
+          prop is intentional. SessionCard's IF stat tile derives from tss_target +
+          duration alone and does not require ftp. */}
       <SessionCard
         session={session as unknown as Parameters<typeof SessionCard>[0]['session']}
         pmc={pmc as unknown as Parameters<typeof SessionCard>[0]['pmc']}
+        ftp={null}
       />
 
       {/* Next-few-days strip */}
@@ -231,9 +223,7 @@ export function TodayScreen() {
               className="flex flex-wrap gap-3 pb-2"
             >
               {stripSessions.map((s) => {
-                const zoneType = isValidZone((s as {type?: string | null}).type ?? null)
-                  ? ((s as {type?: string | null}).type as ZoneType)
-                  : null
+                const zoneType = (s as {type?: string | null}).type ?? null
                 const scheduledDate = (s as {scheduled_date?: string}).scheduled_date ?? ''
                 const durationMins = (s as {duration_mins?: number | null}).duration_mins
                   ?? (s as {duration_minutes?: number | null}).duration_minutes
@@ -258,11 +248,12 @@ export function TodayScreen() {
                     </span>
                     {zoneType && (
                       <span
-                        className="rounded-full shrink-0"
+                        className="shrink-0"
                         style={{
-                          width: 8,
-                          height: 8,
-                          backgroundColor: `var(${ZONE_VAR[zoneType]})`,
+                          width: 24,
+                          height: 4,
+                          borderRadius: 2,
+                          backgroundColor: zoneColor(zoneType),
                           display: 'inline-block',
                         }}
                       />
