@@ -668,6 +668,50 @@ function SessionRunner({
           End session
         </button>
 
+        {/* Session profile rail (D-3): whole workout as proportional zone-colored
+            bars — current block lit, elapsed blocks dimmed, upcoming at standard
+            zone-color opacity. Reuses WorkoutProfileChart's flexBasis/flexGrow
+            geometry (not the component itself) over the full SessionStep[] array,
+            one segment per step. Reads currentIndex/steps from existing state only. */}
+        <div style={{
+          width: '100%',
+          marginTop: 24,
+          padding: 8,
+          borderRadius: 12,
+          backgroundColor: 'var(--color-cockpit-surface)',
+          border: '1px solid var(--color-cockpit-line)',
+        }}>
+          <div
+            role="img"
+            aria-label={`Session profile: ${steps.map(s => `${s.label} ${s.duration} min`).join(', ')}`}
+            style={{ display: 'flex', gap: 2, height: 40, borderRadius: 8, overflow: 'hidden' }}
+          >
+            {steps.map((step, i) => {
+              const segColor = zoneColorFor(step.zone ?? null)
+              const isCurrent = i === currentIndex
+              const isElapsed = i < currentIndex
+              const fill = isElapsed
+                ? `color-mix(in srgb, ${segColor} 35%, var(--color-cockpit-bg))`
+                : segColor
+              return (
+                <div
+                  key={`rail-${i}`}
+                  title={`${step.label} · ${step.duration} min`}
+                  style={{
+                    flexBasis: totalSessionSecs > 0 ? `${(step.duration * 60 / totalSessionSecs) * 100}%` : '0%',
+                    flexGrow: step.duration,
+                    minWidth: 4,
+                    backgroundColor: fill,
+                    border: isCurrent ? `1.5px solid ${segColor}` : 'none',
+                    boxShadow: isCurrent ? `0 0 6px ${segColor}` : 'none',
+                    transition: 'background-color 250ms ease-out',
+                  }}
+                />
+              )
+            })}
+          </div>
+        </div>
+
       </div>
     </div>
   )
