@@ -97,6 +97,30 @@ export interface Ride {
   compliance_pct?: number | null
 }
 
+export interface RideStreamPoint {
+  t: number
+  power: number | null
+  heart_rate: number | null
+  cadence: number | null
+  speed: number | null
+  altitude: number | null
+  distance: number | null
+}
+
+export interface RideZoneDistribution {
+  zone: number
+  name: string
+  seconds: number
+  pct: number
+}
+
+export interface RideStream {
+  series: RideStreamPoint[]
+  channels: Record<'power' | 'heart_rate' | 'cadence' | 'speed' | 'altitude' | 'distance', boolean>
+  laps: number[]
+  hr_zone_distribution: RideZoneDistribution[] | null
+}
+
 export interface PmcEntry {
   date: string
   ctl: number
@@ -156,6 +180,13 @@ export async function getRides(): Promise<Ride[]> {
   if (!res.ok) throw new Error(`getRides failed: ${res.status}`)
   const data = await res.json() as { rides: Ride[] }
   return data.rides ?? []
+}
+
+// GET /rides/{id}/stream
+export async function getRideStream(rideId: string): Promise<RideStream> {
+  const res = await apiFetch(`/api/rides/${rideId}/stream`)
+  if (!res.ok) throw new Error(`getRideStream failed: ${res.status}`)
+  return res.json() as Promise<RideStream>
 }
 
 // GET /pmc_history/latest
