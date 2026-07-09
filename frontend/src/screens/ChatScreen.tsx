@@ -6,6 +6,7 @@ import { useSSEStream } from '../hooks/useSSEStream'
 import { ChatBubble, type BubbleRole } from '../components/chat/ChatBubble'
 import { ChatInput } from '../components/chat/ChatInput'
 import { StreamErrorBanner } from '../components/chat/StreamErrorBanner'
+import { PromptChip } from '@/components/ui/PromptChip'
 
 // ---------------------------------------------------------------------------
 // ChatScreen: persistent coaching conversation with SSE streaming.
@@ -79,44 +80,6 @@ const SUGGESTED_PROMPTS = [
   'Explain my zones',
   'Make this week easier',
 ]
-
-// PromptChip: pill button used for suggested prompts. Kept local (single call
-// site) with hover handled inline since these screens use inline styles.
-function PromptChip({
-  label,
-  onClick,
-  disabled,
-}: {
-  label: string
-  onClick: () => void
-  disabled?: boolean
-}) {
-  const [hover, setHover] = useState(false)
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        padding: '8px 14px',
-        borderRadius: '999px',
-        border: '1px solid var(--color-line)',
-        backgroundColor: hover && !disabled ? 'var(--color-bg-2)' : 'var(--color-surface)',
-        color: 'var(--color-ink-2)',
-        fontSize: '14px',
-        fontFamily: 'var(--font-family-sans)',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.6 : 1,
-        transition: 'background-color 0.15s',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {label}
-    </button>
-  )
-}
 
 // Heuristic: detect adaptation-style messages (coach initiated plan changes)
 function detectBubbleRole(content: string): BubbleRole {
