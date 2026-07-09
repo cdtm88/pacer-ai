@@ -197,6 +197,131 @@ def parse_fit_file(file_bytes: bytes) -> Optional[dict]:
 
 
 # ---------------------------------------------------------------------------
+# FIT stream parser (Phase 11, RIDE-01): sibling to parse_fit_file, sync,
+# runs under asyncio.to_thread from the stream endpoint (11-03).
+# ---------------------------------------------------------------------------
+
+
+def parse_fit_stream(file_bytes: bytes) -> Optional[dict]:
+    """
+    Sibling to parse_fit_file (RIDE-01). Extracts full per-second-aligned
+    channel arrays (power, heart_rate, cadence, speed, altitude, distance)
+    plus lap-message boundaries, from raw FIT bytes.
+
+    Unlike parse_fit_file (which appends power unconditionally but HR/cadence
+    only when present, producing arrays of different lengths -- fine for its
+    only consumer compute_tss, but fatal for a synced multi-channel chart),
+    every row built here has the SAME keys and every channel array is the
+    SAME length as len(series). Missing channel values are None, never
+    skipped (RESEARCH Pitfall 1) -- this is what detect_presence/downsample
+    both rely on to stay honest.
+
+    Elapsed seconds (`t`) is computed from real record timestamps relative
+    to the resolved ride start_time, not array index (RESEARCH Pitfall 2) --
+    this matters for smart-recording devices that emit fewer than 1
+    record/sec. lap_bounds is computed from the SAME start_time so laps and
+    the series never drift apart.
+
+    Reads enhanced_altitude/enhanced_speed first, falling back to
+    altitude/speed (RESEARCH Pitfall 5) since different device firmware
+    populates one, the other, or both.
+
+    SYNC -- must be called via asyncio.to_thread from the async endpoint
+    (D-12, mirrors parse_fit_file's existing convention).
+
+    Args:
+        file_bytes: Raw bytes from the stored .FIT file.
+
+    Returns:
+        dict with keys: series (list of aligned per-record row dicts, each
+                        with keys t/power/heart_rate/cadence/altitude/speed/
+                        distance), lap_bounds (list[int] elapsed seconds),
+                        start_time (datetime or None).
+        None if the file cannot be opened/parsed at all (mirrors
+        parse_fit_file's total-failure contract so the route's 422 path
+        applies unchanged; T-11-03).
+    """
+    series: list[dict] = []
+    lap_bounds: list[int] = []
+    start_time: Optional[datetime] = None
+
+    try:
+        with fitdecode.FitReader(
+            io.BytesIO(file_bytes),
+            error_handling=fitdecode.ErrorHandling.WARN,
+        ) as reader:
+            for frame in reader:
+                if not isinstance(frame, fitdecode.FitDataMessage):
+                    continue
+
+                if frame.name == "session":
+                    ts = frame.get_value("start_time", fallback=None)
+                    if ts is not None and start_time is None and isinstance(ts, datetime):
+                        start_time = ts
+                    continue
+
+                if frame.name == "lap":
+                    lap_start = frame.get_value("start_time", fallback=None)
+                    if (
+                        lap_start is not None
+                        and isinstance(lap_start, datetime)
+                        and start_time is not None
+                    ):
+                        lap_bounds.append(int((lap_start - start_time).total_seconds()))
+                    continue
+
+                if frame.name != "record":
+                    continue
+
+                ts = frame.get_value("timestamp", fallback=None)
+                if ts is not None and isinstance(ts, datetime) and start_time is None:
+                    # Fall back to the first record timestamp if no session
+                    # start_time was seen yet (mirrors parse_fit_file's
+                    # ride_start_time-or-first_record_ts resolution).
+                    start_time = ts
+
+                if ts is not None and isinstance(ts, datetime) and start_time is not None:
+                    elapsed_secs = int((ts - start_time).total_seconds())
+                else:
+                    elapsed_secs = len(series)
+
+                altitude = frame.get_value("enhanced_altitude", fallback=None)
+                if altitude is None:
+                    altitude = frame.get_value("altitude", fallback=None)
+
+                speed = frame.get_value("enhanced_speed", fallback=None)
+                if speed is None:
+                    speed = frame.get_value("speed", fallback=None)
+
+                power = frame.get_value("power", fallback=None)
+                heart_rate = frame.get_value("heart_rate", fallback=None)
+                cadence = frame.get_value("cadence", fallback=None)
+                distance = frame.get_value("distance", fallback=None)
+
+                series.append(
+                    {
+                        "t": elapsed_secs,
+                        "power": float(power) if power is not None else None,
+                        "heart_rate": float(heart_rate) if heart_rate is not None else None,
+                        "cadence": float(cadence) if cadence is not None else None,
+                        "altitude": float(altitude) if altitude is not None else None,
+                        "speed": float(speed) if speed is not None else None,
+                        "distance": float(distance) if distance is not None else None,
+                    }
+                )
+
+    except Exception as exc:
+        logger.warning("parse_fit_stream failed: %s", exc)
+        return None
+
+    return {
+        "series": series,
+        "lap_bounds": lap_bounds,
+        "start_time": start_time,
+    }
+
+
+# ---------------------------------------------------------------------------
 # FTP resolution (cold-start safe)
 # ---------------------------------------------------------------------------
 
