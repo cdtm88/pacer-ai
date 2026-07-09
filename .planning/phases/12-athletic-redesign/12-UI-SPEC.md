@@ -160,29 +160,38 @@ Exceptions:
 
 ## Typography
 
-Base template roles (Inter, UI text):
+Base template roles — capped at exactly 4 distinct sizes, 2 weights (Inter, UI text):
 
-| Role | Size | Weight | Line Height |
-|------|------|--------|-------------|
-| Body | 16px | 400 | 1.5 |
-| Label (micro/eyebrow, uppercase) | 11px | 600 | 1.4 |
-| Heading (card/section titles) | 20px | 600 | 1.2 |
-| Display (screen titles, D-10) | 28px | 600 | 1.15 |
+| Role | Size | Weight | Line Height | Usage |
+|------|------|--------|-------------|-------|
+| Body | 16px | 400 | 1.5 | Body copy, descriptions, chat text |
+| Label (micro/eyebrow) | 11px | 600 | 1.4 | Uppercase micro-labels; also the Today-hub date eyebrow above the screen title — same size/weight, sentence case instead of uppercase (renders a full date like "Monday, July 7", not a short label), `--color-ink-3` |
+| Heading (card/section titles) | 20px | 600 | 1.2 | Card titles, section headers |
+| Display (screen titles, D-10) | 28px | 600 | 1.15 | `AppLayout.tsx`'s `<header>` `<h1>` screen titles; **also** the Today-hub objective heading (`SessionCard`, D-6) — reuses this exact role/size rather than introducing a fifth size. D-6 says "objective to ~28px," which this satisfies directly. Hierarchy between the two is established by context (card body vs. page chrome), not by a size delta. |
 
-Screen-title clarification: "display weight" per D-10 means Inter 600 at 28px, **not** the Barlow Condensed numeral face — Barlow Condensed is reserved strictly for numerals per D-5. `AppLayout.tsx`'s `<header>` `<h1>` moves from `fontSize:20, fontWeight:700` to 28px/600; the existing per-route date string on Today moves **above** the title as a genuine eyebrow (12px/600, `--color-ink-3`, sentence case — not uppercase, since it renders a full date like "Monday, July 7", not a short label) — currently rendered below.
+"Display weight" per D-10 means Inter 600 at 28px, **not** the Barlow Condensed numeral face — Barlow Condensed is reserved strictly for numerals per D-5. `AppLayout.tsx`'s `<header>` `<h1>` moves from `fontSize:20, fontWeight:700` to 28px/600; the existing per-route date string on Today moves **above** the title as the Label-role eyebrow described in the table (currently rendered below).
 
-Hero numeral scale (Barlow Condensed, D-5 — `.stat-num-hero`, or component-local styles using `var(--font-family-display)`):
+Weight budget: 2 Inter weights carry all body/UI text at any one call site (400 regular, 600 semibold — 500/700 exist in the loaded set for legacy call sites but new work should default to 400/600).
+
+### Hero numeral scale — role-scoped exempt secondary system
+
+Barlow Condensed (D-5 — `.stat-num-hero`, or component-local styles using `var(--font-family-display)`) is a **separate, closed set of exactly 3 sizes**, intentionally outside the 4-size UI cap above, because it is not UI text:
+
+1. Different font family entirely, reserved exclusively for numerals per D-5 (never used for words/labels/body copy).
+2. Fluid `clamp()` ranges tied to viewport width, not fixed design-system sizes.
+3. Distinct role — large-format data readouts (cockpit watts/timer, KPI tile values), analogous to a chart's data-ink rather than interface chrome.
 
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
 | Cockpit primary (watts / effort word) | `clamp(96px, 18vw, 160px)` | 700 | 1 |
 | Cockpit timer (demoted secondary) | `clamp(48px, 10vw, 72px)` | 600 | 1 |
-| Session-complete hero readout | 56px | 700 | 1 |
 | Today-hub StatTile value | `clamp(34px, 8vw, 52px)` (unchanged size, font swapped from Inter 800 → Barlow Condensed 700) | 700 | 1 |
 
-Inline tabular readouts (`.stat-num`, Inter, unchanged sizes — agenda date column 12px, ride-row stats 12-13px, week totals 12px): weight corrected 800 → 700 per the Foundation Fixes section above.
+No hero size may be added to this set without a spec update. **Session-complete hero readout** reuses the **Cockpit timer** clamp's upper bound directly — fixed `72px`, Barlow Condensed 700, line-height 1 — instead of introducing a fourth hero size; session-complete is a static screen with no viewport-fit concern, so the clamp's max is used as a flat value rather than the full clamp.
 
-Weight budget: 2 Inter weights carry all body/UI text at any one call site (400 regular, 600 semibold — 500/700 exist in the loaded set for legacy call sites but new work should default to 400/600); Barlow Condensed carries 2 weights (600/700) exclusively for hero numerals. This satisfies the "2 body weights" rule while honoring D-5's explicit amendment for the display face.
+Barlow Condensed carries 2 weights (600/700) exclusively for hero numerals — same "2 weights" discipline as the base table, honoring D-5's explicit amendment for the display face.
+
+Inline tabular readouts (`.stat-num`, Inter, pre-existing sizes unchanged by this phase — agenda date column, ride-row stats, week totals, all 12-13px in production today): weight corrected 800 → 700 per the Foundation Fixes section above. These predate this redesign and are not part of either sizing table above; this phase only fixes their weight, not their size.
 
 ---
 
@@ -245,9 +254,7 @@ No em dashes anywhere in the above (verified). All new copy above conforms.
 
 ### C. Today hub — `TodayScreen.tsx` / `SessionCard.tsx` (D-6)
 
-- Objective heading: 20px → ~28px (matches the Heading/Display distinction above; objective is a card-level heading, keep at 20-24px range — use 22px as the concrete value **[Assumption]**, since D-6 says "objective to ~28px" but 28px is also the screen-title Display size; using the identical 28px for both would collapse the header/card hierarchy. Recommend 24px for the objective to keep it visually subordinate to the 28px screen title while still reading as a clear step up from the current 20px.)
-
-  Correction per explicit CONTEXT value: D-6 states "objective to ~28px" — this is a locked decision, use it as stated. Objective → 24-28px range; use 26px as the concrete implementation value to keep it a full step below the 28px screen title without contradicting the "~28px" directive. **[Assumption: exact px within the "~28px" band.]**
+- Objective heading: 20px → 28px, reusing the **Display** role declared in the Typography table above (Inter 600, line-height 1.15) — matches D-6's "objective to ~28px" directly and avoids introducing a fifth UI text size. Hierarchy against the 28px screen title is established by context/position (card body vs. page chrome), not by a size delta.
 - New stat tile row (duration / est. TSS / IF) using the existing `StatTile` component, placed under the workout profile chart. Values render with `.stat-num-hero` per the Typography fix above.
 - `WorkoutProfileChart` grows taller and moves to a more central position in the card (currently a compact 34px-tall strip near the top of the card body — increase to ~56-64px tall as the visual centerpiece, per D-6 "profile chart taller and central").
 - Actions: one fat full-width **"Start ride"** primary (`<Button variant="default">`, now correctly brand-filled via the token fix, no inline override needed) → **"Export .zwo"** secondary (`<Button variant="outline">`). **Mark done / Mark missed** collapse from two visible ghost buttons into a single quiet overflow row/menu (currently two always-visible `Button variant="ghost"` — replace with a single "Log without riding ▾" affordance that reveals both options, e.g. a small dropdown or expand-on-tap row; keep both actions' accessible names intact for the existing test suite).
