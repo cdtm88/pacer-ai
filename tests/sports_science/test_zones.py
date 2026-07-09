@@ -6,6 +6,7 @@ from backend.sports_science.zones import (
     calculate_hr_zones,
     calculate_power_zones,
     estimate_lthr_from_max_hr,
+    time_in_hr_zones,
 )
 
 
@@ -191,3 +192,108 @@ def test_estimate_lthr_from_max_hr():
     assert lthr == 162, f"expected round(185*0.875)=162, got {result.value}"
 
     assert "max hr" in result.methodology.lower() or "max_hr" in result.methodology.lower()
+
+
+# RIDE-04 / D-11-02 / TRUST-01: time_in_hr_zones must reuse calculate_hr_zones
+# for boundaries -- lthr=160 yields (via calculate_hr_zones):
+#   Z1 [0,109)  Z2 [109,133)  Z3 [133,150)  Z4 [150,168)  Z5 [168, None)
+# These boundaries are computed here from the same 0.68/0.83/0.94/1.05 ratios
+# in HR_ZONE_BOUNDARIES, hand-verified against calculate_hr_zones(160).value
+# in test_time_in_hr_zones_boundaries_match_calculate_hr_zones below.
+
+_LTHR_160_HAND_CHECKED_HR_ARRAY = [
+    # Z1 [0,109) -- 4 samples
+    80, 90, 100, 105,
+    # Z2 [109,133) -- 4 samples; 109 is the exact lower boundary
+    109, 115, 125, 130,
+    # Z3 [133,150) -- 4 samples; 133 is the exact lower boundary (Z2's exclusive upper)
+    133, 138, 142, 148,
+    # Z4 [150,168) -- 4 samples; 150 is the exact lower boundary (Z3's exclusive upper)
+    150, 155, 160, 165,
+    # Z5 [168, None) -- 4 samples; 168 is the exact lower boundary (Z4's exclusive upper)
+    168, 175, 185, 195,
+]
+
+
+def test_time_in_hr_zones_boundaries_match_calculate_hr_zones():
+    """Sanity check: the hand-checked boundaries used in this test module for
+    lthr=160 match what calculate_hr_zones(160) actually returns (D-11-02)."""
+    zones = calculate_hr_zones(160.0).value
+    expected = [
+        (1, 0, 109),
+        (2, 109, 133),
+        (3, 133, 150),
+        (4, 150, 168),
+        (5, 168, None),
+    ]
+    actual = [(z["zone"], z["lower_bpm"], z["upper_bpm"]) for z in zones]
+    assert actual == expected, f"boundary assumption stale: {actual}"
+
+
+def test_time_in_hr_zones_hand_checked():
+    """RIDE-04: time_in_hr_zones(hr_array, 160) returns exact per-zone seconds
+    and pct for a hand-checked hr_array with 4 samples in each of the 5 zones
+    (20 total), including one sample on each zone's exact lower boundary."""
+    result = time_in_hr_zones(_LTHR_160_HAND_CHECKED_HR_ARRAY, 160.0)
+    rows = result.value
+
+    assert len(rows) == 5
+
+    by_zone = {row["zone"]: row for row in rows}
+    for zone in range(1, 6):
+        assert by_zone[zone]["seconds"] == 4, f"zone {zone} seconds: {by_zone[zone]}"
+        assert by_zone[zone]["pct"] == 20.0, f"zone {zone} pct: {by_zone[zone]}"
+
+    total_seconds = sum(row["seconds"] for row in rows)
+    total_pct = sum(row["pct"] for row in rows)
+    assert total_seconds == len(_LTHR_160_HAND_CHECKED_HR_ARRAY) == 20
+    assert abs(total_pct - 100.0) <= 0.2
+
+
+def test_time_in_hr_zones_boundary_exclusive_upper():
+    """Membership is exclusive-upper: a sample exactly equal to a zone's
+    upper_bpm belongs to the NEXT zone up, never both (mirrors
+    calculate_hr_zones). 109/133/150/168 are each simultaneously the
+    exclusive upper bound of one zone and the inclusive lower bound of the
+    next; every one of them must land in the higher zone."""
+    hr_array = [109, 133, 150, 168]
+    result = time_in_hr_zones(hr_array, 160.0)
+    rows = result.value
+    by_zone = {row["zone"]: row for row in rows}
+
+    assert by_zone[1]["seconds"] == 0
+    assert by_zone[2]["seconds"] == 1  # 109 -> Z2, not Z1
+    assert by_zone[3]["seconds"] == 1  # 133 -> Z3, not Z2
+    assert by_zone[4]["seconds"] == 1  # 150 -> Z4, not Z3
+    assert by_zone[5]["seconds"] == 1  # 168 -> Z5, not Z4
+
+    total_seconds = sum(row["seconds"] for row in rows)
+    assert total_seconds == len(hr_array) == 4
+
+
+def test_time_in_hr_zones_toolresult_contract():
+    """time_in_hr_zones returns the standard ToolResult(value, unit,
+    methodology, inputs) contract consumed by 11-03's route."""
+    hr_array = [100, 120, 140, 160, 180]
+    result = time_in_hr_zones(hr_array, 160.0)
+
+    assert isinstance(result, ToolResult)
+    assert len(result.value) == 5
+    assert result.unit == "seconds"
+    assert "time-in-zone" in result.methodology
+    assert result.inputs["lthr"] == 160.0
+    assert result.inputs["total_seconds"] == len(hr_array) == 5
+
+
+def test_time_in_hr_zones_empty_array():
+    """Empty hr_array: every zone seconds == 0 and pct == 0.0, no
+    ZeroDivisionError."""
+    result = time_in_hr_zones([], 160.0)
+    rows = result.value
+
+    assert len(rows) == 5
+    for row in rows:
+        assert row["seconds"] == 0
+        assert row["pct"] == 0.0
+
+    assert result.inputs["total_seconds"] == 0

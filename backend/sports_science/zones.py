@@ -53,6 +53,49 @@ def calculate_hr_zones(max_hr_or_lthr: float) -> ToolResult:
     )
 
 
+def time_in_hr_zones(hr_array: list[float], lthr: float) -> ToolResult:
+    """RIDE-04: time-in-zone seconds/pct for a ride's HR samples.
+
+    D-11-02 / TRUST-01: boundaries are sourced exclusively from
+    calculate_hr_zones(lthr) -- never re-derived here -- so there is exactly
+    one definition of an HR zone in the codebase. Zone membership mirrors
+    calculate_hr_zones: >= lower AND < upper (except the top zone, which is
+    >= lower only, open-ended).
+    """
+    zones = calculate_hr_zones(lthr).value
+    total = len(hr_array)
+    counts = [0] * len(zones)
+
+    for hr in hr_array:
+        for i, z in enumerate(zones):
+            lower_bpm = z["lower_bpm"]
+            upper_bpm = z["upper_bpm"]
+            if upper_bpm is None:
+                if hr >= lower_bpm:
+                    counts[i] += 1
+                    break
+            elif lower_bpm <= hr < upper_bpm:
+                counts[i] += 1
+                break
+
+    rows = [
+        {
+            "zone": z["zone"],
+            "name": z["name"],
+            "seconds": counts[i],
+            "pct": round(100 * counts[i] / total, 1) if total else 0.0,
+        }
+        for i, z in enumerate(zones)
+    ]
+
+    return ToolResult(
+        value=rows,
+        unit="seconds",
+        methodology="Coggan/Allen time-in-zone from LTHR-derived HR-zone boundaries",
+        inputs={"lthr": lthr, "total_seconds": total},
+    )
+
+
 def estimate_lthr_from_max_hr(max_hr: float) -> ToolResult:
     """D-05/ONBD-05: rough LTHR estimate from a user-reported max HR.
 
