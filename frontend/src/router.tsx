@@ -12,7 +12,7 @@ import { AppLayout } from './components/AppLayout'
 import { TodayScreen } from './screens/TodayScreen'
 import { AgendaScreen } from './screens/AgendaScreen'
 import { OnboardingScreen } from './screens/OnboardingScreen'
-import { HistoryScreen } from './screens/HistoryScreen'
+import { ProgressScreen } from './screens/ProgressScreen'
 import { ChatScreen } from './screens/ChatScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { RouteErrorFallback } from './components/ErrorBoundaryFallback'
@@ -182,9 +182,14 @@ export const router = createBrowserRouter([
                     ErrorBoundary: RouteErrorFallback,
                   },
                   {
-                    path: 'history',
-                    element: <HistoryScreen />,
+                    path: 'progress',
+                    element: <ProgressScreen />,
                     ErrorBoundary: RouteErrorFallback,
+                  },
+                  {
+                    // Progress absorbs the ride log; keep the old path as a redirect.
+                    path: 'history',
+                    element: <Navigate to="/progress" replace />,
                   },
                   {
                     path: 'chat',

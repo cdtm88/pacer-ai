@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/accordion'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getUpcomingSessions } from '@/lib/api'
-import { sessionTypeLabel } from '@/lib/format'
+import { sessionTypeLabel, ZONE_META, type ZoneKey } from '@/lib/format'
 
 type ZoneType = 'recovery' | 'endurance' | 'tempo' | 'threshold' | 'vo2'
 const ZONE_VAR: Record<ZoneType, string> = {
@@ -33,7 +33,11 @@ interface SessionRow {
   duration_mins: number | null
   duration_minutes: number | null
   rpe_target: number | null
+  planned_tss: number | null
 }
+
+// Zone order for the intensity legend, low to high.
+const LEGEND_ZONES: ZoneKey[] = ['recovery', 'endurance', 'tempo', 'threshold', 'vo2']
 
 function getISOWeekStart(dateStr: string): string {
   const d = new Date(dateStr + 'T12:00:00')
@@ -62,6 +66,40 @@ function getStructureText(structure: SessionRow['structure']): string {
 
 function getDuration(s: SessionRow): number | null {
   return s.duration_minutes ?? s.duration_mins ?? null
+}
+
+/** Format a total minute count as "Xh Ym", collapsing zero parts. */
+function formatDurationTotal(mins: number): string {
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  if (h === 0) return `${m}m`
+  if (m === 0) return `${h}h`
+  return `${h}h ${m}m`
+}
+
+/** Local calendar date as YYYY-MM-DD for "today" row matching. */
+function todayISO(): string {
+  const d = new Date()
+  const mo = String(d.getMonth() + 1).padStart(2, '0')
+  const da = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${mo}-${da}`
+}
+
+interface WeekTotals {
+  count: number
+  mins: number
+  tss: number
+}
+
+function computeWeekTotals(weekSessions: SessionRow[]): WeekTotals {
+  return weekSessions.reduce<WeekTotals>(
+    (acc, s) => ({
+      count: acc.count + 1,
+      mins: acc.mins + (getDuration(s) ?? 0),
+      tss: acc.tss + (s.planned_tss ?? 0),
+    }),
+    { count: 0, mins: 0, tss: 0 },
+  )
 }
 
 export function AgendaScreen() {
@@ -141,22 +179,48 @@ export function AgendaScreen() {
     weekMap.get(weekStart)!.push(s)
   }
   const weeks = Array.from(weekMap.entries()).sort(([a], [b]) => a.localeCompare(b))
+  const today = todayISO()
 
   return (
     <div className="max-w-2xl mx-auto pb-8">
-      {weeks.map(([weekStart, weekSessions]) => (
+      {/* Intensity legend: decode the zone dot colors for beginners */}
+      <div className="px-6 pt-4 pb-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+          {LEGEND_ZONES.map((z) => (
+            <span key={z} className="flex items-center gap-1.5">
+              <span
+                className="rounded-full inline-block"
+                style={{ width: 10, height: 10, backgroundColor: ZONE_META[z].color }}
+              />
+              <span style={{ fontSize: 12, color: 'var(--color-ink-2)' }}>
+                {ZONE_META[z].label}
+              </span>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {weeks.map(([weekStart, weekSessions]) => {
+        const totals = computeWeekTotals(weekSessions)
+        return (
         <div key={weekStart}>
-          {/* Sticky week header */}
+          {/* Sticky week header with load summary */}
           <div
-            className="sticky top-0 z-10 px-6 py-2"
-            style={{
-              backgroundColor: 'var(--color-bg)',
-              fontSize: 14,
-              fontWeight: 500,
-              color: 'var(--color-ink-2)',
-            }}
+            className="sticky top-0 z-10 px-6 py-2 flex items-baseline justify-between gap-3"
+            style={{ backgroundColor: 'var(--color-bg)' }}
           >
-            {formatWeekHeader(weekStart)}
+            <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-ink)' }}>
+              {formatWeekHeader(weekStart)}
+            </span>
+            <span
+              className="stat-num"
+              style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-ink-2)' }}
+            >
+              {totals.count} {totals.count === 1 ? 'session' : 'sessions'}
+              {' · '}
+              {formatDurationTotal(totals.mins)}
+              {totals.tss > 0 && ` · ${Math.round(totals.tss)} TSS`}
+            </span>
           </div>
 
           <div className="px-4">
@@ -167,25 +231,33 @@ export function AgendaScreen() {
                 const structureText = getStructureText(s.structure)
                 const isCompleted = s.status === 'completed'
                 const isMissed = s.status === 'skipped' || s.status === 'missed'
+                const isToday = s.scheduled_date === today
 
                 return (
                   <AccordionItem
                     key={s.id}
                     value={s.id}
-                    style={{ borderBottom: '1px solid var(--color-line)' }}
+                    style={{
+                      borderBottom: '1px solid var(--color-line)',
+                      backgroundColor: isToday
+                        ? 'color-mix(in srgb, var(--color-brand) 8%, var(--color-surface))'
+                        : undefined,
+                    }}
                   >
                     <AccordionTrigger className="hover:no-underline py-4">
                       <div className="flex items-center gap-3 w-full text-left">
                         {/* Date column */}
                         <span
+                          className="stat-num"
                           style={{
                             width: 48,
                             fontSize: 12,
-                            color: 'var(--color-ink-2)',
+                            color: isToday ? 'var(--color-brand)' : 'var(--color-ink-2)',
+                            fontWeight: isToday ? 600 : undefined,
                             flexShrink: 0,
                           }}
                         >
-                          {formatRowDate(s.scheduled_date)}
+                          {isToday ? 'Today' : formatRowDate(s.scheduled_date)}
                         </span>
 
                         {/* Type + objective preview */}
@@ -216,7 +288,13 @@ export function AgendaScreen() {
                             />
                           )}
                           {duration != null && (
-                            <span style={{ fontSize: 12, color: 'var(--color-ink-2)' }}>
+                            <span
+                              style={{
+                                fontSize: 12,
+                                color: 'var(--color-ink-2)',
+                                fontVariantNumeric: 'tabular-nums',
+                              }}
+                            >
                               {duration}m
                             </span>
                           )}
@@ -243,7 +321,13 @@ export function AgendaScreen() {
                           </p>
                         )}
                         {s.rpe_target != null && (
-                          <p style={{ fontSize: 14, color: 'var(--color-ink-2)' }}>
+                          <p
+                            style={{
+                              fontSize: 14,
+                              color: 'var(--color-ink-2)',
+                              fontVariantNumeric: 'tabular-nums',
+                            }}
+                          >
                             Target RPE: {s.rpe_target}
                           </p>
                         )}
@@ -255,7 +339,8 @@ export function AgendaScreen() {
             </Accordion>
           </div>
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

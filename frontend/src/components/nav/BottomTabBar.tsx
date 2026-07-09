@@ -1,11 +1,11 @@
 import { NavLink } from 'react-router'
-import { Home, Calendar, Clock, MessageCircle } from 'lucide-react'
+import { Home, Calendar, TrendingUp, MessageCircle } from 'lucide-react'
 
 const TABS = [
   { to: '/', label: 'Today', Icon: Home },
   { to: '/agenda', label: 'Agenda', Icon: Calendar },
-  { to: '/history', label: 'History', Icon: Clock },
-  { to: '/chat', label: 'Chat', Icon: MessageCircle },
+  { to: '/progress', label: 'Progress', Icon: TrendingUp },
+  { to: '/chat', label: 'Coach', Icon: MessageCircle },
 ] as const
 
 export function BottomTabBar() {
@@ -26,7 +26,7 @@ export function BottomTabBar() {
           end={to === '/'}
           className="flex-1 flex flex-col items-center justify-center gap-0.5"
           style={({ isActive }) => ({
-            color: isActive ? 'var(--color-blue-7)' : 'var(--color-ink-3)',
+            color: isActive ? 'var(--color-brand)' : 'var(--color-ink-3)',
           })}
         >
           {({ isActive }) => (
@@ -38,7 +38,7 @@ export function BottomTabBar() {
                   style={{
                     width: 4,
                     height: 4,
-                    backgroundColor: 'var(--color-blue-6)',
+                    backgroundColor: 'var(--color-brand)',
                     marginTop: '-2px',
                   }}
                 />

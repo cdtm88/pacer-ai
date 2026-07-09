@@ -1,11 +1,11 @@
 import { NavLink } from 'react-router'
-import { Home, Calendar, Clock, MessageCircle, Settings } from 'lucide-react'
+import { Home, Calendar, TrendingUp, MessageCircle, Settings } from 'lucide-react'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Today', Icon: Home },
   { to: '/agenda', label: 'Agenda', Icon: Calendar },
-  { to: '/history', label: 'History', Icon: Clock },
-  { to: '/chat', label: 'Chat', Icon: MessageCircle },
+  { to: '/progress', label: 'Progress', Icon: TrendingUp },
+  { to: '/chat', label: 'Coach', Icon: MessageCircle },
 ] as const
 
 export function DesktopSidebar() {
@@ -36,9 +36,9 @@ export function DesktopSidebar() {
             className="flex items-center gap-3 px-4 rounded-md transition-colors"
             style={({ isActive }) => ({
               height: 44,
-              color: isActive ? 'var(--color-blue-7)' : 'var(--color-ink-2)',
+              color: isActive ? 'var(--color-brand)' : 'var(--color-ink-2)',
               backgroundColor: isActive ? 'var(--color-blue-0)' : 'transparent',
-              borderLeft: isActive ? '3px solid var(--color-blue-6)' : '3px solid transparent',
+              borderLeft: isActive ? '3px solid var(--color-brand)' : '3px solid transparent',
               fontWeight: 500,
               fontSize: 14,
             })}
@@ -56,9 +56,9 @@ export function DesktopSidebar() {
           className="flex items-center gap-3 px-4 rounded-md transition-colors"
           style={({ isActive }) => ({
             height: 44,
-            color: isActive ? 'var(--color-blue-7)' : 'var(--color-ink-2)',
+            color: isActive ? 'var(--color-brand)' : 'var(--color-ink-2)',
             backgroundColor: isActive ? 'var(--color-blue-0)' : 'transparent',
-            borderLeft: isActive ? '3px solid var(--color-blue-6)' : '3px solid transparent',
+            borderLeft: isActive ? '3px solid var(--color-brand)' : '3px solid transparent',
             fontWeight: 500,
             fontSize: 14,
           })}

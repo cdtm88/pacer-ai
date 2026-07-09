@@ -72,3 +72,17 @@ export function loadMatchingSession(currentSessionId: string | null): PersistedS
   }
   return persisted
 }
+
+// Non-mutating variant of loadMatchingSession: returns the persisted record only
+// if it matches (same id + date), else null — WITHOUT clearing storage. Used by
+// callers that read the record during render (where a clearSession side effect is
+// unsafe) and must not race with a concurrent live-session save. The authoritative
+// stale-discard still happens in loadMatchingSession (SessionRunner restore, Today).
+export function peekMatchingSession(currentSessionId: string | null): PersistedSession | null {
+  const persisted = loadSession()
+  if (!persisted) return null
+  if (persisted.sessionId !== currentSessionId || persisted.date !== todayDateString()) {
+    return null
+  }
+  return persisted
+}

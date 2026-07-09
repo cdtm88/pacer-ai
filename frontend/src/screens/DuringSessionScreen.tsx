@@ -10,6 +10,7 @@ import {
   clearSession,
   todayDateString,
   loadMatchingSession,
+  peekMatchingSession,
   type PersistedSession,
 } from '@/lib/sessionPersistence'
 
@@ -48,6 +49,17 @@ function formatTimer(secs: number): string {
   const mm = Math.floor(s / 60)
   const ss = s % 60
   return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
+}
+
+// Whole-session clock: MM:SS, or H:MM:SS once past an hour. Used for the
+// overall elapsed/remaining readouts beside the session progress bar.
+function formatClock(secs: number): string {
+  const s = Math.max(0, Math.floor(secs))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+  return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
 }
 
 function validZone(z: unknown): ZoneType {
@@ -195,6 +207,34 @@ function SessionRunner({
   const stepDuration = currentStep ? currentStep.duration * 60 : 0
   const { secondsLeft } = useSessionTimer(stepDuration, stepStartEpoch)
 
+  // ── Pause / Resume ─────────────────────────────────────────────────────────
+  // Pause without touching useSessionTimer: freeze the displayed value, and on
+  // resume shift stepStartEpoch forward by the elapsed paused duration so the
+  // countdown continues from exactly where it stopped. The auto-advance effect
+  // also short-circuits while isPaused (see its guard below). Known limitation:
+  // the 1s/visibility saves keep persisting the un-shifted epoch while paused, so
+  // an iOS kill mid-pause would count paused wall-clock as elapsed on restore —
+  // an acceptable edge case that avoids rewriting the persistence effects.
+  const [isPaused, setIsPaused] = useState(false)
+  const pauseStartRef = useRef(0)
+  const [frozenSecs, setFrozenSecs] = useState(0)
+
+  const togglePause = useCallback(() => {
+    setIsPaused(prev => {
+      if (prev) {
+        const pausedMs = Date.now() - pauseStartRef.current
+        setStepStartEpoch(e => e + pausedMs)
+        return false
+      }
+      pauseStartRef.current = Date.now()
+      setFrozenSecs(secondsLeft)
+      return true
+    })
+  }, [secondsLeft])
+
+  // Value shown on the hero timer + used for progress math (frozen while paused).
+  const displaySecs = isPaused ? frozenSecs : secondsLeft
+
   // Build the persisted payload from current state.
   // freeRideDurationMins is included so iOS kill+reopen can reconstruct free-ride steps.
   // sessionId + date identify which real session this record belongs to (item 1, D-06) —
@@ -263,7 +303,7 @@ function SessionRunner({
   // tab was backgrounded through 2+ steps), instead of goNext()'s single-step advance
   // with a reset full-duration timer silently absorbing the overshoot.
   useEffect(() => {
-    if (isDone || secondsLeft !== 0 || stepDuration <= 0) return
+    if (isDone || secondsLeft !== 0 || stepDuration <= 0 || isPaused) return
     const now = Date.now()
     const result = fastForwardSteps(currentIndex, completedDurationSecs, stepStartEpoch, steps, now)
     if (result.stepIndex === currentIndex && result.stepStartEpoch === stepStartEpoch) return
@@ -279,7 +319,7 @@ function SessionRunner({
       sessionStartTimestamp: sessionStartTimestampRef.current,
       ...(freeRideDurationMins != null ? { freeRideDurationMins } : {}),
     })
-  }, [secondsLeft, isDone, stepDuration, currentIndex, completedDurationSecs, stepStartEpoch, steps, sessionId, freeRideDurationMins])
+  }, [secondsLeft, isDone, stepDuration, currentIndex, completedDurationSecs, stepStartEpoch, steps, sessionId, freeRideDurationMins, isPaused])
 
   // ── Session complete ──────────────────────────────────────────────────────
 
@@ -336,18 +376,82 @@ function SessionRunner({
   const { color: zoneColor, label: zoneLabel } = ZONE_META[zone]
   const target = powerTarget(zone, ftp)
   const nextStep = steps[currentIndex + 1]
-  const nearEnd = secondsLeft <= 3 && secondsLeft > 0 && nextStep
+  const nearEnd = !isPaused && displaySecs <= 3 && displaySecs > 0 && nextStep
+
+  // Whole-session progress: totals derived from the steps array. Overall elapsed
+  // is fully-completed steps plus how far into the current step we are.
+  const totalSessionSecs = steps.reduce((acc, s) => acc + s.duration * 60, 0)
+  const currentStepElapsed = Math.max(0, stepDuration - displaySecs)
+  const overallElapsed = Math.min(totalSessionSecs, completedDurationSecs + currentStepElapsed)
+  const overallRemaining = Math.max(0, totalSessionSecs - overallElapsed)
+  const progressPct = totalSessionSecs > 0 ? (overallElapsed / totalSessionSecs) * 100 : 0
 
   return (
-    <div style={{
+    <div className="ds-bg" style={{
       minHeight: '100dvh',
       display: 'flex',
       flexDirection: 'column',
-      // Subtle zone-tinted wash so the current effort is glanceable at arm's length
+      // Subtle zone-tinted wash so the current effort is glanceable at arm's length.
+      // Tint transitions when the zone changes (motion, item 3); disabled under
+      // prefers-reduced-motion via the .ds-bg rule in the injected style block.
       backgroundColor: `color-mix(in srgb, ${zoneColor} 7%, var(--color-surface))`,
+      transition: 'background-color 250ms ease-out',
     }}>
+      {/* Motion + reduced-motion rules (scoped to this screen) */}
+      <style>{`
+        @keyframes dsStepIn { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: none; } }
+        .ds-step-in { animation: dsStepIn 200ms ease-out; }
+        @media (prefers-reduced-motion: reduce) {
+          .ds-step-in { animation: none; }
+          .ds-bg { transition: none !important; }
+          .ds-progress-fill { transition: none !important; }
+        }
+      `}</style>
+
       {/* Zone color strip */}
       <div style={{ height: 6, backgroundColor: zoneColor, width: '100%', flexShrink: 0 }} />
+
+      {/* Whole-session progress bar */}
+      <div style={{ padding: '12px 24px 0', flexShrink: 0 }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          marginBottom: 8,
+        }}>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-ink-3)' }}>
+            Block {Math.min(currentIndex + 1, steps.length)} / {steps.length}
+          </span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-ink-3)', fontVariantNumeric: 'tabular-nums' }}>
+            <span style={{ color: 'var(--color-ink-2)' }}>{formatClock(overallElapsed)}</span>
+            {' / '}{formatClock(overallRemaining)} left
+          </span>
+        </div>
+        <div
+          role="progressbar"
+          aria-valuenow={Math.round(progressPct)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Session progress"
+          style={{
+            height: 4,
+            borderRadius: 999,
+            backgroundColor: 'var(--color-line)',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            className="ds-progress-fill"
+            style={{
+              height: '100%',
+              width: `${progressPct}%`,
+              backgroundColor: zoneColor,
+              borderRadius: 999,
+              transition: 'width 0.3s linear, background-color 250ms ease-out',
+            }}
+          />
+        </div>
+      </div>
 
       {/* Content — centred column */}
       <div style={{
@@ -367,19 +471,23 @@ function SessionRunner({
           Step {currentIndex + 1} / {steps.length}
         </p>
 
-        {/* Zone badge */}
-        <span style={{
-          fontSize: 11,
-          fontWeight: 700,
-          letterSpacing: '0.07em',
-          textTransform: 'uppercase',
-          color: zoneColor,
-          border: `1.5px solid ${zoneColor}`,
-          borderRadius: 20,
-          padding: '5px 12px',
-          marginBottom: 16,
-          display: 'inline-block',
-        }}>
+        {/* Zone badge — re-keyed on step change to replay the scale/opacity-in */}
+        <span
+          key={`zone-${currentIndex}`}
+          className="ds-step-in"
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: '0.07em',
+            textTransform: 'uppercase',
+            color: zoneColor,
+            border: `1.5px solid ${zoneColor}`,
+            borderRadius: 20,
+            padding: '5px 12px',
+            marginBottom: 16,
+            display: 'inline-block',
+          }}
+        >
           {zoneLabel}
         </span>
 
@@ -404,25 +512,40 @@ function SessionRunner({
             letterSpacing: '-0.03em',
             lineHeight: 1,
             marginBottom: 16,
+            opacity: isPaused ? 0.5 : 1,
+            transition: 'opacity 200ms ease-out',
           }}>
-            {formatTimer(secondsLeft)}
+            {formatTimer(displaySecs)}
           </p>
 
-          {/* Power target — filled zone lozenge; the key number to hold on the bike */}
-          <span style={{
-            fontSize: 30,
-            fontWeight: 700,
-            color: '#fff',
-            backgroundColor: zoneColor,
-            letterSpacing: '-0.01em',
-            lineHeight: 1,
-            borderRadius: 999,
-            padding: '10px 24px',
-            display: 'inline-block',
-            fontVariantNumeric: 'tabular-nums',
-          }}>
+          {/* Power target — filled zone lozenge; the key number to hold on the bike.
+              Re-keyed on step change to replay the scale/opacity-in. */}
+          <span
+            key={`target-${currentIndex}`}
+            className="ds-step-in"
+            style={{
+              fontSize: 30,
+              fontWeight: 700,
+              color: '#fff',
+              backgroundColor: zoneColor,
+              letterSpacing: '-0.01em',
+              lineHeight: 1,
+              borderRadius: 999,
+              padding: '10px 24px',
+              display: 'inline-block',
+              fontVariantNumeric: 'tabular-nums',
+              transition: 'background-color 250ms ease-out',
+            }}
+          >
             {target}
           </span>
+
+          {/* Paused indicator */}
+          {isPaused && (
+            <p style={{ marginTop: 16, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-ink-3)' }}>
+              Paused
+            </p>
+          )}
         </div>
 
         {/* Next step */}
@@ -451,25 +574,45 @@ function SessionRunner({
           </div>
         )}
 
-        {/* Skip step */}
-        <button
-          onClick={goNext}
-          style={{
-            width: '100%',
-            padding: '14px',
-            marginBottom: 12,
-            background: 'none',
-            border: '1.5px solid var(--color-line)',
-            borderRadius: 12,
-            fontSize: 14,
-            fontWeight: 600,
-            color: 'var(--color-ink-2)',
-            cursor: 'pointer',
-            minHeight: 48,
-          }}
-        >
-          Skip step
-        </button>
+        {/* Secondary actions: Pause/Resume + Skip step */}
+        <div style={{ display: 'flex', gap: 12, width: '100%', marginBottom: 12 }}>
+          <button
+            onClick={togglePause}
+            aria-pressed={isPaused}
+            style={{
+              flex: 1,
+              padding: '14px',
+              background: isPaused ? zoneColor : 'none',
+              border: `1.5px solid ${isPaused ? zoneColor : 'var(--color-line)'}`,
+              borderRadius: 12,
+              fontSize: 14,
+              fontWeight: 600,
+              color: isPaused ? '#fff' : 'var(--color-ink-2)',
+              cursor: 'pointer',
+              minHeight: 48,
+              transition: 'background-color 200ms ease-out, border-color 200ms ease-out, color 200ms ease-out',
+            }}
+          >
+            {isPaused ? 'Resume' : 'Pause'}
+          </button>
+          <button
+            onClick={goNext}
+            style={{
+              flex: 1,
+              padding: '14px',
+              background: 'none',
+              border: '1.5px solid var(--color-line)',
+              borderRadius: 12,
+              fontSize: 14,
+              fontWeight: 600,
+              color: 'var(--color-ink-2)',
+              cursor: 'pointer',
+              minHeight: 48,
+            }}
+          >
+            Skip step
+          </button>
+        </div>
 
         {/* End session */}
         <button
@@ -524,7 +667,12 @@ export function DuringSessionScreen() {
   // Item 1, D-06: only trust the persisted record once we know today's real session id
   // (or that the query resolved to no session), so a stale/mismatched record can never
   // leak a wrong-day or wrong-session freeRideDurationMins into this restore.
-  const persistedSession = sessionLoading ? null : loadMatchingSession(session?.id ?? null)
+  // Use the non-mutating peek here: this runs during render, and clearing storage as a
+  // side effect races with SessionRunner's live saves. When the session query resolves,
+  // a free ride mounted before it (with sessionId=null) would otherwise have its
+  // just-saved record cleared here as a false mismatch. SessionRunner's own restore
+  // (loadMatchingSession) remains the authoritative stale-record discard.
+  const persistedSession = sessionLoading ? null : peekMatchingSession(session?.id ?? null)
   const freeRideDurationMins =
     freeRideDurationMinsFromStore ??
     persistedSession?.freeRideDurationMins ??

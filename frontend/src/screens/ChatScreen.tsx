@@ -71,6 +71,53 @@ function formatTime(date: Date): string {
   })
 }
 
+// Suggested opening prompts shown in the empty state so a new user always has
+// a warm, concrete way to start the conversation instead of a blank composer.
+const SUGGESTED_PROMPTS = [
+  'Why this workout?',
+  "I'm feeling tired today",
+  'Explain my zones',
+  'Make this week easier',
+]
+
+// PromptChip: pill button used for suggested prompts. Kept local (single call
+// site) with hover handled inline since these screens use inline styles.
+function PromptChip({
+  label,
+  onClick,
+  disabled,
+}: {
+  label: string
+  onClick: () => void
+  disabled?: boolean
+}) {
+  const [hover, setHover] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        padding: '8px 14px',
+        borderRadius: '999px',
+        border: '1px solid var(--color-line)',
+        backgroundColor: hover && !disabled ? 'var(--color-bg-2)' : 'var(--color-surface)',
+        color: 'var(--color-ink-2)',
+        fontSize: '14px',
+        fontFamily: 'var(--font-family-sans)',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.6 : 1,
+        transition: 'background-color 0.15s',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+    </button>
+  )
+}
+
 // Heuristic: detect adaptation-style messages (coach initiated plan changes)
 function detectBubbleRole(content: string): BubbleRole {
   const lower = content.toLowerCase()
@@ -320,6 +367,29 @@ export function ChatScreen() {
             >
               Start by uploading a ride, or ask about your plan.
             </p>
+
+            {/* Suggested prompt chips: tapping one sends it via the same
+                handleSend used by the composer. Disabled until the
+                conversation resolves so a tap can't no-op silently. */}
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '8px',
+                justifyContent: 'center',
+                marginTop: 20,
+                maxWidth: 340,
+              }}
+            >
+              {SUGGESTED_PROMPTS.map((prompt) => (
+                <PromptChip
+                  key={prompt}
+                  label={prompt}
+                  disabled={!conversation || isStreaming}
+                  onClick={() => void handleSend(prompt)}
+                />
+              ))}
+            </div>
           </div>
         )}
 

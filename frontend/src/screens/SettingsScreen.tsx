@@ -1,7 +1,9 @@
 import React from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
+import { useQuery } from '@tanstack/react-query'
 import { CalendarStatus } from '@/components/settings/CalendarStatus'
+import { getProfileMe } from '@/lib/api'
 import { supabase } from '@/lib/supabase'
 export function SettingsScreen() {
   const navigate = useNavigate()
@@ -46,11 +48,53 @@ function SettingsScreenInner({ onSignOut, onResendMagicLink }: SettingsInnerProp
     })
   }, [])
 
+  // Physiological model the coach uses. Read-only for this pass: FTP, LTHR and
+  // weight are estimated from ride data by the backend when not explicitly set,
+  // so there is no write endpoint to surface here yet.
+  const { data: profile, isLoading: profileLoading } = useQuery({
+    queryKey: ['profile', 'me'],
+    queryFn: getProfileMe,
+    staleTime: Infinity,
+  })
+
   return (
     <div
       className="max-w-xl mx-auto px-5 py-8 space-y-8"
       style={{ color: 'var(--color-ink)' }}
     >
+      {/* Training section */}
+      <section className="space-y-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--color-ink-2)' }}>
+          Training
+        </h2>
+        <p className="text-sm" style={{ color: 'var(--color-ink-2)' }}>
+          The physiological model your coach uses to set every session target.
+        </p>
+
+        <div className="space-y-3">
+          <TrainingRow
+            label="FTP"
+            value={profile?.ftp ?? null}
+            unit="W"
+            loading={profileLoading}
+          />
+          <TrainingRow
+            label="LTHR"
+            value={profile?.lthr ?? null}
+            unit="bpm"
+            loading={profileLoading}
+          />
+          <TrainingRow
+            label="Weight"
+            value={profile?.weight_kg ?? null}
+            unit="kg"
+            loading={profileLoading}
+          />
+        </div>
+      </section>
+
+      <div style={{ height: 1, backgroundColor: 'var(--color-line)' }} />
+
       {/* Profile section */}
       <section className="space-y-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--color-ink-2)' }}>
@@ -112,6 +156,38 @@ function SettingsScreenInner({ onSignOut, onResendMagicLink }: SettingsInnerProp
           Sign out
         </button>
       </section>
+    </div>
+  )
+}
+
+interface TrainingRowProps {
+  label: string
+  value: number | null
+  unit: string
+  loading: boolean
+}
+
+// A label/value row for the Training section. Shows the numeric value with
+// tabular figures, or an "estimated from rides" hint when the value is null.
+function TrainingRow({ label, value, unit, loading }: TrainingRowProps) {
+  return (
+    <div className="flex items-baseline justify-between gap-4">
+      <p className="text-xs" style={{ color: 'var(--color-ink-2)' }}>{label}</p>
+      {loading ? (
+        <p className="text-sm" style={{ color: 'var(--color-ink-2)' }}>Loading...</p>
+      ) : value != null ? (
+        <p className="text-sm font-medium">
+          <span className="stat-num">{value}</span>
+          <span className="ml-1 text-xs" style={{ color: 'var(--color-ink-2)' }}>{unit}</span>
+        </p>
+      ) : (
+        <p className="text-sm text-right" style={{ color: 'var(--color-ink-2)' }}>
+          Not set yet
+          <span className="block text-xs" style={{ color: 'var(--color-ink-3, var(--color-ink-2))' }}>
+            Estimated from your rides
+          </span>
+        </p>
+      )}
     </div>
   )
 }

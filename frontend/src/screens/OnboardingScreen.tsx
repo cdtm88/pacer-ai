@@ -97,6 +97,55 @@ function formatTime(date: Date): string {
   })
 }
 
+// Quick-answer chips shown right after the coach's opening question so a
+// brand-new user with zero cycling vocabulary always has a warm, low-effort
+// way to reply instead of facing an empty composer.
+const ONBOARDING_QUICK_REPLIES = [
+  'General fitness and weight loss',
+  "I'm returning after time off",
+  "I'm brand new to cycling",
+  "I'm not sure, guide me",
+]
+
+// PromptChip: pill button for suggested replies. Duplicated locally (this
+// screen is edited in isolation) with hover handled inline to match the
+// inline-style convention used throughout these chat screens.
+function PromptChip({
+  label,
+  onClick,
+  disabled,
+}: {
+  label: string
+  onClick: () => void
+  disabled?: boolean
+}) {
+  const [hover, setHover] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        padding: '8px 14px',
+        borderRadius: '999px',
+        border: '1px solid var(--color-line)',
+        backgroundColor: hover && !disabled ? 'var(--color-bg-2)' : 'var(--color-surface)',
+        color: 'var(--color-ink-2)',
+        fontSize: '14px',
+        fontFamily: 'var(--font-family-sans)',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.6 : 1,
+        transition: 'background-color 0.15s',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+    </button>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // OnboardingScreen
 // ---------------------------------------------------------------------------
@@ -552,6 +601,38 @@ export function OnboardingScreen() {
             padding: '16px 16px 8px',
           }}
         >
+          {/* Warm intro: guarantees the first paint is never blank (before
+              the opening stream kicks off on mount) and orients a brand-new
+              user. Hides as soon as the coach's first message lands. */}
+          {messages.length === 0 && !streamError && (
+            <div style={{ textAlign: 'center', padding: '40px 8px 8px' }}>
+              <h1
+                style={{
+                  fontSize: '20px',
+                  fontWeight: 600,
+                  color: 'var(--color-ink)',
+                  margin: '0 0 8px',
+                }}
+              >
+                Welcome to PacerAI
+              </h1>
+              <p
+                style={{
+                  fontSize: '15px',
+                  color: 'var(--color-ink-2)',
+                  margin: 0,
+                  lineHeight: '1.5',
+                  maxWidth: 360,
+                  marginLeft: 'auto',
+                  marginRight: 'auto',
+                }}
+              >
+                Your coach is getting ready to ask a few quick questions. No fitness
+                jargon needed, just answer in your own words.
+              </p>
+            </div>
+          )}
+
           {messages.map((msg) => (
             <ChatBubble
               key={msg.id}
@@ -569,6 +650,34 @@ export function OnboardingScreen() {
           {isStreaming && !streamContent && (
             <ChatBubble role="coach" isStreaming />
           )}
+
+          {/* Quick-reply chips: shown once the coach has asked its opening
+              question and it's the user's turn. Gated to the very start of the
+              interview so they seed a first answer without cluttering later
+              free-form exchanges. Each chip sends via the same handleSend. */}
+          {!isStreaming &&
+            !showConfirmation &&
+            !isConfirmed &&
+            !streamError &&
+            messages.length >= 1 &&
+            messages.length <= 2 && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '8px',
+                  marginTop: '12px',
+                }}
+              >
+                {ONBOARDING_QUICK_REPLIES.map((reply) => (
+                  <PromptChip
+                    key={reply}
+                    label={reply}
+                    onClick={() => handleSend(reply)}
+                  />
+                ))}
+              </div>
+            )}
 
           {/* Confirmation summary card */}
           {showConfirmation && (

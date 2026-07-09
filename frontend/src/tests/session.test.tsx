@@ -146,9 +146,11 @@ describe('DuringSessionScreen', { retry: 2 }, () => {
     await resolveQuery()
 
     expect(screen.getByText('Warm-up')).toBeInTheDocument()
-    // Timer should show MM:SS format
-    const timer = screen.getByText(/^\d{2}:\d{2}$/)
-    expect(timer).toBeInTheDocument()
+    // The screen renders MM:SS readouts (the whole-session elapsed clock and the
+    // hero step timer). Assert the hero step timer shows the mocked 180s = 03:00.
+    const timers = screen.getAllByText(/^\d{2}:\d{2}$/)
+    expect(timers.length).toBeGreaterThan(0)
+    expect(screen.getByText('03:00')).toBeInTheDocument()
   })
 
   it('Skip step advances immediately without waiting for timer', async () => {

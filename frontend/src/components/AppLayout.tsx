@@ -8,7 +8,7 @@ import { IOSInstallBanner } from './pwa/IOSInstallBanner'
 const ROUTE_TITLES: Record<string, string> = {
   '/': 'Today',
   '/agenda': 'Agenda',
-  '/history': 'History',
+  '/progress': 'Progress',
   '/chat': 'Coach',
   '/settings': 'Settings',
 }
@@ -22,6 +22,8 @@ export function AppLayout() {
   const { pathname } = useLocation()
   const title = ROUTE_TITLES[pathname] ?? 'PacerAI'
   const isToday = pathname === '/'
+  // Settings is a self-link on its own screen, so hide the redundant header gear there.
+  const showSettingsGear = pathname !== '/settings'
 
   return (
     <TooltipProvider>
@@ -56,14 +58,16 @@ export function AppLayout() {
                 </p>
               )}
             </div>
-            <button
-              onClick={() => navigate('/settings')}
-              className="p-2 -mr-2 rounded-lg transition-colors shrink-0 hover:bg-[var(--color-bg-2)]"
-              style={{ color: 'var(--color-ink-2)' }}
-              aria-label="Settings"
-            >
-              <Settings size={22} />
-            </button>
+            {showSettingsGear && (
+              <button
+                onClick={() => navigate('/settings')}
+                className="p-2 -mr-2 rounded-lg transition-colors shrink-0 hover:bg-[var(--color-bg-2)]"
+                style={{ color: 'var(--color-ink-2)' }}
+                aria-label="Settings"
+              >
+                <Settings size={22} />
+              </button>
+            )}
           </header>
 
           {/* Outlet — scrolls within the dynamic viewport, above the in-flow tab bar */}

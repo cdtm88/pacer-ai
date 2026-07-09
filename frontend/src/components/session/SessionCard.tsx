@@ -13,25 +13,32 @@ import {
   AlertDialogFooter,
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog'
-import { TsbChip } from './TsbChip'
 import type { PmcRow } from './TsbChip'
 import { ZwoExportModal } from './ZwoExportModal'
+import { WorkoutProfileChart } from './WorkoutProfileChart'
 import { markSessionDone, markSessionMissed } from '@/lib/api'
-import { sessionTypeLabel } from '@/lib/format'
+import { sessionTypeLabel, zoneColor, classifyTsb } from '@/lib/format'
 
-const ZONE_COLORS: Record<string, string> = {
-  recovery:  '#2B8A5B',
-  endurance: '#228BE6',
-  tempo:     '#F0A030',
-  threshold: '#E8590C',
-  vo2:       '#C92A2A',
+// Tone-colored readiness chip styles keyed by classifyTsb().tone.
+const FORM_TONE_STYLE: Record<'up' | 'flat' | 'down', { bg: string; text: string }> = {
+  up:   { bg: 'color-mix(in srgb, var(--color-good) 15%, transparent)', text: 'var(--color-good)' },
+  flat: { bg: 'var(--color-blue-0)', text: 'var(--color-blue-7)' },
+  down: { bg: 'color-mix(in srgb, var(--color-amber) 15%, transparent)', text: 'var(--color-warn)' },
+}
+
+interface StructureSegment {
+  duration_minutes?: number
+  description?: string
 }
 
 export interface SessionData {
   id: string
   scheduled_date: string
   objective: string | null
-  structure: { text?: string } | string | null
+  structure:
+    | { text?: string; warmup?: StructureSegment; main_set?: StructureSegment; cooldown?: StructureSegment }
+    | string
+    | null
   type: string | null
   rpe_target: number | null
   duration_mins: number | null
@@ -64,7 +71,9 @@ export function SessionCard({ session, pmc, ftp = null }: SessionCardProps) {
 
   const structureText = getStructureText(session.structure)
   const duration = getDuration(session)
-  const zoneColor = session.type ? (ZONE_COLORS[session.type] ?? null) : null
+  const accentColor = session.type ? zoneColor(session.type) : null
+  // Readiness chip: only when the PMC series is display-ready (28+ days of data).
+  const form = pmc && pmc.tss_display_ready ? classifyTsb(pmc.tsb) : null
 
   async function handleMarkDone() {
     setIsDoneLoading(true)
@@ -109,8 +118,8 @@ export function SessionCard({ session, pmc, ftp = null }: SessionCardProps) {
         }}
       >
         {/* Zone color accent bar */}
-        {zoneColor && (
-          <div style={{ height: 4, backgroundColor: zoneColor }} />
+        {accentColor && (
+          <div style={{ height: 4, backgroundColor: accentColor }} />
         )}
         <div className="p-6">
         {/* Session type eyebrow (zone-colored) */}
@@ -121,7 +130,7 @@ export function SessionCard({ session, pmc, ftp = null }: SessionCardProps) {
             fontWeight: 700,
             letterSpacing: '0.06em',
             textTransform: 'uppercase',
-            color: zoneColor ?? 'var(--color-ink-3)',
+            color: accentColor ?? 'var(--color-ink-3)',
           }}
         >
           {sessionTypeLabel(session.type)}
@@ -147,6 +156,9 @@ export function SessionCard({ session, pmc, ftp = null }: SessionCardProps) {
           </p>
         )}
 
+        {/* Workout-structure profile (renders nothing for string / text-only structures) */}
+        <WorkoutProfileChart structure={session.structure} type={session.type} />
+
         {/* Targets chip row */}
         <div className="flex flex-wrap gap-2 mb-3">
           {session.rpe_target != null && (
@@ -162,7 +174,22 @@ export function SessionCard({ session, pmc, ftp = null }: SessionCardProps) {
               RPE {session.rpe_target}
             </span>
           )}
-          <TsbChip pmc={pmc} />
+          {form && (
+            <span
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5"
+              style={{
+                backgroundColor: FORM_TONE_STYLE[form.tone].bg,
+                color: FORM_TONE_STYLE[form.tone].text,
+                fontSize: 12,
+                fontWeight: 500,
+                lineHeight: 1.4,
+              }}
+            >
+              <span style={{ opacity: 0.7 }}>Form:</span>
+              {/* Label kept as its own text node (exact "Fresh"/"Balanced"/"Fatigued") for the test suite */}
+              <span>{form.label}</span>
+            </span>
+          )}
         </div>
 
         {/* Duration */}
@@ -178,12 +205,14 @@ export function SessionCard({ session, pmc, ftp = null }: SessionCardProps) {
         </div>
       </div>
 
-      {/* Action row — always renders all four buttons; Mark missed opens the AlertDialog */}
+      {/* Action stack: one primary (Start), one secondary (Export), then a quiet
+          "log without riding" row for Mark done / Mark missed. All four buttons
+          stay in the DOM with their accessible names for the test suite. */}
       <div className="flex flex-col gap-2 mt-4 md:mt-0">
         <Button
           variant="default"
           className="w-full"
-          style={{ backgroundColor: 'var(--color-blue-6)', color: '#fff' }}
+          style={{ backgroundColor: 'var(--color-brand)', color: '#fff' }}
           onClick={() => navigate('/session')}
         >
           <Play size={16} className="mr-2" />
@@ -200,26 +229,47 @@ export function SessionCard({ session, pmc, ftp = null }: SessionCardProps) {
           Export to Zwift
         </Button>
 
-        <Button
-          variant="outline"
-          className="w-full"
-          style={{ color: 'var(--color-good)', borderColor: 'var(--color-good)' }}
-          onClick={handleMarkDone}
-          disabled={isDoneLoading}
+        {/* Quiet log-without-riding row: de-emphasized, neutral ink */}
+        <div
+          className="mt-1 pt-3 flex items-center gap-1"
+          style={{ borderTop: '1px solid var(--color-line)' }}
         >
-          <CheckCircle size={16} className="mr-2" />
-          Mark done
-        </Button>
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              color: 'var(--color-ink-3)',
+            }}
+          >
+            Log without riding
+          </span>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex-1"
+            style={{ color: 'var(--color-ink-2)' }}
+            onClick={handleMarkDone}
+            disabled={isDoneLoading}
+          >
+            <CheckCircle size={15} className="mr-1.5" />
+            Mark done
+          </Button>
 
-        <Button
-          variant="ghost"
-          className="w-full"
-          style={{ color: 'var(--color-bad)' }}
-          onClick={() => setMissedOpen(true)}
-        >
-          <XCircle size={16} className="mr-2" />
-          Mark missed
-        </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex-1"
+            style={{ color: 'var(--color-ink-2)' }}
+            onClick={() => setMissedOpen(true)}
+          >
+            <XCircle size={15} className="mr-1.5" />
+            Mark missed
+          </Button>
+        </div>
       </div>
 
       {/* Controlled AlertDialog for Mark Missed — open driven by missedOpen state, no Trigger used.

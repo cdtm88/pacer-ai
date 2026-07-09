@@ -1,9 +1,33 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
+import { Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/authStore'
 
 type Mode = 'signin' | 'signup'
+
+// Thin zone-spectrum rule under the wordmark: recovery -> endurance -> tempo -> threshold -> vo2.
+const ZONE_SPECTRUM =
+  'linear-gradient(90deg, var(--color-zone-recovery), var(--color-zone-endurance), var(--color-zone-tempo), var(--color-zone-threshold), var(--color-zone-vo2))'
+
+const BENEFITS = ['Structured plan in minutes', 'Adapts to every ride', 'No FTP required']
+
+function BrandMark() {
+  return (
+    <div className="mb-6 px-1">
+      <div
+        className="text-4xl font-bold leading-none"
+        style={{ color: 'var(--color-ink)', letterSpacing: '-0.03em' }}
+      >
+        Pace
+      </div>
+      <div
+        className="mt-2.5 h-[3px] w-[72px] rounded-full"
+        style={{ background: ZONE_SPECTRUM }}
+      />
+    </div>
+  )
+}
 
 export function LoginScreen() {
   const navigate = useNavigate()
@@ -113,21 +137,34 @@ export function LoginScreen() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center px-4"
+      className="min-h-screen flex flex-col items-center justify-center px-4 py-10"
       style={{ backgroundColor: 'var(--color-bg)' }}
     >
-      <div
-        className="w-full max-w-[400px] rounded-2xl p-8 shadow-sm border"
-        style={{ borderColor: 'var(--color-line)', backgroundColor: 'var(--color-surface)' }}
-      >
-        <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--color-ink)' }}>
-          PacerAI
-        </h1>
-        <p className="text-sm mb-6" style={{ color: 'var(--color-ink-2)' }}>
-          Your adaptive cycling coach.
-        </p>
+      <div className="w-full max-w-[400px]">
+        <BrandMark />
 
-        {/* Mode tabs */}
+        <div
+          className="w-full rounded-2xl p-8 shadow-sm border"
+          style={{ borderColor: 'var(--color-line)', backgroundColor: 'var(--color-surface)' }}
+        >
+          <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--color-ink)' }}>
+            PacerAI
+          </h1>
+          <p className="text-sm mb-4" style={{ color: 'var(--color-ink-2)' }}>
+            Your adaptive cycling coach.
+          </p>
+
+          {/* Benefit bullets: fill the vertical space and sell the product */}
+          <ul className="mb-6 space-y-1.5">
+            {BENEFITS.map((b) => (
+              <li key={b} className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-ink-2)' }}>
+                <Check size={15} strokeWidth={2.5} style={{ color: 'var(--color-brand)', flexShrink: 0 }} />
+                {b}
+              </li>
+            ))}
+          </ul>
+
+          {/* Mode tabs */}
         <div className="flex mb-6 border-b" style={{ borderColor: 'var(--color-line)' }}>
           {(['signin', 'signup'] as Mode[]).map((m) => (
             <button
@@ -213,6 +250,7 @@ export function LoginScreen() {
             {loading ? 'Please wait...' : mode === 'signin' ? 'Sign in' : 'Create account'}
           </button>
         </form>
+        </div>
       </div>
     </div>
   )

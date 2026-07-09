@@ -20,8 +20,15 @@
   --color-line:   #DFE0E2;   /* borders, dividers */
   --color-line-2: #EDEDEE;   /* subtle separators */
   --color-surface: #FFFFFF;  /* card backgrounds */
-  --color-bg:     #F9F9FA;   /* app background */
+  --color-bg:     #F2F4F7;   /* app background (deepened so white cards pop) */
   --color-bg-2:   #F6F6F7;   /* alternate surface, hover states */
+
+  /* Interactive brand blue (distinct from the endurance-zone blue-6) */
+  --color-brand:   #1F6FE5;  /* interactive/primary/nav-active */
+  --color-brand-8: #155EA0;  /* pressed */
+
+  /* Achievement accent (reserved for achievement moments only) */
+  --color-achieve: #F76707;
 
   /* Warm accent and semantic */
   --color-warm:      #FF8A5C;  /* accent warm (CTAs on non-primary surfaces) */
@@ -68,6 +75,21 @@ body {
 }
 .fit-upload-progress-sweep {
   animation: fit-upload-progress-sweep 1.2s ease-in-out infinite;
+}
+
+/* Tabular numeric readouts: watts, TSS, timers, CTL, durations, dates */
+.stat-num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  font-weight: 800;
+}
+
+/* Elevated card surface: reads as a liftable object above the app bg */
+.card-elev {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(26, 34, 48, .04), 0 4px 16px rgba(26, 34, 48, .06);
 }
 
 /* Markdown prose styles for coach chat bubbles */
