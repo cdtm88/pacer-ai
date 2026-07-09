@@ -76,6 +76,7 @@ export interface Session {
   status: string
   planned_tss: number | null
   actual_tss: number | null
+  rpe_target: number | null
   notes: string | null
   structure: SessionStructure | null
   scheduled_date: string
