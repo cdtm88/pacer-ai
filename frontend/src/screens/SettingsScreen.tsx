@@ -4,6 +4,8 @@ import { toast } from 'sonner'
 import { useQuery } from '@tanstack/react-query'
 import { getProfileMe } from '@/lib/api'
 import { supabase } from '@/lib/supabase'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 export function SettingsScreen() {
   const navigate = useNavigate()
 
@@ -58,49 +60,58 @@ function SettingsScreenInner({ onSignOut, onResendMagicLink }: SettingsInnerProp
 
   return (
     <div
-      className="max-w-xl mx-auto px-5 py-8 space-y-8"
+      className="max-w-xl mx-auto px-5 py-8 space-y-6"
       style={{ color: 'var(--color-ink)' }}
     >
       {/* Training section */}
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--color-ink-2)' }}>
-          Training
-        </h2>
-        <p className="text-sm" style={{ color: 'var(--color-ink-2)' }}>
-          The physiological model your coach uses to set every session target.
-        </p>
+      <Card>
+        <CardHeader>
+          <CardTitle
+            className="text-sm font-semibold uppercase tracking-wide"
+            style={{ color: 'var(--color-ink-2)' }}
+          >
+            Training
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm" style={{ color: 'var(--color-ink-2)' }}>
+            The physiological model your coach uses to set every session target.
+          </p>
 
-        <div className="space-y-3">
-          <TrainingRow
-            label="FTP"
-            value={profile?.ftp ?? null}
-            unit="W"
-            loading={profileLoading}
-          />
-          <TrainingRow
-            label="LTHR"
-            value={profile?.lthr ?? null}
-            unit="bpm"
-            loading={profileLoading}
-          />
-          <TrainingRow
-            label="Weight"
-            value={profile?.weight_kg ?? null}
-            unit="kg"
-            loading={profileLoading}
-          />
-        </div>
-      </section>
-
-      <div style={{ height: 1, backgroundColor: 'var(--color-line)' }} />
+          <div className="space-y-3">
+            <TrainingRow
+              label="FTP"
+              value={profile?.ftp ?? null}
+              unit="W"
+              loading={profileLoading}
+            />
+            <TrainingRow
+              label="LTHR"
+              value={profile?.lthr ?? null}
+              unit="bpm"
+              loading={profileLoading}
+            />
+            <TrainingRow
+              label="Weight"
+              value={profile?.weight_kg ?? null}
+              unit="kg"
+              loading={profileLoading}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Profile section */}
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--color-ink-2)' }}>
-          Profile
-        </h2>
-
-        <div className="space-y-3">
+      <Card>
+        <CardHeader>
+          <CardTitle
+            className="text-sm font-semibold uppercase tracking-wide"
+            style={{ color: 'var(--color-ink-2)' }}
+          >
+            Profile
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
           <div>
             <p className="text-xs mb-1" style={{ color: 'var(--color-ink-2)' }}>Display name</p>
             <p className="text-sm font-medium">{sessionState?.displayName ?? 'Loading...'}</p>
@@ -112,35 +123,33 @@ function SettingsScreenInner({ onSignOut, onResendMagicLink }: SettingsInnerProp
           </div>
 
           {sessionState?.email && (
-            <button
-              className="text-sm underline"
-              style={{ color: 'var(--color-accent)' }}
+            <Button
+              variant="link"
+              className="h-auto p-0 text-sm"
               onClick={() => onResendMagicLink(sessionState.email)}
             >
               Re-send magic link
-            </button>
+            </Button>
           )}
-        </div>
-      </section>
-
-      <div style={{ height: 1, backgroundColor: 'var(--color-line)' }} />
+        </CardContent>
+      </Card>
 
       {/* Account section */}
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--color-ink-2)' }}>
-          Account
-        </h2>
-        <button
-          className="text-sm font-medium px-4 py-2 rounded-md border"
-          style={{
-            borderColor: 'var(--color-destructive, #dc2626)',
-            color: 'var(--color-destructive, #dc2626)',
-          }}
-          onClick={onSignOut}
-        >
-          Sign out
-        </button>
-      </section>
+      <Card>
+        <CardHeader>
+          <CardTitle
+            className="text-sm font-semibold uppercase tracking-wide"
+            style={{ color: 'var(--color-ink-2)' }}
+          >
+            Account
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Button variant="destructive" onClick={onSignOut}>
+            Sign out
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   )
 }

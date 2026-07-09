@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 import { ChatBubble } from '../components/chat/ChatBubble'
 import { ChatInput } from '../components/chat/ChatInput'
 import { StreamErrorBanner } from '../components/chat/StreamErrorBanner'
+import { PromptChip } from '@/components/ui/PromptChip'
 
 // ---------------------------------------------------------------------------
 // Retry policy (item 13, D-05): silent retry with backoff, then a terminal
@@ -106,45 +107,6 @@ const ONBOARDING_QUICK_REPLIES = [
   "I'm brand new to cycling",
   "I'm not sure, guide me",
 ]
-
-// PromptChip: pill button for suggested replies. Duplicated locally (this
-// screen is edited in isolation) with hover handled inline to match the
-// inline-style convention used throughout these chat screens.
-function PromptChip({
-  label,
-  onClick,
-  disabled,
-}: {
-  label: string
-  onClick: () => void
-  disabled?: boolean
-}) {
-  const [hover, setHover] = useState(false)
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        padding: '8px 14px',
-        borderRadius: '999px',
-        border: '1px solid var(--color-line)',
-        backgroundColor: hover && !disabled ? 'var(--color-bg-2)' : 'var(--color-surface)',
-        color: 'var(--color-ink-2)',
-        fontSize: '14px',
-        fontFamily: 'var(--font-family-sans)',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.6 : 1,
-        transition: 'background-color 0.15s',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {label}
-    </button>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // OnboardingScreen
