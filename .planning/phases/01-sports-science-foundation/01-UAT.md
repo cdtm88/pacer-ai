@@ -3,7 +3,8 @@ status: complete
 phase: 01-sports-science-foundation
 source: [01-01-SUMMARY.md, 01-02-SUMMARY.md, 01-03-SUMMARY.md, 01-04-SUMMARY.md, 01-05-SUMMARY.md]
 started: 2026-06-19T21:40:00Z
-updated: 2026-06-19T22:05:00Z
+updated: 2026-07-09T00:00:00Z
+closed_reason: "Re-audited 2026-07-09 (/gsd-audit-uat + /gsd-verify-work): test 1 fix (Makefile, commit 2c86aae) confirmed shipped, result corrected from issue to pass. Tests 6 and 9 had citations to non-existent test names (TestZeroFTPGuard, convergence-failure test) -- added TestZeroFTPGuard (test_metrics.py) and test_convergence_failure_returns_none_no_exception (test_ftp.py) to close the gap for real. Tests 7,8,10-14 confirmed already accurately covered."
 ---
 
 ## Current Test
@@ -14,9 +15,8 @@ updated: 2026-06-19T22:05:00Z
 
 ### 1. Cold Start Smoke Test
 expected: From a clean state, run `pytest tests/ -v`. All tests collect and run without import errors. Zero failures.
-result: issue
-reported: "Running `pytest tests/ -v` without activating the venv hits system Python 3.13 — ModuleNotFoundError: No module named 'pydantic' across all 7 test modules. No Makefile or activation instructions present."
-severity: major
+result: pass
+note: "Closed 2026-07-09: original issue (missing Makefile, system Python resolution) fixed by commit 2c86aae. Makefile confirmed present; `.venv/bin/pytest tests/ -q` passes 337/337."
 
 ### 2. ToolResult Contract
 expected: All public functions return a ToolResult instance with `.value`, `.unit`, `.methodology`, `.inputs` attributes.
@@ -36,56 +36,65 @@ result: pass
 
 ### 6. TSS Zero-FTP Guard
 expected: `compute_tss(..., ftp=0)` returns ToolResult with value=None, no ZeroDivisionError.
-result: skipped
-reason: Covered by pytest suite (test_metrics.py::TestZeroFTPGuard). All 64 tests pass via .venv/bin/pytest.
+result: pass
+source: automated
+note: "Closed 2026-07-09: original citation (TestZeroFTPGuard) didn't exist yet -- added it to test_metrics.py (test_zero_ftp_returns_none_no_exception, test_negative_ftp_returns_none_no_exception). Now verified directly."
 
 ### 7. PMC Update — CTL/ATL/TSB
 expected: `update_pmc` returns ToolResult with ctl, atl, tsb values. CTL/ATL update via EWMA, TSB = prev_ctl - prev_atl.
-result: skipped
-reason: Covered by pytest suite (test_pmc.py — 11 tests passing).
+result: pass
+source: automated
+note: "Verified by test_pmc.py (11 tests, incl. test_tsb_equals_previous_ctl_minus_atl)."
 
 ### 8. FTP Estimation — Insufficient Data
 expected: Empty or <4 quality efforts returns ToolResult value=None with confidence='insufficient_data'. Never fabricates.
-result: skipped
-reason: Covered by pytest suite (test_ftp.py).
+result: pass
+source: automated
+note: "Verified by test_ftp.py::test_insufficient_efforts_returns_none and test_insufficient_data_returns_tool_result."
 
 ### 9. FTP Estimation — Convergence Failure Guard
 expected: Degenerate input does not raise RuntimeError. Returns ToolResult value=None.
-result: skipped
-reason: Covered by pytest suite (test_ftp.py — CR-002 fix verified).
+result: pass
+source: automated
+note: "Closed 2026-07-09: no test previously exercised this path directly -- added test_convergence_failure_returns_none_no_exception to test_ftp.py, mocking curve_fit to raise RuntimeError and asserting ToolResult(value=None, methodology contains 'convergence failed') with no exception propagating."
 
 ### 10. Progress Load — Back Constraint Cap
 expected: `progress_load(..., back_issues=True)` caps at ≤8 TSS/week, minimum 2.0 floor when CTL=0.
-result: skipped
-reason: Covered by pytest suite (test_load.py — WR-002 fix verified).
+result: pass
+source: automated
+note: "Verified by test_load.py::test_back_constraints_cap and test_back_constraints_cap_specific_values."
 
 ### 11. Session Compliance Validation
 expected: `validate_session_vs_actual` returns compliance ratio and status string without crashing.
-result: skipped
-reason: Covered by pytest suite (test_compliance.py).
+result: pass
+source: automated
+note: "Verified by test_compliance.py (10 tests, incl. planned_tss=0 ZeroDivisionError guard)."
 
 ### 12. Capability Gap Logging — Best-Effort (No Supabase)
 expected: Without env vars, `log_capability_gap` returns ToolResult and does NOT raise KeyError.
-result: skipped
-reason: Covered by pytest suite (test_capability_gap.py — CR-003 fix verified).
+result: pass
+source: automated
+note: "Verified by test_capability_gap.py::test_db_error_returns_fallback_tool_result."
 
 ### 13. TRUST-01 Import Boundary
 expected: No anthropic/openai imports in sports_science/ package.
-result: skipped
-reason: Covered by pytest suite (test_import_boundary.py — passes in all 64-test run).
+result: pass
+source: automated
+note: "Verified by test_import_boundary.py::test_sports_science_has_zero_anthropic_imports and test_sports_science_has_zero_fastapi_imports."
 
 ### 14. TRUST-02 Export Surface
 expected: sports_science.__all__ exports exactly 8 functions + ToolResult.
-result: skipped
-reason: Covered by pytest suite (test_import_boundary.py).
+result: pass
+source: automated
+note: "Verified directly: backend/sports_science/__init__.py __all__ contains exactly 8 functions + ToolResult."
 
 ## Summary
 
 total: 14
-passed: 4
-issues: 1
+passed: 14
+issues: 0
 pending: 0
-skipped: 9
+skipped: 0
 blocked: 0
 
 ## Gaps

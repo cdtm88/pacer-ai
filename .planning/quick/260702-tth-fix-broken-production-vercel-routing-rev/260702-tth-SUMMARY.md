@@ -50,13 +50,14 @@ coverage:
     verification:
       - kind: other
         ref: "curl https://www.pacer.moorelabs.uk/"
-        status: fail
-    human_judgment: true
-    rationale: "Root path still 404s. Root cause is the Vercel Project's Framework Preset ('fastapi'), which routes all non-exact-static-match requests to the Python function and ignores vercel.json rewrites entirely — a dashboard/project-level behavior outside this plan's vercel.json-only scope. Needs a follow-up task (likely: FastAPI serves frontend/dist directly with an SPA-fallback route) before this deliverable can pass."
+        status: pass
+    human_judgment: false
+    rationale: "Closed 2026-07-09: superseded by Phase 7 (Deploy Consolidation, completed 2026-07-03), which replaced the fastapi-preset/api-index.py-fallback approach entirely with a multi-service vercel.json (separate frontend/backend services, explicit rewrites) -- the actual fix this task's rationale called for. Re-verified live: both '/' and '/api/health' return 200 in production as of 2026-07-09."
 
 duration: 27min
 completed: 2026-07-02
-status: incomplete
+status: complete
+closed_reason: "D3 gap closed by Phase 7's deploy consolidation, not by a dedicated follow-up quick task. Re-verified live in production 2026-07-09."
 ---
 
 # Quick Task 260702-tth: Fix broken production Vercel routing Summary

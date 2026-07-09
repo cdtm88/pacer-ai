@@ -119,6 +119,26 @@ class TestNPGreaterThanAverage:
         )
 
 
+class TestZeroFTPGuard:
+    """TOOL-04: compute_tss(ftp=0) returns ToolResult(value=None), never ZeroDivisionError."""
+
+    def test_zero_ftp_returns_none_no_exception(self, flat_power_array):
+        try:
+            result = compute_tss(flat_power_array, 3600, ftp=0)
+        except ZeroDivisionError as exc:
+            pytest.fail(f"compute_tss raised ZeroDivisionError on ftp=0: {exc}")
+        assert isinstance(result, ToolResult)
+        assert result.value is None
+
+    def test_negative_ftp_returns_none_no_exception(self, flat_power_array):
+        try:
+            result = compute_tss(flat_power_array, 3600, ftp=-10)
+        except ZeroDivisionError as exc:
+            pytest.fail(f"compute_tss raised ZeroDivisionError on negative ftp: {exc}")
+        assert isinstance(result, ToolResult)
+        assert result.value is None
+
+
 class TestReturnsToolResult:
     """TOOL-09: compute_tss returns a ToolResult with all four required keys."""
 

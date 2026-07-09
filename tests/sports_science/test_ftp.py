@@ -1,4 +1,8 @@
 # tests/sports_science/test_ftp.py
+from unittest.mock import patch
+
+import pytest
+
 from backend.sports_science.ftp import _is_quality_effort, estimate_ftp_from_rides
 from backend.sports_science.types import ToolResult
 
@@ -72,6 +76,23 @@ def test_insufficient_data_returns_tool_result():
     result = estimate_ftp_from_rides([])
     assert isinstance(result, ToolResult)
     assert result.value is None
+
+
+def test_convergence_failure_returns_none_no_exception(sample_quality_efforts):
+    """D-04/CR-002: if curve_fit fails to converge (RuntimeError/ValueError),
+    estimate_ftp_from_rides must not propagate the exception -- it returns
+    ToolResult(value=None) instead."""
+    with patch(
+        "backend.sports_science.ftp.curve_fit",
+        side_effect=RuntimeError("Optimal parameters not found"),
+    ):
+        try:
+            result = estimate_ftp_from_rides(sample_quality_efforts)
+        except RuntimeError as exc:
+            pytest.fail(f"estimate_ftp_from_rides raised RuntimeError: {exc}")
+    assert isinstance(result, ToolResult)
+    assert result.value is None
+    assert "convergence failed" in result.methodology
 
 
 def test_cp_and_wprime_present_on_success(sample_quality_efforts):
