@@ -38,7 +38,6 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel as _PydanticBaseModel
 
 from backend.agent.loop import run_turn  # noqa: F401 -- module-scope import for test monkeypatching
-from backend.auth import get_current_user
 from backend.db import get_async_supabase as _get_async_supabase
 from backend.rate_limit import rate_limited_user
 from backend.routes._sse import sse_generator

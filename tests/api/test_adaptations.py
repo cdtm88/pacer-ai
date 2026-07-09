@@ -17,7 +17,6 @@ Pure functions (decide_scope, check_shift_limit) are called directly (no mock ne
 DB-dependent functions (detect_signals, log_adaptation) use monkeypatched _get_async_supabase.
 """
 import datetime
-import inspect
 from unittest.mock import AsyncMock, MagicMock
 
 import httpx
