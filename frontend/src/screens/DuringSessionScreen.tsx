@@ -5,6 +5,7 @@ import { getSessionToday, getProfileMe, markSessionDone } from '@/lib/api'
 import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { useUiStore } from '@/stores/uiStore'
+import { ZONE_META, zoneColor as zoneColorFor, zoneLabel as zoneLabelFor, type ZoneKey } from '@/lib/zones'
 import {
   saveSession,
   clearSession,
@@ -18,20 +19,12 @@ import {
 // Types & helpers
 // ---------------------------------------------------------------------------
 
-type ZoneType = 'recovery' | 'endurance' | 'tempo' | 'threshold' | 'vo2'
+type ZoneType = ZoneKey
 
 export interface SessionStep {
   label: string
   duration: number // minutes
   zone?: ZoneType
-}
-
-const ZONE_META: Record<ZoneType, { color: string; label: string; pctLow: number; pctHigh: number | null }> = {
-  recovery:  { color: 'var(--color-zone-recovery)',  label: 'Recovery',  pctLow: 0,   pctHigh: 55  },
-  endurance: { color: 'var(--color-zone-endurance)', label: 'Endurance', pctLow: 56,  pctHigh: 75  },
-  tempo:     { color: 'var(--color-zone-tempo)',     label: 'Tempo',     pctLow: 76,  pctHigh: 90  },
-  threshold: { color: 'var(--color-zone-threshold)', label: 'Threshold', pctLow: 91,  pctHigh: 105 },
-  vo2:       { color: 'var(--color-zone-vo2)',       label: 'VO2 Max',   pctLow: 106, pctHigh: null },
 }
 
 function powerTarget(zone: ZoneType, ftp: number | null): string {
@@ -353,7 +346,7 @@ function SessionRunner({
         <button
           onClick={() => { void finishSession() }}
           style={{
-            backgroundColor: 'var(--color-blue-6)',
+            backgroundColor: 'var(--color-achieve)',
             color: '#fff',
             border: 'none',
             borderRadius: 12,
@@ -373,7 +366,8 @@ function SessionRunner({
   // ── Active session ────────────────────────────────────────────────────────
 
   const zone = currentStep.zone ?? 'endurance'
-  const { color: zoneColor, label: zoneLabel } = ZONE_META[zone]
+  const zoneColor = zoneColorFor(zone)
+  const zoneLabel = zoneLabelFor(zone)
   const target = powerTarget(zone, ftp)
   const nextStep = steps[currentIndex + 1]
   const nearEnd = !isPaused && displaySecs <= 3 && displaySecs > 0 && nextStep
@@ -391,10 +385,9 @@ function SessionRunner({
       minHeight: '100dvh',
       display: 'flex',
       flexDirection: 'column',
-      // Subtle zone-tinted wash so the current effort is glanceable at arm's length.
-      // Tint transitions when the zone changes (motion, item 3); disabled under
-      // prefers-reduced-motion via the .ds-bg rule in the injected style block.
-      backgroundColor: `color-mix(in srgb, ${zoneColor} 7%, var(--color-surface))`,
+      // Dark cockpit surface (D-1): near-black ink, not pure black. The zone color
+      // strip below + zone chip remain the glanceable per-zone identity accent.
+      backgroundColor: 'var(--color-cockpit-bg)',
       transition: 'background-color 250ms ease-out',
     }}>
       {/* Motion + reduced-motion rules (scoped to this screen) */}
@@ -419,11 +412,11 @@ function SessionRunner({
           alignItems: 'baseline',
           marginBottom: 8,
         }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-ink-3)' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-cockpit-ink-2)' }}>
             Block {Math.min(currentIndex + 1, steps.length)} / {steps.length}
           </span>
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-ink-3)', fontVariantNumeric: 'tabular-nums' }}>
-            <span style={{ color: 'var(--color-ink-2)' }}>{formatClock(overallElapsed)}</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-cockpit-ink-2)', fontVariantNumeric: 'tabular-nums' }}>
+            <span style={{ color: 'var(--color-cockpit-ink)' }}>{formatClock(overallElapsed)}</span>
             {' / '}{formatClock(overallRemaining)} left
           </span>
         </div>
@@ -436,7 +429,7 @@ function SessionRunner({
           style={{
             height: 4,
             borderRadius: 999,
-            backgroundColor: 'var(--color-line)',
+            backgroundColor: 'var(--color-cockpit-line)',
             overflow: 'hidden',
           }}
         >
@@ -467,7 +460,7 @@ function SessionRunner({
       }}>
 
         {/* Step counter */}
-        <p style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-ink-3)', marginBottom: 16 }}>
+        <p style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-cockpit-ink-2)', marginBottom: 16 }}>
           Step {currentIndex + 1} / {steps.length}
         </p>
 
@@ -495,54 +488,51 @@ function SessionRunner({
         <p style={{
           fontSize: 18,
           fontWeight: 500,
-          color: 'var(--color-ink-2)',
+          color: 'var(--color-cockpit-ink)',
           lineHeight: 1.4,
           maxWidth: 280,
         }}>
           {currentStep.label}
         </p>
 
-        {/* Timer + power target — hero block */}
+        {/* Watts (hero) + timer (demoted, secondary) — D-2 hierarchy inversion. */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          {/* Watt target — the hero. Re-keyed on step change to replay the scale/opacity-in. */}
+          <p
+            key={`target-${currentIndex}`}
+            className="ds-step-in"
+            style={{
+              fontSize: 'clamp(96px, 18vw, 160px)',
+              fontWeight: 700,
+              fontFamily: 'var(--font-family-display)',
+              color: 'var(--color-cockpit-ink)',
+              fontVariantNumeric: 'tabular-nums',
+              letterSpacing: '-0.01em',
+              lineHeight: 1,
+              marginBottom: 8,
+            }}
+          >
+            {target}
+          </p>
+
+          {/* Timer — demoted, large-but-secondary. */}
           <p style={{
-            fontSize: 96,
-            fontWeight: 700,
-            color: 'var(--color-ink)',
+            fontSize: 'clamp(48px, 10vw, 72px)',
+            fontWeight: 600,
+            fontFamily: 'var(--font-family-display)',
+            color: 'var(--color-cockpit-ink-2)',
             fontVariantNumeric: 'tabular-nums',
-            letterSpacing: '-0.03em',
+            letterSpacing: '-0.01em',
             lineHeight: 1,
-            marginBottom: 16,
             opacity: isPaused ? 0.5 : 1,
             transition: 'opacity 200ms ease-out',
           }}>
             {formatTimer(displaySecs)}
           </p>
 
-          {/* Power target — filled zone lozenge; the key number to hold on the bike.
-              Re-keyed on step change to replay the scale/opacity-in. */}
-          <span
-            key={`target-${currentIndex}`}
-            className="ds-step-in"
-            style={{
-              fontSize: 30,
-              fontWeight: 700,
-              color: '#fff',
-              backgroundColor: zoneColor,
-              letterSpacing: '-0.01em',
-              lineHeight: 1,
-              borderRadius: 999,
-              padding: '10px 24px',
-              display: 'inline-block',
-              fontVariantNumeric: 'tabular-nums',
-              transition: 'background-color 250ms ease-out',
-            }}
-          >
-            {target}
-          </span>
-
           {/* Paused indicator */}
           {isPaused && (
-            <p style={{ marginTop: 16, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-ink-3)' }}>
+            <p style={{ marginTop: 16, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-cockpit-ink-2)' }}>
               Paused
             </p>
           )}
@@ -562,13 +552,13 @@ function SessionRunner({
               fontWeight: 700,
               letterSpacing: '0.07em',
               textTransform: 'uppercase',
-              color: 'var(--color-ink-3)',
+              color: 'var(--color-cockpit-ink-2)',
               marginBottom: 4,
               transition: 'color 0.3s',
             }}>
               {nearEnd ? `Starting ${nextStep.label} in ${secondsLeft}...` : 'Next'}
             </p>
-            <p style={{ fontSize: 15, color: 'var(--color-ink-2)', fontWeight: 500, lineHeight: 1.4 }}>
+            <p style={{ fontSize: 15, color: 'var(--color-cockpit-ink)', fontWeight: 500, lineHeight: 1.4 }}>
               {nextStep.label}
             </p>
           </div>
@@ -583,11 +573,11 @@ function SessionRunner({
               flex: 1,
               padding: '14px',
               background: isPaused ? zoneColor : 'none',
-              border: `1.5px solid ${isPaused ? zoneColor : 'var(--color-line)'}`,
+              border: `1.5px solid ${isPaused ? zoneColor : 'var(--color-cockpit-line)'}`,
               borderRadius: 12,
               fontSize: 14,
               fontWeight: 600,
-              color: isPaused ? '#fff' : 'var(--color-ink-2)',
+              color: isPaused ? '#fff' : 'var(--color-cockpit-ink-2)',
               cursor: 'pointer',
               minHeight: 48,
               transition: 'background-color 200ms ease-out, border-color 200ms ease-out, color 200ms ease-out',
@@ -601,11 +591,11 @@ function SessionRunner({
               flex: 1,
               padding: '14px',
               background: 'none',
-              border: '1.5px solid var(--color-line)',
+              border: '1.5px solid var(--color-cockpit-line)',
               borderRadius: 12,
               fontSize: 14,
               fontWeight: 600,
-              color: 'var(--color-ink-2)',
+              color: 'var(--color-cockpit-ink-2)',
               cursor: 'pointer',
               minHeight: 48,
             }}
