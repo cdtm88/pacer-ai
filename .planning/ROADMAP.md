@@ -378,7 +378,7 @@ Plans (waves; TDD — tests written test-first within each backend/frontend feat
 | 9. Frontend Resilience | 7/7 | Complete    | 2026-07-07 |
 | 10. Hygiene and Safety Nets | 6/6 | Complete    | 2026-07-08 |
 | 11. Ride Analysis Dashboard | 7/7 | Complete    | 2026-07-09 |
-| 12. Athletic Redesign | 0/0 | Not planned | - |
+| 12. Athletic Redesign | 0/8 | Planned | - |
 
 ### Phase 12: Athletic Redesign
 
@@ -387,8 +387,21 @@ Plans (waves; TDD — tests written test-first within each backend/frontend feat
 **Depends on:** Phase 10 (independent of Phase 11; if Phase 11 lands first, its Analysis screen adopts this spec)
 **Reference:** ref-wireframes-full.png (repo root) for structure and flow of the on-bike, pre-ride, and progress states. Design review 2026-07-09 identified: light-tinted during-session screen with timer as hero (should be dark, watts-hero), Inter 800 requested but not loaded, shadcn button tokens disconnected from palette, duplicated zone maps and PromptChip, off-token colors in Settings, HTML table in RideRow.
 **Constraint amendments (user-approved direction):** during-session is a dark cockpit surface (exception to light-mode-only MVP; still no pure blacks); one display face (condensed) permitted for hero numerals only.
-**Plans:** 0 plans
+**Decisions:** D-1..D-12 (12-CONTEXT.md) used as requirement IDs — no REQUIREMENTS.md entries (visual overhaul, no new capabilities).
+**Plans:** 8 plans
 
-Plans:
+Plans (delivery order A->E; Wave 1 Foundation is a hard prerequisite for Wave 2):
 
-- [ ] TBD (run /gsd-plan-phase 12 to break down)
+**Wave 1** *(Foundation — Slice A, parallel; disjoint files)*
+
+- [ ] 12-01-PLAN.md — Fonts (Barlow Condensed) + @theme button tokens + --cockpit-* + .stat-num split (D-5, D-8, D-1)
+- [ ] 12-02-PLAN.md — [tdd] Consolidate zone map into lib/zones.ts + re-export shim + drift-guard smoke test (D-8, D-7)
+- [ ] 12-03-PLAN.md — Shared PromptChip extract + shadcn card add + delete dead SessionStepList (D-8, D-12)
+
+**Wave 2** *(Slices B-E, parallel; disjoint files, all depend on Wave 1)*
+
+- [ ] 12-04-PLAN.md — Ride cockpit rebuild: dark surface, watts-hero, no-FTP RPE hero, profile rail, achieve CTA (D-1, D-2, D-3, D-4, D-7, D-11)
+- [ ] 12-05-PLAN.md — Today hub: SessionCard stat tiles + Start ride/Export .zwo rename (+test) + TodayScreen mini-bars (D-6, D-7, D-8)
+- [ ] 12-06-PLAN.md — Progress + Agenda: WeeklyLoadChart two-tone, RideRow paired bars, Agenda mini-bars (D-9, D-8, D-7)
+- [ ] 12-07-PLAN.md — Shell chrome: 28px display titles + date eyebrow, filled-pill navs, sidebar brand mark (D-10, D-8)
+- [ ] 12-08-PLAN.md — Secondary surfaces: Settings card redesign + smoke test, ZoneChip + Onboarding/Chat migration (D-12, D-8)
