@@ -149,6 +149,6 @@ describe('ZwoExportModal', () => {
       </Wrapper>
     )
 
-    expect(screen.getByText('FTP: not yet estimated — free-ride format')).toBeInTheDocument()
+    expect(screen.getByText('FTP: not yet estimated. Free-ride format applies.')).toBeInTheDocument()
   })
 })

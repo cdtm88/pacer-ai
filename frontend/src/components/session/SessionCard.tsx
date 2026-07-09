@@ -180,15 +180,15 @@ export function SessionCard({ session, pmc, ftp = null }: SessionCardProps) {
         <WorkoutProfileChart structure={session.structure} type={session.type} height={60} />
 
         {/* Stat tile row: duration / est TSS / IF. IF is derived from tss_target + duration,
-            no FTP required; "—" renders when data is missing. */}
+            no FTP required; "--" renders when data is missing. */}
         <div className="grid grid-cols-3 gap-4 mb-4">
           <StatTile
             label="Duration"
-            value={duration != null ? duration : '—'}
+            value={duration != null ? duration : '--'}
             unit={duration != null ? 'min' : undefined}
           />
-          <StatTile label="TSS" value={estTss != null ? Math.round(estTss) : '—'} />
-          <StatTile label="IF" value={intensityFactor != null ? intensityFactor.toFixed(2) : '—'} />
+          <StatTile label="TSS" value={estTss != null ? Math.round(estTss) : '--'} />
+          <StatTile label="IF" value={intensityFactor != null ? intensityFactor.toFixed(2) : '--'} />
         </div>
 
         {/* Targets chip row */}
@@ -303,6 +303,7 @@ export function SessionCard({ session, pmc, ftp = null }: SessionCardProps) {
         <div
           id="log-without-riding-actions"
           className="flex gap-2"
+          inert={!logExpanded ? true : undefined}
           style={
             logExpanded
               ? { marginTop: 8 }

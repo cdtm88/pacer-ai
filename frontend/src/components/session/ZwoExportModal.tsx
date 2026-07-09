@@ -55,7 +55,7 @@ export function ZwoExportModal({ session, ftp, onClose }: ZwoExportPanelProps) {
         {session.type} - {session.scheduled_date}
       </p>
       <p style={{ fontSize: 13, color: 'var(--color-ink-2)', marginBottom: 12 }}>
-        {ftp != null ? `FTP used: ${ftp}W` : 'FTP: not yet estimated — free-ride format'}
+        {ftp != null ? `FTP used: ${ftp}W` : 'FTP: not yet estimated. Free-ride format applies.'}
       </p>
 
       {structure && (

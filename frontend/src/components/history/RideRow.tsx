@@ -265,13 +265,22 @@ export function RideRow({ ride }: RideRowProps) {
                   style={{
                     height: '8px',
                     borderRadius: '4px',
-                    width: `${Math.min(150, ride.compliance_pct)}%`,
-                    backgroundColor:
-                      ride.compliance_pct >= 90
-                        ? 'var(--color-good)'
-                        : 'var(--color-warn)',
+                    overflow: 'hidden',
+                    backgroundColor: 'var(--color-line-2)',
                   }}
-                />
+                >
+                  <div
+                    style={{
+                      height: '100%',
+                      borderRadius: '4px',
+                      width: `${Math.min(100, ride.compliance_pct)}%`,
+                      backgroundColor:
+                        ride.compliance_pct >= 90
+                          ? 'var(--color-good)'
+                          : 'var(--color-warn)',
+                    }}
+                  />
+                </div>
               </div>
               <ComplianceChip pct={ride.compliance_pct} />
             </div>

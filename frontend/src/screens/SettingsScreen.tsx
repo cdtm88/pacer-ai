@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { useQuery } from '@tanstack/react-query'
 import { getProfileMe } from '@/lib/api'
 import { supabase } from '@/lib/supabase'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Card, CardHeader, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 export function SettingsScreen() {
   const navigate = useNavigate()
@@ -66,12 +66,12 @@ function SettingsScreenInner({ onSignOut, onResendMagicLink }: SettingsInnerProp
       {/* Training section */}
       <Card>
         <CardHeader>
-          <CardTitle
+          <h2
             className="text-sm font-semibold uppercase tracking-wide"
             style={{ color: 'var(--color-ink-2)' }}
           >
             Training
-          </CardTitle>
+          </h2>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm" style={{ color: 'var(--color-ink-2)' }}>
@@ -104,12 +104,12 @@ function SettingsScreenInner({ onSignOut, onResendMagicLink }: SettingsInnerProp
       {/* Profile section */}
       <Card>
         <CardHeader>
-          <CardTitle
+          <h2
             className="text-sm font-semibold uppercase tracking-wide"
             style={{ color: 'var(--color-ink-2)' }}
           >
             Profile
-          </CardTitle>
+          </h2>
         </CardHeader>
         <CardContent className="space-y-3">
           <div>
@@ -137,12 +137,12 @@ function SettingsScreenInner({ onSignOut, onResendMagicLink }: SettingsInnerProp
       {/* Account section */}
       <Card>
         <CardHeader>
-          <CardTitle
+          <h2
             className="text-sm font-semibold uppercase tracking-wide"
             style={{ color: 'var(--color-ink-2)' }}
           >
             Account
-          </CardTitle>
+          </h2>
         </CardHeader>
         <CardContent>
           <Button variant="destructive" onClick={onSignOut}>
