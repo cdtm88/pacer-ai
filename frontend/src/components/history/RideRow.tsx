@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router'
 import type { Ride } from '../../lib/api'
 
 // ---------------------------------------------------------------------------
@@ -126,6 +127,17 @@ export function RideRow({ ride }: RideRowProps) {
           {formatDuration(ride.duration_secs ?? null)}
         </span>
       </button>
+
+      {/* Analysis deep-dive link -- a SEPARATE element from the expand button
+          above, so tapping it navigates without toggling the row (RIDE-11). */}
+      <div style={{ padding: '0 0 8px', textAlign: 'right' }}>
+        <Link
+          to={`/rides/${ride.id}`}
+          style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-brand)' }}
+        >
+          View analysis
+        </Link>
+      </div>
 
       {/* Expanded detail */}
       {expanded && (
