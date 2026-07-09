@@ -99,11 +99,21 @@ body {
   animation: fit-upload-progress-sweep 1.2s ease-in-out infinite;
 }
 
-/* Tabular numeric readouts: watts, TSS, timers, CTL, durations, dates */
+/* Inline tabular readouts: agenda dates, ride list stats, small numeric labels.
+   Inter stays; weight corrected from 800 (unloaded, synthesized) to 700 (loaded). */
 .stat-num {
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
-  font-weight: 800;
+  font-weight: 700;
+}
+
+/* Hero numerals: watts, timers, KPI stat values, session-complete readouts.
+   Barlow Condensed display face (D-5). */
+.stat-num-hero {
+  font-family: var(--font-family-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  font-weight: 700;
 }
 
 /* Elevated card surface: reads as a liftable object above the app bg */

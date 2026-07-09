@@ -39,7 +39,7 @@ export function StatTile({ label, value, unit, delta, tone = 'flat' }: StatTileP
       </span>
       <div className="flex items-baseline gap-1">
         <span
-          className="stat-num"
+          className="stat-num-hero"
           style={{
             fontSize: 'clamp(34px, 8vw, 52px)',
             lineHeight: 1,
