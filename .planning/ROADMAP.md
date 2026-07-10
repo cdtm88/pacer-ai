@@ -409,3 +409,14 @@ Plans (delivery order A->E; Wave 1 Foundation is a hard prerequisite for Wave 2)
 **Gap Closure** *(from 12-UAT.md Test 4 — major: Settings cards render transparent with near-black borders)*
 
 - [x] 12-09-PLAN.md — Add missing --color-card / --color-card-foreground @theme tokens + explicit border-border on the Card primitive so SettingsScreen cards resolve to white --color-surface fills with light --color-line borders (D-8, D-12)
+
+### Phase 13: Close gap: ADAPT-04/TRANSP-03 — wire weekly adaptation check + adaptation log UI
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 12
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 13 to break down)
