@@ -132,9 +132,12 @@ export interface PmcEntry {
 
 export interface Adaptation {
   id: string
-  session_id: string
-  adaptation_type: string
-  description: string
+  trigger: 'missed' | 'underperformance' | 'overreaching'
+  signal_count?: number | null
+  scope: 'micro' | 'macro'
+  explanation_text: string
+  status?: 'applied' | 'proposed' | 'superseded' | null
+  trigger_session_ids?: string[] | null
   created_at: string
 }
 
@@ -214,6 +217,16 @@ export async function getAdaptations(): Promise<Adaptation[]> {
   const res = await apiFetch('/api/adaptations/')
   if (!res.ok) throw new Error(`getAdaptations failed: ${res.status}`)
   return res.json() as Promise<Adaptation[]>
+}
+
+// POST /adaptations/check — ADAPT-04 weekly-check caller. No request body;
+// the backend runs signal detection for the current user and returns
+// {signals, scope, result}. Callers that only care about the check running
+// (e.g. the mount-once useAdaptationCheck hook) can ignore the response body.
+export async function checkAdaptations(): Promise<unknown> {
+  const res = await apiFetch('/api/adaptations/check', { method: 'POST' })
+  if (!res.ok) throw new Error(`checkAdaptations failed: ${res.status}`)
+  return res.json()
 }
 
 // POST /conversations/
