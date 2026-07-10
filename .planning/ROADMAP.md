@@ -412,11 +412,18 @@ Plans (delivery order A->E; Wave 1 Foundation is a hard prerequisite for Wave 2)
 
 ### Phase 13: Close gap: ADAPT-04/TRANSP-03 — wire weekly adaptation check + adaptation log UI
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** The two integration gaps found in the v1.0 milestone audit are closed: a client-initiated weekly adaptation check fires once per 7 days from AppLayout (giving ADAPT-04's `POST /adaptations/check` its first real caller, fire-and-forget, retried on failure), and a readable "Adaptations" log section on ProgressScreen renders past adaptation decisions (giving TRANSP-03's `getAdaptations()` its first UI consumer). Frontend-only wiring for already-built, already-tested backend behavior; also fixes the stale `Adaptation` TypeScript interface so the log renders real schema fields.
+**Requirements**: ADAPT-04, TRANSP-03
 **Depends on:** Phase 12
-**Plans:** 0 plans
+**Plans:** 4 plans
 
 Plans:
+**Wave 1** *(foundation + docs, parallel — disjoint files)*
 
-- [ ] TBD (run /gsd-plan-phase 13 to break down)
+- [ ] 13-01-PLAN.md — Fix `Adaptation` interface to real schema + `checkAdaptations()` (api.ts) + `triggerLabel`/`formatDate` (format.ts, extracted from RideRow) + format.test.ts (ADAPT-04, TRANSP-03)
+- [ ] 13-04-PLAN.md — Docs: correct REQUIREMENTS.md traceability (ADAPT-04/TRANSP-03 → Phase 13) + finalize ROADMAP Phase 13 fields (ADAPT-04, TRANSP-03)
+
+**Wave 2** *(feature slices, parallel; disjoint files, both depend on 13-01)*
+
+- [ ] 13-02-PLAN.md — [tdd] `useAdaptationCheck` hook (7-day throttle, D-05 silent-failure) + AppLayout wiring + useAdaptationCheck.test.ts (ADAPT-04)
+- [ ] 13-03-PLAN.md — Adaptations log section in ProgressScreen (humanized trigger + explanation_text + date, empty/error/loading states) + progress.test.tsx (TRANSP-03)
