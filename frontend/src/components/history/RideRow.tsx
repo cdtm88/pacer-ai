@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import type { Ride } from '../../lib/api'
+import { formatDate } from '../../lib/format'
 
 // ---------------------------------------------------------------------------
 // RideRow — a single ride entry in the History list.
@@ -51,18 +52,6 @@ function formatDuration(seconds: number | null): string {
   const m = Math.floor((seconds % 3600) / 60)
   if (h > 0) return `${h}h ${m}m`
   return `${m}m`
-}
-
-function formatDate(isoDate: string): string {
-  try {
-    return new Date(isoDate).toLocaleDateString(undefined, {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-    })
-  } catch {
-    return isoDate
-  }
 }
 
 export function RideRow({ ride }: RideRowProps) {
