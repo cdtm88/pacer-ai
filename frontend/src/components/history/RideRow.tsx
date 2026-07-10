@@ -262,7 +262,7 @@ export function RideRow({ ride }: RideRowProps) {
                     style={{
                       height: '100%',
                       borderRadius: '4px',
-                      width: `${Math.min(100, ride.compliance_pct)}%`,
+                      width: `${Math.max(0, Math.min(100, ride.compliance_pct))}%`,
                       backgroundColor:
                         ride.compliance_pct >= 90
                           ? 'var(--color-good)'
