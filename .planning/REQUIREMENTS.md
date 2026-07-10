@@ -196,11 +196,11 @@
 | ADAPT-01 | Phase 3 | Complete |
 | ADAPT-02 | Phase 3 | Complete |
 | ADAPT-03 | Phase 3 | Complete |
-| ADAPT-04 | Phase 3 | Complete |
+| ADAPT-04 | Phase 3 (backend) / Phase 13 (wired) | Complete |
 | ADAPT-05 | Phase 3 | Complete |
 | TRANSP-01 | Phase 3 | Complete |
 | TRANSP-02 | Phase 3 | Complete |
-| TRANSP-03 | Phase 3 | Complete |
+| TRANSP-03 | Phase 3 (backend) / Phase 13 (wired) | Complete |
 | GAP-01 | Phase 1 | Complete |
 | GAP-02 | Phase 1 | Complete |
 | GAP-03 | Phase 1 | Complete |
@@ -222,6 +222,8 @@
 | IOS-01 | Phase 5 | Complete |
 | IOS-02 | Phase 5 | Complete |
 | IOS-03 | Phase 5 | Complete |
+
+Note: ADAPT-04 and TRANSP-03 had a working backend since Phase 3, but the v1.0 milestone audit found no caller or UI consumer existed; Phase 13 closed this integration gap.
 
 **Coverage:**
 
