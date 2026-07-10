@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router'
 import { AppLayout } from '@/components/AppLayout'
@@ -10,7 +10,15 @@ import { AppLayout } from '@/components/AppLayout'
 // (09-RESEARCH.md Pitfall 4). This is a lightweight class-presence check;
 // the definitive pinned-input/auto-scroll behavior is manual-only
 // (09-VALIDATION.md).
+//
+// ADAPT-04 (13-02): AppLayout now mounts useAdaptationCheck(), which calls
+// checkAdaptations() from ../lib/api. Stub it here so it resolves harmlessly
+// during render and doesn't touch the network in this test.
 // ---------------------------------------------------------------------------
+
+vi.mock('../lib/api', () => ({
+  checkAdaptations: vi.fn().mockResolvedValue({}),
+}))
 
 describe('AppLayout height chain', () => {
   it('both wrapping containers use h-dvh and neither uses min-h-screen', () => {

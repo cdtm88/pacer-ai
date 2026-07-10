@@ -4,6 +4,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { BottomTabBar } from './nav/BottomTabBar'
 import { DesktopSidebar } from './nav/DesktopSidebar'
 import { IOSInstallBanner } from './pwa/IOSInstallBanner'
+import { useAdaptationCheck } from '../hooks/useAdaptationCheck'
 
 const ROUTE_TITLES: Record<string, string> = {
   '/': 'Today',
@@ -25,6 +26,10 @@ export function AppLayout() {
   const isToday = pathname === '/'
   // Settings is a self-link on its own screen, so hide the redundant header gear there.
   const showSettingsGear = pathname !== '/settings'
+  // ADAPT-04: mount-once, throttled, fire-and-forget weekly adaptation check.
+  // AppLayout is the correct single integration point — it covers every
+  // authenticated entry point (Today, Agenda, Progress, Coach), not just one screen.
+  useAdaptationCheck()
 
   return (
     <TooltipProvider>
