@@ -24,6 +24,38 @@ export function sessionTypeLabel(type: string | null | undefined): string {
   return ZONE_LABELS[type] ?? titleCase(type)
 }
 
+/** Canonical display labels for adaptation triggers (D-09 humanization contract). */
+const TRIGGER_LABELS: Record<string, string> = {
+  missed: 'Missed session',
+  underperformance: 'Underperformance',
+  overreaching: 'Overreaching',
+}
+
+/** Display label for an adaptation trigger, falling back to title-case then "Adaptation". */
+export function triggerLabel(trigger: string | null | undefined): string {
+  if (!trigger) return 'Adaptation'
+  return TRIGGER_LABELS[trigger] ?? titleCase(trigger)
+}
+
+/**
+ * Shared date formatter (extracted from RideRow so the Adaptations log and
+ * Ride log render byte-identical date strings, per D-09). Returns the raw
+ * input, rather than "Invalid Date", when the string cannot be parsed.
+ */
+export function formatDate(isoDate: string): string {
+  try {
+    const date = new Date(isoDate)
+    if (isNaN(date.getTime())) return isoDate
+    return date.toLocaleDateString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    })
+  } catch {
+    return isoDate
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Zone metadata: single source of truth for zone color + label + % range.
 // Extracted to ./zones (D-8 unification); re-exported here so existing

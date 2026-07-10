@@ -34,7 +34,7 @@ describe('lib/format — formatDate', () => {
     const result = formatDate('2026-07-06T12:00:00Z')
     expect(result).toMatch(/Jul/)
     expect(result).toMatch(/6/)
-    expect(result).toMatch(/[A-Za-z]{3},/) // short weekday followed by comma
+    expect(result).toMatch(/Mon/) // short weekday present (locale-dependent punctuation/order)
   })
 
   it('returns the raw input on an unparseable date, without throwing', () => {
