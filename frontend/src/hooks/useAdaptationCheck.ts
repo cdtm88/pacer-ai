@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { checkAdaptations } from '../lib/api'
 
 // ---------------------------------------------------------------------------
@@ -75,6 +76,8 @@ function clearInflight(): void {
 }
 
 export function useAdaptationCheck(): void {
+  const queryClient = useQueryClient()
+
   useEffect(() => {
     const lastChecked = getLastChecked()
     const now = Date.now()
@@ -91,6 +94,18 @@ export function useAdaptationCheck(): void {
     checkAdaptations()
       .then(() => {
         setLastChecked(new Date().toISOString()) // D-05: only on success
+
+        // WR-01 (13-REVIEW.md): a successful check may have applied a
+        // micro/macro adjustment server-side, mutating adaptations/
+        // sessions/rides/pmc data. Invalidate the affected caches so an
+        // already-mounted ProgressScreen/TodayScreen/AgendaScreen reflects
+        // it without depending on a window refocus to trigger a refetch.
+        queryClient.invalidateQueries({ queryKey: ['adaptations'] })
+        queryClient.invalidateQueries({ queryKey: ['rides'] })
+        queryClient.invalidateQueries({ queryKey: ['pmc-history'] })
+        queryClient.invalidateQueries({ queryKey: ['pmc', 'latest'] })
+        queryClient.invalidateQueries({ queryKey: ['session', 'today'] })
+        queryClient.invalidateQueries({ queryKey: ['sessions', 'upcoming'] })
       })
       .catch(() => {
         // D-05: fail silently, do not update timestamp, no retry loop (D-04)
@@ -98,5 +113,5 @@ export function useAdaptationCheck(): void {
       .finally(() => {
         clearInflight()
       })
-  }, [])
+  }, [queryClient])
 }

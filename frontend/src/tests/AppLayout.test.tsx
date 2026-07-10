@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppLayout } from '@/components/AppLayout'
 
 // ---------------------------------------------------------------------------
@@ -13,7 +14,9 @@ import { AppLayout } from '@/components/AppLayout'
 //
 // ADAPT-04 (13-02): AppLayout now mounts useAdaptationCheck(), which calls
 // checkAdaptations() from ../lib/api. Stub it here so it resolves harmlessly
-// during render and doesn't touch the network in this test.
+// during render and doesn't touch the network in this test. The hook also
+// calls useQueryClient() (13-REVIEW.md WR-01, cache invalidation on
+// success), so a QueryClientProvider must wrap the tree or the render throws.
 // ---------------------------------------------------------------------------
 
 vi.mock('../lib/api', () => ({
@@ -22,14 +25,17 @@ vi.mock('../lib/api', () => ({
 
 describe('AppLayout height chain', () => {
   it('both wrapping containers use h-dvh and neither uses min-h-screen', () => {
+    const queryClient = new QueryClient()
     const { container } = render(
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route element={<AppLayout />}>
-            <Route path="/" element={<div>content</div>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route element={<AppLayout />}>
+              <Route path="/" element={<div>content</div>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
     )
 
     const outer = container.querySelector('.h-dvh')
