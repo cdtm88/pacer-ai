@@ -1,8 +1,8 @@
 ---
 phase: 12-athletic-redesign
-reviewed: 2026-07-09T00:00:00Z
+reviewed: 2026-07-10T00:00:00Z
 depth: standard
-files_reviewed: 27
+files_reviewed: 26
 files_reviewed_list:
   - frontend/index.html
   - frontend/src/components/AppLayout.tsx
@@ -31,123 +31,121 @@ files_reviewed_list:
   - frontend/src/tests/rideChart.test.tsx
   - frontend/src/tests/today.test.tsx
   - frontend/src/tests/zones.test.ts
-  - frontend/src/lib/api.ts
 findings:
   critical: 0
   warning: 6
-  info: 3
-  total: 9
+  info: 4
+  total: 10
 status: issues_found
 ---
 
 # Phase 12: Code Review Report
 
-**Reviewed:** 2026-07-09
+**Reviewed:** 2026-07-10T00:00:00Z
 **Depth:** standard
-**Files Reviewed:** 27 (+ frontend/src/lib/api.ts hand-fix)
+**Files Reviewed:** 26
 **Status:** issues_found
 
 ## Summary
 
-Reviewed all 27 files from Phase 12 "Athletic Redesign" (dark cockpit during-session view, Today hub redesign, component-token unification, zone-map consolidation, Settings redesign) plus the orchestrator's post-merge hand-fix to `api.ts`. I cross-referenced each file's diff against `b869212c9e0fdcc85d45a4d62d0fe12b655d1f27^..HEAD` to isolate what this phase actually changed, rather than re-litigating pre-existing code.
+This is a re-review against the current state of the files (a prior 12-REVIEW.md dated 2026-07-09 already exists in this directory; several of its findings — the em-dash copy violations in `ZwoExportModal.tsx`/`SessionCard.tsx`, the keyboard-focusable hidden "Log without riding" region in `SessionCard.tsx`, and the lost `<h2>` heading semantics in `SettingsScreen.tsx` — have already been fixed in the code as currently written and are confirmed resolved, not re-flagged here).
 
-Overall the merge is clean: the zone-map consolidation (`lib/zones.ts`) is genuinely singular (no orphaned duplicate zone maps left in `AgendaScreen`, `TodayScreen`, `DuringSessionScreen`, or `ZoneChip`, all confirmed via diff and grep), `PromptChip` was correctly extracted with both call sites (`ChatScreen`, `OnboardingScreen`) migrated and their local duplicates deleted, the `--color-cockpit-*` dark tokens are scoped to `DuringSessionScreen` only (grep-confirmed, no leakage), no pure-black value appears anywhere including the new cockpit tokens (`#14171D`/`#1D2129`/`#2A2F3A`), and the frozen persistence boundary in `DuringSessionScreen.tsx` (state, effects, `saveSession`/`fastForwardSteps`/`computeRestoredState`) is untouched — the diff confirms only the render layer changed plus one correctly-threaded new prop (`rpe_target`).
-
-That said, I found six real defects introduced by this phase's changes (visual overflow bug, a hidden-but-still-keyboard-focusable interactive region, a lost heading-semantics regression, two em-dash copy violations against the project's explicit "no em dashes" rule, and an incomplete API type contract) plus three minor informational items. None rise to Critical (no crash, security, or data-loss risk), but several are real user-facing regressions that should be fixed before this ships.
+Evaluating the current file contents directly: no crash-level or authentication-bypass defects were found. The main remaining themes are: (1) a security/privacy concern in `ChatScreen.tsx` where the bearer token and the full user chat message are embedded in the SSE request URL, (2) a genuine timezone bug in `RideRow.formatDate` that can show the wrong day for users behind UTC, (3) a missing lower-bound clamp on the compliance bar in `RideRow.tsx`, (4) a recurring pattern of `as unknown as X` type casts at the API boundary in `TodayScreen.tsx`, `AgendaScreen.tsx`, and `DuringSessionScreen.tsx` that defeats TypeScript's guarantees, (5) a ~45-line duplicated JSX block in `TodayScreen.tsx`, and (6) a self-documented pause/persistence gap in `DuringSessionScreen.tsx` that can misreport elapsed workout time after an iOS kill while paused. No hardcoded secrets, `eval`, `innerHTML`, or genuinely empty catch blocks were found; the handful of empty `catch {}` blocks present are all commented and intentional.
 
 ## Warnings
 
-### WR-01: Compliance bar can overflow its container up to 50% past the edge
+### WR-01: `RideRow.formatDate` has no timezone anchor — can display the wrong day
 
-**File:** `frontend/src/components/history/RideRow.tsx:264-274`
-**Issue:** The new "Actual" bar (replacing the old planned-vs-actual table, per the diff) sets `width: \`${Math.min(150, ride.compliance_pct)}%\`` with no `overflow: hidden` anywhere in its ancestor chain (the row `<div>`, the expanded-detail `<div>`, and the bar's own parent `<div>` are all unclipped). For any ride where `compliance_pct` exceeds 100 (riding harder/longer than planned — a realistic outcome, not an edge case), the bar renders wider than its container and bleeds past the row's right edge. There is no test covering `compliance_pct > 100` (`history.test.tsx` only exercises `null` and unset cases), so this shipped untested.
+**File:** `frontend/src/components/history/RideRow.tsx:56-66`
+**Issue:** `formatDate` calls `new Date(isoDate).toLocaleDateString(...)` directly on what is expected to be a bare `YYYY-MM-DD` date string. Every other date-only string in this same phase's screens (`AgendaScreen.tsx:36,45,50`, `TodayScreen.tsx:13,18`) is deliberately anchored with `+ 'T12:00:00'` specifically to avoid the UTC-midnight rollback problem: `new Date('2026-07-10')` parses as UTC midnight, and `.toLocaleDateString()` in any timezone behind UTC (all of the Americas) renders the *previous* calendar day. `RideRow` is the one component in this family that doesn't follow the pattern, so a ride logged on "Jul 10" can show as "Jul 9" in the history list for US-timezone users.
 **Fix:**
 ```tsx
-<div style={{ height: '8px', borderRadius: '4px', overflow: 'hidden', backgroundColor: 'var(--color-line-2)' }}>
-  <div
-    style={{
-      height: '100%',
-      borderRadius: '4px',
-      width: `${Math.min(100, ride.compliance_pct)}%`, // cap the fill itself at 100%
-      backgroundColor: ride.compliance_pct >= 90 ? 'var(--color-good)' : 'var(--color-warn)',
-    }}
-  />
-</div>
-```
-If showing over-100% compliance visually is intentional (e.g. an "overshoot" indicator), clip the outer track with `overflow: hidden` at minimum so the bar never draws outside the row.
-
-### WR-02: "Log without riding" actions stay keyboard-focusable while visually hidden
-
-**File:** `frontend/src/components/session/SessionCard.tsx:303-334`
-**Issue:** The collapsed state of `#log-without-riding-actions` is implemented with `maxHeight: 0, overflow: 'hidden', opacity: 0, pointerEvents: 'none'`. This correctly blocks mouse/touch interaction and hides the content visually, but none of those properties remove the "Mark done" / "Mark missed" buttons from the tab order or the accessibility tree (only `display: none`, `visibility: hidden`, `hidden`, or `tabIndex={-1}`/`inert` do that). A keyboard-only user tabbing through the card will land on two invisible, zero-height buttons and can still activate them with Enter/Space — `pointer-events: none` has no effect on keyboard activation. The code comment ("stay mounted... so their accessible names remain queryable for the test suite regardless of expanded state") shows this was a deliberate trade-off for test convenience, but it leaves a real keyboard-accessibility regression.
-**Fix:** Gate keyboard reachability off the same `logExpanded` state, independent of the test-query requirement (tests can still query by role/name on unmounted-but-present elements via `{ hidden: true }` or by expanding the disclosure first):
-```tsx
-<div
-  id="log-without-riding-actions"
-  className="flex gap-2"
-  inert={!logExpanded ? true : undefined}
-  style={logExpanded ? { marginTop: 8 } : { maxHeight: 0, overflow: 'hidden', opacity: 0, marginTop: 0 }}
->
-```
-(`inert` is supported in all evergreen browsers as of 2023 and removes both focus and pointer interaction while keeping the subtree in the DOM.) Alternatively add `tabIndex={-1}` to both buttons and toggle it with `logExpanded`.
-
-### WR-03: Settings section headers lost heading semantics
-
-**File:** `frontend/src/screens/SettingsScreen.tsx:68-146` (via `frontend/src/components/ui/card.tsx:31-39`)
-**Issue:** The diff replaced `<h2 className="text-sm font-semibold uppercase ...">Training</h2>` (and the same for "Profile" and "Account") with shadcn's `<CardTitle>`. `CardTitle` renders a plain `<div data-slot="card-title">`, not a heading element. This removes all three section headings from the page's heading outline — screen-reader users navigating by heading (a primary AT navigation pattern) can no longer jump directly to "Training" / "Profile" / "Account" on the Settings screen. This is a straight regression versus the pre-redesign markup, not a pre-existing issue.
-**Fix:** Either add `asChild` with a heading tag if shadcn's Card API in this project supports it, or wrap: `<CardTitle asChild><h2 className="...">Training</h2></CardTitle>`, or simplest — keep `<h2>` for the visible text and drop `CardTitle` for these three call sites:
-```tsx
-<CardHeader>
-  <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--color-ink-2)' }}>
-    Training
-  </h2>
-</CardHeader>
+function formatDate(isoDate: string): string {
+  try {
+    return new Date(isoDate + 'T12:00:00').toLocaleDateString(undefined, {
+      weekday: 'short', month: 'short', day: 'numeric',
+    })
+  } catch {
+    return isoDate
+  }
+}
 ```
 
-### WR-04: Em dash in user-facing copy violates the project's "no em dashes" constraint
+### WR-02: Compliance bar has no lower-bound clamp
 
-**File:** `frontend/src/components/session/ZwoExportModal.tsx:58`
-**Issue:** `'FTP: not yet estimated — free-ride format'` contains a literal em dash (U+2014) in rendered UI copy. CLAUDE.md states explicitly: "No em dashes: In any generated content or copy — use commas, semicolons, colons, or separate sentences." This is real prose copy shown to the user (not a placeholder glyph), so it's a direct violation, not a borderline case.
+**File:** `frontend/src/components/history/RideRow.tsx:276`
+**Issue:** The "Actual" bar width is `` `${Math.min(100, ride.compliance_pct)}%` ``. This clamps the upper bound (a prior overflow bug on this line was fixed) but not the lower one. `compliance_pct` is typed `number | null` with no guarantee of non-negativity; a negative value produces an invalid negative-length CSS width, and the adjacent `ComplianceChip` will print something like "-40% on target" with no sanity check.
 **Fix:**
 ```tsx
-{ftp != null ? `FTP used: ${ftp}W` : 'FTP: not yet estimated. Free-ride format applies.'}
+width: `${Math.min(100, Math.max(0, ride.compliance_pct))}%`,
 ```
-Note `zwo-modal.test.tsx:152` asserts the current em-dash string verbatim and will need updating alongside this fix.
 
-### WR-05: Em dash placeholder glyphs in SessionCard stat tiles
+### WR-03: Chat message content and auth token sent via SSE request URL
 
-**File:** `frontend/src/components/session/SessionCard.tsx:187, 190, 191`
-**Issue:** `'—'` (em dash) is used three times as the "no value" placeholder for Duration / TSS / IF stat tiles. This is a weaker case than WR-04 (it's a glyph convention, not prose), but it's still an em dash character rendered in the UI and the project constraint doesn't carve out an exception for placeholder use.
-**Fix:** Use a different missing-value convention, e.g. `'--'` (double hyphen, matching the existing convention already used elsewhere in this same phase's `RideRow.tsx` — `formatDuration` returns `'--'` for null) or `'N/A'`, for consistency both with the copy rule and with the rest of the codebase.
+**File:** `frontend/src/screens/ChatScreen.tsx:224-227, 236-239`
+**Issue:** `handleSend`/`handleRetry` build the stream URL as:
+```ts
+await sseUrl(`/api/chat/stream?conversation_id=${encodeURIComponent(conversation.id)}&message=${encodeURIComponent(text)}`)
+```
+and `sseUrl` (in `lib/api.ts`) appends the user's JWT access token as a `?token=` query parameter because `EventSource` cannot set headers. Every chat turn — including potentially sensitive personal/health context the user types to their coach — plus the bearer token ends up in the URL. URLs are commonly persisted in browser history and service/proxy access logs, and can leak via the `Referer` header to any cross-origin resource the page loads. This is a recognized sensitive-data-exposure anti-pattern (OWASP A02), not just a style nit — and `OnboardingScreen.tsx` in the same phase already demonstrates the alternative (fetch + `ReadableStream`, token in an `Authorization` header, message in the POST body).
+**Fix:** Use the same fetch/POST + `ReadableStream` pattern `OnboardingScreen.tsx` uses for its own SSE consumption instead of `EventSource` for chat, or at minimum replace the full access token in the query string with a short-lived, single-use stream ticket, and move the message out of the URL and into a request body.
 
-### WR-06: `Session` API type still doesn't match what screens actually consume
+### WR-04: Repeated unsafe `as unknown as X` casts at the session/API boundary
 
-**File:** `frontend/src/lib/api.ts:71-83`
-**Issue:** The orchestrator's hand-fix added `rpe_target` to the `Session` interface, but the interface is still missing `objective`, `duration_mins`, and `tss_target` — all of which are read from `Session[]` results at runtime via `as unknown as SessionRow[]` (`AgendaScreen.tsx:167`) and `as unknown as Parameters<typeof SessionCard>[0]['session']` (`TodayScreen.tsx:208-209`). Because these are `as unknown as` casts (not `as SomeInterface`), TypeScript provides zero structural checking on the way through — if the backend ever renames or drops one of these fields, nothing in the type system will catch it; only a runtime `undefined` shows up in the UI ("—"/blank values with no compile-time warning). The `rpe_target` patch shows the team is aware these gaps exist but is fixing them reactively one field at a time rather than making `Session` the actual source of truth.
-**Fix:** Either extend `Session` in `api.ts` to include the fields the frontend actually consumes (`objective: string | null`, `duration_mins: number | null`, `tss_target: number | null`), or introduce a single shared `SessionDTO` type used by `SessionCard`, `AgendaScreen`, and `api.ts` instead of three independently-hand-maintained subset interfaces (`SessionData`, `SessionRow`, `Session`) plus unchecked casts between them.
+**File:** `frontend/src/screens/TodayScreen.tsx:208-209`, `frontend/src/screens/AgendaScreen.tsx:167`, `frontend/src/screens/DuringSessionScreen.tsx:795`
+**Issue:** Several call sites bypass the type system entirely rather than fixing the underlying type mismatch:
+```tsx
+// TodayScreen.tsx
+session={session as unknown as Parameters<typeof SessionCard>[0]['session']}
+pmc={pmc as unknown as Parameters<typeof SessionCard>[0]['pmc']}
+// AgendaScreen.tsx
+const rows = sessions as unknown as SessionRow[]
+// DuringSessionScreen.tsx
+const raw = (session as unknown as { structure?: unknown }).structure
+```
+Casting through `unknown` suppresses all structural checking, so if the backend's actual session/PMC shape ever drifts from these ad-hoc local interfaces (`SessionData`, `SessionRow`, `PmcRow`), the compiler will not catch it — the bug will only surface at runtime as silently blank/`--` fields with no compile-time warning.
+**Fix:** Define one canonical session/PMC type in `lib/api.ts` that actually matches the backend response, and have the query functions return it directly so screens can consume it without local re-declarations or `as unknown as` casts.
+
+### WR-05: Duplicated "Coming up" strip JSX block
+
+**File:** `frontend/src/screens/TodayScreen.tsx:143-188` and `frontend/src/screens/TodayScreen.tsx:222-268`
+**Issue:** The empty-state "Coming up" strip and the post-session "Coming up" strip are near byte-identical ~45-line blocks (same button markup, same zone dot, same date/duration formatting, same inline styles), differing only in the source array (`emptyStateUpcoming` vs `stripSessions`) and outer container classes. Any future change (styling, a11y fix, new field) has to be made twice and will drift if only one copy is updated.
+**Fix:** Extract a shared `UpcomingStrip({ sessions, className })` component and use it from both render branches.
+
+### WR-06: Paused wall-clock time can be miscounted as elapsed on iOS kill
+
+**File:** `frontend/src/screens/DuringSessionScreen.tsx:227-230`
+**Issue:** The code's own comment acknowledges this: the 1s interval save and the `visibilitychange`/`pagehide` save handlers persist `stepStartEpoch` unshifted while `isPaused` is true (only `togglePause`'s resume path shifts it). If the user pauses, backgrounds the app, and iOS kills the PWA process while still paused, the persisted `stepStartEpoch` on restore will treat the entire paused duration as if the step had been actively running, so `fastForwardSteps` can skip past steps the user never actually rode. Given this is a cycling coaching app where pausing mid-ride (stoplight, mechanical issue, phone call) is a realistic scenario, this isn't a rare edge case.
+**Fix:** Persist an `isPaused`/pause-start timestamp as part of the saved payload so `computeRestoredState` can subtract the paused duration correctly on restore, instead of accepting the drift as permanent.
 
 ## Info
 
-### IN-01: Zone-dot validation silently removed in TodayScreen's upcoming-sessions strip
-
-**File:** `frontend/src/screens/TodayScreen.tsx:145, 226` (was previously gated by `isValidZone`, per diff)
-**Issue:** The diff dropped the local `isValidZone`/`ZONE_VAR` lookup in favor of calling `zoneColor()` directly, which is a fine consolidation — but it also changes behavior subtly: previously an unrecognized `type` string meant no dot was rendered at all (`zoneType` was `null`); now any non-null `type` string renders a dot, falling back to the neutral `var(--color-ink-3)` color for unrecognized zones via `zoneColor()`'s internal fallback. Likely harmless (and arguably better — always showing *something*), but worth confirming this was an intentional design call rather than an oversight of the consolidation.
-**Fix:** No action required if intentional; otherwise reintroduce an explicit `isValidZone` guard before rendering the dot.
-
-### IN-02: Malformed-looking `var()` fallback predates this phase but sits in a file this phase touched
+### IN-01: Dead CSS variable fallback
 
 **File:** `frontend/src/screens/SettingsScreen.tsx:180`
-**Issue:** `color: 'var(--color-ink-3, var(--color-ink-2))'` — syntactically valid CSS custom-property fallback, but since `--color-ink-3` is always defined in `index.css`'s `@theme` block, the fallback can never trigger and reads as leftover defensive code or a copy-paste artifact. Not introduced by this phase's diff (unchanged line), noted only because the file was substantially reworked around it.
-**Fix:** Simplify to `color: 'var(--color-ink-2)'` for clarity, or drop if intentional documentation of a fallback pattern.
+**Issue:** `color: 'var(--color-ink-3, var(--color-ink-2))'` — `--color-ink-3` is unconditionally defined in `index.css`, so the fallback value can never trigger. Reads as leftover defensive code / copy-paste artifact.
+**Fix:** `color: 'var(--color-ink-3)'`.
 
-### IN-03: `RideRow.formatDate` has no timezone anchor (pre-existing)
+### IN-02: Unreachable `undefined` branch in `ComplianceChip`
 
-**File:** `frontend/src/components/history/RideRow.tsx:56-66`
-**Issue:** `formatDate` calls `new Date(isoDate)` directly on a date-only string, unlike the rest of the phase's screens (`AgendaScreen`, `TodayScreen`) which consistently anchor with `+ 'T12:00:00'` to avoid UTC-midnight timezone rollback. If `ride_date` is a bare `YYYY-MM-DD` string, `new Date()` parses it as UTC midnight, and `.toLocaleDateString()` in a timezone behind UTC (e.g. US timezones) can display the wrong day. Not touched by this phase's diff, flagged only for awareness since the pattern is inconsistent within the same component family this phase reworked.
-**Fix:** Match the `+ 'T12:00:00'` convention used elsewhere: `new Date(isoDate + 'T12:00:00')`.
+**File:** `frontend/src/components/history/RideRow.tsx:19-20`
+**Issue:** `ComplianceChip`'s prop type is `pct: number | null`, and its only call sites pass `ride.compliance_pct ?? null`, so `pct === undefined` can never be true. Harmless, but signals lingering uncertainty about whether the underlying API field can be `undefined` vs `null`.
+**Fix:** Drop the `undefined` check, or confirm and align the `Ride` type in `lib/api.ts` if `undefined` really is possible.
+
+### IN-03: Inconsistent zero-duration formatting between components
+
+**File:** `frontend/src/components/history/RideRow.tsx:48-54` vs `frontend/src/screens/AgendaScreen.tsx:65-71`
+**Issue:** `RideRow.formatDuration` treats `0` as falsy and renders `'--'` for a zero-second ride, while `AgendaScreen.formatDurationTotal` renders `0m` for a zero-minute total. Both are plausible individually but inconsistent, so the same underlying "no duration data" case reads differently across screens.
+**Fix:** Align on one convention (reserve `'--'` strictly for `null`/`undefined`; render `0m`/`0h 0m` for an explicit zero).
+
+### IN-04: Restored chat history renders with a blank timestamp
+
+**File:** `frontend/src/screens/ChatScreen.tsx:151-159`
+**Issue:** When hydrating `conversation.priorMessages` after a cache-miss reload, each historical message is given `timestamp: ''`. `ChatBubble` renders these with no time label at all, while newly sent/received messages in the same session show a real time — a visible inconsistency after any reload.
+**Fix:** If the backend message history includes a created-at timestamp, format and use it; otherwise omit the timestamp slot consistently rather than only for reloaded history.
 
 ---
 
-_Reviewed: 2026-07-09_
+_Reviewed: 2026-07-10T00:00:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
