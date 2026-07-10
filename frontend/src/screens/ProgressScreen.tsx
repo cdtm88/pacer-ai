@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getRides, getPmcHistory, getLatestPmc } from '../lib/api'
+import { getRides, getPmcHistory, getLatestPmc, getAdaptations } from '../lib/api'
 import type { Ride } from '../lib/api'
-import { classifyTsb } from '../lib/format'
+import { classifyTsb, triggerLabel, formatDate } from '../lib/format'
 import { StatTile } from '../components/ui/StatTile'
 import { FitUploadZone } from '../components/history/FitUploadZone'
 import { RideRow } from '../components/history/RideRow'
@@ -96,10 +96,12 @@ export function ProgressScreen() {
   const ridesQuery = useQuery({ queryKey: ['rides'], queryFn: getRides })
   const pmcQuery = useQuery({ queryKey: ['pmc-history'], queryFn: getPmcHistory })
   const latestQuery = useQuery({ queryKey: ['pmc', 'latest'], queryFn: getLatestPmc })
+  const adaptationsQuery = useQuery({ queryKey: ['adaptations'], queryFn: getAdaptations })
 
   const rides = ridesQuery.data ?? []
   const pmcHistory = pmcQuery.data ?? []
   const latest = latestQuery.data ?? null
+  const adaptations = adaptationsQuery.data ?? []
 
   // KPI: Fitness (CTL) + ~28d delta.
   const ctl = latest?.ctl ?? null
@@ -264,6 +266,71 @@ export function ProgressScreen() {
                 {group.rides.map((ride) => (
                   <RideRow key={ride.id} ride={ride} />
                 ))}
+              </div>
+            ))}
+        </div>
+
+        {/* 5. Adaptations */}
+        <div>
+          <SectionLabel>Adaptations</SectionLabel>
+
+          {adaptationsQuery.isLoading && (
+            <>
+              <SkeletonRow />
+              <SkeletonRow />
+            </>
+          )}
+
+          {adaptationsQuery.isError && (
+            <button
+              onClick={() => adaptationsQuery.refetch()}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '12px',
+                textAlign: 'center',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--color-bad)',
+                fontSize: '14px',
+              }}
+            >
+              Could not load adaptations. Tap to retry.
+            </button>
+          )}
+
+          {!adaptationsQuery.isLoading && !adaptationsQuery.isError && adaptations.length === 0 && (
+            <p
+              style={{
+                fontSize: 15,
+                color: 'var(--color-ink-2)',
+                textAlign: 'center',
+                lineHeight: 1.5,
+                paddingTop: 24,
+                margin: 0,
+              }}
+            >
+              No adaptations yet. Your plan hasn't needed adjustment.
+            </p>
+          )}
+
+          {!adaptationsQuery.isLoading &&
+            !adaptationsQuery.isError &&
+            adaptations.map((a) => (
+              <div
+                key={a.id}
+                style={{ borderBottom: '1px solid var(--color-line)', padding: '12px 0' }}
+              >
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-ink)' }}>
+                  {triggerLabel(a?.trigger)}
+                </div>
+                <p style={{ fontSize: 13, color: 'var(--color-ink-2)', margin: '2px 0', lineHeight: 1.5 }}>
+                  {a?.explanation_text ?? ''}
+                </p>
+                <span style={{ fontSize: 12, color: 'var(--color-ink-3)' }}>
+                  {a?.created_at ? formatDate(a.created_at) : ''}
+                </span>
               </div>
             ))}
         </div>
