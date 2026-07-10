@@ -3,7 +3,7 @@ status: complete
 phase: 12-athletic-redesign
 source: [12-VERIFICATION.md]
 started: 2026-07-09T19:14:26Z
-updated: 2026-07-10T19:01:00Z
+updated: 2026-07-10T19:35:00Z
 ---
 
 ## Current Test
@@ -91,7 +91,7 @@ blocked: 0
 ## Gaps
 
 - truth: "SettingsScreen card sections render as white lifted surfaces (--color-surface) with light --color-line borders, per the UI-SPEC card-grouped redesign"
-  status: failed
+  status: resolved
   reason: "Automated check: Card component computed backgroundColor is transparent and border-color is --color-ink instead of --color-line"
   severity: major
   test: 4
@@ -105,3 +105,4 @@ blocked: 0
     - "Add --color-card: var(--color-surface); and --color-card-foreground: var(--color-ink); to the @theme block in index.css"
     - "Verify border-color resolves to --color-line on Card (either via a base-layer border-border rule or explicit border-[color:var(--color-line)] on the component)"
   debug_session: ""
+  resolution: "Closed by gap-closure plan 12-09 (commit 10c53e3). Re-verified 2026-07-10 in 12-VERIFICATION.md against the compiled production CSS: bg-card -> #FFFFFF, border-border -> #DFE0E2, text-card-foreground -> #1A2230. 149/149 tests pass, build clean."
