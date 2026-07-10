@@ -415,7 +415,7 @@ Plans (delivery order A->E; Wave 1 Foundation is a hard prerequisite for Wave 2)
 **Goal:** The two integration gaps found in the v1.0 milestone audit are closed: a client-initiated weekly adaptation check fires once per 7 days from AppLayout (giving ADAPT-04's `POST /adaptations/check` its first real caller, fire-and-forget, retried on failure), and a readable "Adaptations" log section on ProgressScreen renders past adaptation decisions (giving TRANSP-03's `getAdaptations()` its first UI consumer). Frontend-only wiring for already-built, already-tested backend behavior; also fixes the stale `Adaptation` TypeScript interface so the log renders real schema fields.
 **Requirements**: ADAPT-04, TRANSP-03
 **Depends on:** Phase 12
-**Plans:** 2/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 **Wave 1** *(foundation + docs, parallel — disjoint files)*
@@ -425,5 +425,5 @@ Plans:
 
 **Wave 2** *(feature slices, parallel; disjoint files, both depend on 13-01)*
 
-- [ ] 13-02-PLAN.md — [tdd] `useAdaptationCheck` hook (7-day throttle, D-05 silent-failure) + AppLayout wiring + useAdaptationCheck.test.ts (ADAPT-04)
-- [ ] 13-03-PLAN.md — Adaptations log section in ProgressScreen (humanized trigger + explanation_text + date, empty/error/loading states) + progress.test.tsx (TRANSP-03)
+- [x] 13-02-PLAN.md — [tdd] `useAdaptationCheck` hook (7-day throttle, D-05 silent-failure) + AppLayout wiring + useAdaptationCheck.test.ts (ADAPT-04)
+- [x] 13-03-PLAN.md — Adaptations log section in ProgressScreen (humanized trigger + explanation_text + date, empty/error/loading states) + progress.test.tsx (TRANSP-03)
