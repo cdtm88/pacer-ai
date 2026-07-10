@@ -62,6 +62,8 @@
   --color-border:                var(--color-line);
   --color-input:                 var(--color-line);
   --color-ring:                  var(--color-brand);
+  --color-card:                  var(--color-surface);
+  --color-card-foreground:       var(--color-ink);
 
   /* Scoped dark-cockpit tokens (D-1) — consumed only by DuringSessionScreen (Slice B, 12-04) */
   --color-cockpit-bg:      #14171D;
