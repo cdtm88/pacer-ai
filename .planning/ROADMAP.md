@@ -378,7 +378,7 @@ Plans (waves; TDD — tests written test-first within each backend/frontend feat
 | 9. Frontend Resilience | 7/7 | Complete    | 2026-07-07 |
 | 10. Hygiene and Safety Nets | 6/6 | Complete    | 2026-07-08 |
 | 11. Ride Analysis Dashboard | 7/7 | Complete    | 2026-07-09 |
-| 12. Athletic Redesign | 9/9 | Complete   | 2026-07-09 |
+| 12. Athletic Redesign | 9/9 | Complete    | 2026-07-09 |
 
 ### Phase 12: Athletic Redesign
 
