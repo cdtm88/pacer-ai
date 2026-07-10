@@ -378,7 +378,7 @@ Plans (waves; TDD — tests written test-first within each backend/frontend feat
 | 9. Frontend Resilience | 7/7 | Complete    | 2026-07-07 |
 | 10. Hygiene and Safety Nets | 6/6 | Complete    | 2026-07-08 |
 | 11. Ride Analysis Dashboard | 7/7 | Complete    | 2026-07-09 |
-| 12. Athletic Redesign | 8/8 | Complete   | 2026-07-09 |
+| 12. Athletic Redesign | 9/9 | Complete   | 2026-07-09 |
 
 ### Phase 12: Athletic Redesign
 
@@ -388,7 +388,7 @@ Plans (waves; TDD — tests written test-first within each backend/frontend feat
 **Reference:** ref-wireframes-full.png (repo root) for structure and flow of the on-bike, pre-ride, and progress states. Design review 2026-07-09 identified: light-tinted during-session screen with timer as hero (should be dark, watts-hero), Inter 800 requested but not loaded, shadcn button tokens disconnected from palette, duplicated zone maps and PromptChip, off-token colors in Settings, HTML table in RideRow.
 **Constraint amendments (user-approved direction):** during-session is a dark cockpit surface (exception to light-mode-only MVP; still no pure blacks); one display face (condensed) permitted for hero numerals only.
 **Decisions:** D-1..D-12 (12-CONTEXT.md) used as requirement IDs — no REQUIREMENTS.md entries (visual overhaul, no new capabilities).
-**Plans:** 8/8 complete + 1 gap closure (12-09) pending
+**Plans:** 9/9 plans complete
 
 Plans (delivery order A->E; Wave 1 Foundation is a hard prerequisite for Wave 2):
 
@@ -408,4 +408,4 @@ Plans (delivery order A->E; Wave 1 Foundation is a hard prerequisite for Wave 2)
 
 **Gap Closure** *(from 12-UAT.md Test 4 — major: Settings cards render transparent with near-black borders)*
 
-- [ ] 12-09-PLAN.md — Add missing --color-card / --color-card-foreground @theme tokens + explicit border-border on the Card primitive so SettingsScreen cards resolve to white --color-surface fills with light --color-line borders (D-8, D-12)
+- [x] 12-09-PLAN.md — Add missing --color-card / --color-card-foreground @theme tokens + explicit border-border on the Card primitive so SettingsScreen cards resolve to white --color-surface fills with light --color-line borders (D-8, D-12)
