@@ -415,13 +415,13 @@ Plans (delivery order A->E; Wave 1 Foundation is a hard prerequisite for Wave 2)
 **Goal:** The two integration gaps found in the v1.0 milestone audit are closed: a client-initiated weekly adaptation check fires once per 7 days from AppLayout (giving ADAPT-04's `POST /adaptations/check` its first real caller, fire-and-forget, retried on failure), and a readable "Adaptations" log section on ProgressScreen renders past adaptation decisions (giving TRANSP-03's `getAdaptations()` its first UI consumer). Frontend-only wiring for already-built, already-tested backend behavior; also fixes the stale `Adaptation` TypeScript interface so the log renders real schema fields.
 **Requirements**: ADAPT-04, TRANSP-03
 **Depends on:** Phase 12
-**Plans:** 4 plans
+**Plans:** 2/4 plans executed
 
 Plans:
 **Wave 1** *(foundation + docs, parallel — disjoint files)*
 
-- [ ] 13-01-PLAN.md — Fix `Adaptation` interface to real schema + `checkAdaptations()` (api.ts) + `triggerLabel`/`formatDate` (format.ts, extracted from RideRow) + format.test.ts (ADAPT-04, TRANSP-03)
-- [ ] 13-04-PLAN.md — Docs: correct REQUIREMENTS.md traceability (ADAPT-04/TRANSP-03 → Phase 13) + finalize ROADMAP Phase 13 fields (ADAPT-04, TRANSP-03)
+- [x] 13-01-PLAN.md — Fix `Adaptation` interface to real schema + `checkAdaptations()` (api.ts) + `triggerLabel`/`formatDate` (format.ts, extracted from RideRow) + format.test.ts (ADAPT-04, TRANSP-03)
+- [x] 13-04-PLAN.md — Docs: correct REQUIREMENTS.md traceability (ADAPT-04/TRANSP-03 → Phase 13) + finalize ROADMAP Phase 13 fields (ADAPT-04, TRANSP-03)
 
 **Wave 2** *(feature slices, parallel; disjoint files, both depend on 13-01)*
 
