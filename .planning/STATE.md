@@ -21,10 +21,10 @@ current_phase_name: close-gap-adapt-04-transp-03-wire-weekly-adaptation-check-ad
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-21)
+See: .planning/PROJECT.md (updated 2026-07-10)
 
 **Core value:** A beginner with no FTP and no history completes an interview and immediately receives a safe, structured cycling plan with explicit targets — that plan adapts automatically as real ride data arrives.
-**Current focus:** Phase 13 — close-gap-adapt-04-transp-03-wire-weekly-adaptation-check-ad
+**Current focus:** Planning next milestone (v1.0 shipped and archived 2026-07-10)
 
 ## Current Position
 
@@ -178,11 +178,11 @@ None yet.
 
 ## Session Continuity
 
-**Stopped at:** Phase 13 UI-SPEC approved
-**Resume file:** .planning/phases/13-close-gap-adapt-04-transp-03-wire-weekly-adaptation-check-ad/13-UI-SPEC.md
+**Stopped at:** v1.0 milestone completed and archived
+**Resume file:** .planning/MILESTONES.md
 
-Last session: 2026-07-10T16:05:23.368Z
-Next action: `/gsd-plan-phase 10`
+Last session: 2026-07-10T17:02:52.246Z
+Next action: `/gsd-new-milestone`
 
 ## Operator Next Steps
 
